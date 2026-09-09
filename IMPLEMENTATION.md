@@ -4,7 +4,7 @@
 - [Pre-commit gap analysis](#pre-commit-gap-analysis)
 - [Pre-commit improvement plan](#pre-commit-improvement-plan)
 
-The clone-local `.git/hooks/pre-commit` shim is installed with `bash ../br_pre_commit/install.sh "$PWD"` from a target project.
+The consuming project pins this repository as `.tools/br_pre_commit`, then installs the clone-local `.git/hooks/pre-commit` shim with `bash .tools/br_pre_commit/install.sh "$PWD"`.
 
 The installed hook delegates to `src/br_pre_commit/precommit_wrapper.py`. Before running project hooks, the wrapper blocks branches listed by `wrapper.protected-branches` (`["main"]` by default). It then reads the target project's `.pre-commit-config.yaml`, uses one shared staged-files context, runs file-mutating hooks serially, and runs read-only hooks in concurrent subprocesses. Unknown hooks fail by default (`wrapper.unknown-hook-policy` in `.br-pre-commit.toml`); `warn` runs them serially. Each job has the configured timeout.
 

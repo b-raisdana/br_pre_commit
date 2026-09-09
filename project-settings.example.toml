@@ -1,4 +1,4 @@
-# Copy this file to <project>/.br-pre-commit.toml and uncomment only overrides.
+# Copy this file from .tools/br_pre_commit/ to <project>/.br-pre-commit.toml and uncomment only overrides.
 
 # [wrapper]
 # unknown-hook-policy = "warn"     # "error" is the shared default
