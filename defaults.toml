@@ -1,0 +1,10 @@
+# Shared defaults. A project's .br-pre-commit.toml may override any value.
+[wrapper]
+unknown-hook-policy = "error"
+job-timeout-seconds = 900
+
+[ratchet]
+target = "app"
+max-lines = 500
+line-growth-slack = 5
+complexity-ranks = "ABCDEF"
