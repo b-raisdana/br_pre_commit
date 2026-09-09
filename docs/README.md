@@ -1,7 +1,9 @@
 # Documentation
 
-This directory contains focused design and operational notes that supplement
-the root [`README.md`](../README.md) and [`IMPLEMENTATION.md`](../IMPLEMENTATION.md).
+This project is consumed as a **pinned git submodule** (`.tools/br_pre_commit`)
+under consumer repositories. These pages document its shared infrastructure.
+They supplement the root [`README.md`](../README.md) (consumer onboarding and
+the submodule workflow) and [`IMPLEMENTATION.md`](../IMPLEMENTATION.md).
 
 - [`concurrent-wrapper.md`](concurrent-wrapper.md) — the shared concurrent
   pre-commit wrapper: hook classification and scheduling, branch protection,

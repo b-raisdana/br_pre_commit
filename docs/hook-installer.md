@@ -1,9 +1,11 @@
 # Hook installer
 
 `install.sh` writes the clone-local `.git/hooks/pre-commit` shim that bridges
-each consumer project to the shared `br_pre_commit` tool checkout. It does
-**not** copy the tool into the project — the project keeps its own hook
-selection, and the wrapper runs from its shared home.
+each consumer project to the shared `br_pre_commit` tool. The tool is consumed
+as a pinned git submodule (conventionally at `.tools/br_pre_commit`); the
+shim records that submodule's absolute checkout path. It does **not** copy the
+tool into the project — the project keeps its own hook selection, and the
+wrapper runs from its shared home.
 
 ## What the installer writes
 
@@ -36,6 +38,38 @@ exec python "$tool_root/src/br_pre_commit/precommit_wrapper.py" "$@"
 Recording absolute paths is what lets Git run the shared wrapper from any
 working directory inside the repo.
 
+## As a git submodule
+
+This project is consumed as a **pinned git submodule** under consumer projects,
+not as a sibling checkout. The consuming project records the exact
+`br_pre_commit` commit as a submodule gitlink, so it never silently moves when
+this repository's `main` branch changes and never depends on two repos
+happening to live side by side.
+
+The convention is to mount the tool at `.tools/br_pre_commit`:
+
+```sh
+git submodule add https://github.com/b-raisdana/br_pre_commit.git .tools/br_pre_commit
+git add .gitmodules .tools/br_pre_commit
+```
+
+On a fresh clone of the consumer project, initialize the pinned dependency
+before installing the hook:
+
+```sh
+git submodule update --init --recursive
+bash .tools/br_pre_commit/install.sh "$PWD"
+```
+
+To upgrade deliberately, check out a tested commit or tag in the submodule and
+commit the new gitlink:
+
+```sh
+git -C .tools/br_pre_commit fetch origin
+git -C .tools/br_pre_commit checkout <tested-commit-or-tag>
+git add .tools/br_pre_commit
+```
+
 ## Installation
 
 From the consumer project (which must be a Git repository, with `pre-commit`
@@ -51,6 +85,13 @@ bash .tools/br_pre_commit/install.sh "$PWD"
   matter where it is invoked from.
 - The written shim is made executable (`chmod +x`).
 
+Re-run `install.sh` after any of these, because the installed hook records
+absolute paths:
+
+- after upgrading the submodule to a different commit (paths are unchanged, but
+  the launcher source moves with the checkout),
+- after moving either the consumer repo or the submodule to a new directory.
+
 ### WSL vs. native
 
 The shim detects whether it is running under WSL (`command -v wsl.exe`):
@@ -60,11 +101,8 @@ The shim detects whether it is running under WSL (`command -v wsl.exe`):
 - **WSL Git invoking a Windows-side hook context:** re-execs through
   `wsl.exe -d Ubuntu-24.04` with a `bash -lc` that activates the `tf` conda
   environment and `cd`s to the repo root before running the wrapper.
-  `WSLENV` exports the absolute paths into the WSL environment so the shim's
-  recorded values survive the boundary hop.
-
-Re-run `install.sh` after moving either checkout, because the installed hook
-records absolute paths.
+   `WSLENV` exports the absolute paths into the WSL environment so the shim's
+   recorded values survive the boundary hop.
 
 ## Verify the integration
 
