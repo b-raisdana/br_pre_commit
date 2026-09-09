@@ -15,7 +15,13 @@ from pathlib import Path
 
 from pre_commit.staged_files_only import staged_files_only
 from pre_commit.store import Store
-from precommit_config import classify_hooks, enabled_pre_commit_hook_ids, job_timeout_seconds, unknown_hook_policy
+from precommit_config import (
+    classify_hooks,
+    enabled_pre_commit_hook_ids,
+    job_timeout_seconds,
+    protected_branches,
+    unknown_hook_policy,
+)
 
 REPO_ROOT = Path(os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd())).resolve()
 TOOL_ROOT = Path(__file__).resolve().parents[2]
@@ -45,6 +51,13 @@ def _git(*args: str) -> str:
 def _staged_files() -> list[str]:
     output = _git("diff", "--cached", "--name-only")
     return output.splitlines() if output else []
+
+
+def _branch_protection_result(branch: str) -> JobResult | None:
+    if branch not in protected_branches(REPO_ROOT):
+        return None
+    message = f"Direct commits to protected branch '{branch}' are not allowed. Create a feature branch."
+    return JobResult("branch-protection", (), 1, 0.0, "", message)
 
 
 async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
@@ -230,7 +243,22 @@ async def _main_async() -> int:
     branch = _git("rev-parse", "--abbrev-ref", "HEAD")
     staged = _staged_files()
 
-    if not staged:
+    try:
+        branch_result = _branch_protection_result(branch)
+    except ValueError as exc:
+        branch_result = None
+        message = f"configuration error: {exc}"
+        sys.stdout.write(message + "\n")
+        results = [JobResult("configuration", (), 2, 0.0, "", message)]
+    else:
+        results = []
+
+    if branch_result is not None:
+        sys.stdout.write(branch_result.stderr + "\n")
+        results = [branch_result]
+    elif results:
+        pass
+    elif not staged:
         sys.stdout.write("No staged files; running the standard pre-commit pipeline.\n")
         results = [await _run_job("pre-commit", ["pre-commit", "run", "--hook-stage", "pre-commit"], asyncio.Lock())]
     else:

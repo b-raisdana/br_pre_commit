@@ -16,6 +16,22 @@ SPEC.loader.exec_module(precommit_wrapper)
 pytestmark = pytest.mark.unit
 
 
+def test_branch_protection_blocks_main_by_default(monkeypatch):
+    monkeypatch.setattr(precommit_wrapper, "protected_branches", lambda _root: ("main",))
+
+    result = precommit_wrapper._branch_protection_result("main")
+
+    assert result is not None
+    assert result.job_id == "branch-protection"
+    assert result.returncode == 1
+
+
+def test_branch_protection_allows_feature_branch(monkeypatch):
+    monkeypatch.setattr(precommit_wrapper, "protected_branches", lambda _root: ("main",))
+
+    assert precommit_wrapper._branch_protection_result("feature/readmes") is None
+
+
 def test_hook_command_uses_explicit_files_to_avoid_nested_stash():
     command = precommit_wrapper._hook_command("pytest-fast", ["app/a.py", "app/b.py"])
 

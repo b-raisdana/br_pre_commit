@@ -80,6 +80,13 @@ def job_timeout_seconds(repo_root: Path) -> float:
     return timeout
 
 
+def protected_branches(repo_root: Path) -> tuple[str, ...]:
+    branches = _merged_config(repo_root)["wrapper"]["protected-branches"]
+    if not isinstance(branches, list) or any(not isinstance(branch, str) or not branch for branch in branches):
+        raise ValueError("wrapper.protected-branches must be a list of non-empty strings")
+    return tuple(branches)
+
+
 def ratchet_settings(repo_root: Path) -> dict:
     return _merged_config(repo_root)["ratchet"]
 

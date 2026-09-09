@@ -55,7 +55,22 @@ def test_ratchet_hook_is_registered_without_recursion():
 
 
 def test_project_settings_override_shared_defaults(tmp_path):
-    (tmp_path / ".br-pre-commit.toml").write_text('[wrapper]\nunknown-hook-policy = "warn"\njob-timeout-seconds = 42\n')
+    (tmp_path / ".br-pre-commit.toml").write_text(
+        '[wrapper]\nunknown-hook-policy = "warn"\njob-timeout-seconds = 42\nprotected-branches = []\n'
+    )
 
     assert precommit_config.unknown_hook_policy(tmp_path) == "warn"
     assert precommit_config.job_timeout_seconds(tmp_path) == 42
+    assert precommit_config.protected_branches(tmp_path) == ()
+
+
+def test_main_is_protected_by_default(tmp_path):
+    assert precommit_config.protected_branches(tmp_path) == ("main",)
+
+
+@pytest.mark.parametrize("value", ['"main"', '["main", ""]', "[1]"])
+def test_protected_branches_rejects_invalid_values(tmp_path, value):
+    (tmp_path / ".br-pre-commit.toml").write_text(f"[wrapper]\nprotected-branches = {value}\n")
+
+    with pytest.raises(ValueError, match="protected-branches"):
+        precommit_config.protected_branches(tmp_path)
