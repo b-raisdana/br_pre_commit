@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import subprocess
@@ -14,6 +15,8 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 ROOT = Path(os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd())).resolve()
 HERE = Path(__file__).resolve().parent
@@ -40,7 +43,18 @@ MYPY_UNCODED_ERROR_RE = re.compile(r": error: ")
 def load_json(path: Path) -> dict[str, int]:
     if not path.exists():
         return {}
-    return json.loads(path.read_text())
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        log.exception(
+            f"load_json json.loads({path}.read_text()) failed with JSONDecodeError:" + str(e),
+        )
+        raise e
+    except Exception as e:
+        log.exception(
+            f"load_json json.loads({path}.read_text()) failed Generally:" + str(e),
+        )
+        raise e
 
 
 # ---- multi-file baseline management: merge, hash-based names, consolidation ----
