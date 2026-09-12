@@ -1,4 +1,6 @@
 # Shared defaults. A project's .br-pre-commit.toml may override any value.
+# See README.md § "Recognized hook IDs" for the list of hook IDs the wrapper
+# can classify; unrecognized IDs trigger an error under the policy below.
 [wrapper]
 unknown-hook-policy = "error"
 job-timeout-seconds = 900

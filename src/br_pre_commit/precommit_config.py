@@ -36,6 +36,9 @@ class HookSpec:
     mutates_files: bool
 
 
+# Recognized hook IDs the wrapper can classify. Projects must use IDs from
+# these sets; see README.md § "Recognized hook IDs" for the full list and
+# br_pre_commit/.pre-commit-config.yaml as the authoritative reference config.
 _MUTATING_HOOKS = frozenset(
     {
         "trailing-whitespace",
@@ -103,6 +106,14 @@ def enabled_pre_commit_hook_ids(config_path: Path) -> list[str]:
 
 
 def classify_hooks(hook_ids: list[str], *, policy: str) -> tuple[list[HookSpec], list[str]]:
+    """Classify hook IDs into mutating (serial) and read-only (concurrent) specs.
+
+    Hook IDs not in ``_MUTATING_HOOKS`` or ``_READ_ONLY_HOOKS`` are "unknown".
+    With ``policy="error"`` they raise ``ValueError``; with ``"warn"`` they
+    run serially. See README.md § "Recognized hook IDs" for the full list.
+    Projects must use IDs from those sets — see ``br_pre_commit/.pre-commit-config.yaml``
+    as the authoritative reference.
+    """
     specs: list[HookSpec] = []
     unknown: list[str] = []
     for hook_id in hook_ids:

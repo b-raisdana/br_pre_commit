@@ -21,6 +21,40 @@ code/
    project-owned; use this repository's configuration as a starting point and
    adjust its local test command and file patterns.
 
+### Recognized hook IDs
+
+The wrapper classifies every hook ID in your `.pre-commit-config.yaml` against
+two fixed sets defined in `src/br_pre_commit/precommit_config.py`:
+
+- **Mutating hooks** (run serially, before read-only hooks) — fixers that modify
+  staged files: `trailing-whitespace`, `end-of-file-fixer`, `mixed-line-ending`,
+  `ruff`, `ruff-format`, `sync-skill-files`
+
+- **Read-only hooks** (run concurrently) — checkers that do not modify files:
+  `check-yaml`, `check-toml`, `check-added-large-files`, `check-merge-conflict`,
+  `check-case-conflict`, `debug-statements`, `incremental-ratchet`,
+  `pytest-fast`, `pytest-integration-collect`, `integration-tests`,
+  `check-pandera-decorator`, `no-commit-to-main`
+
+**Every hook ID must be in one of these sets.** Any ID not recognized is treated
+as "unregistered." With the default `wrapper.unknown-hook-policy = "error"`
+(see `defaults.toml`), an unregistered hook aborts the commit with:
+
+```
+configuration error: unregistered pre-commit hook(s): <ids>
+```
+
+The `br_pre_commit/.pre-commit-config.yaml` in this repository is the authoritative
+reference — its hook IDs are all registered (enforced by
+`tests/test_precommit_config.py::test_repository_pre_commit_config_uses_registered_hooks`).
+Copy from it rather than inventing new IDs. For example, use `ruff` (not
+`ruff-check`) and `pytest-fast` (not `pytest`).
+
+If a project has a genuinely custom hook that does not fit these categories, set
+`wrapper.unknown-hook-policy = "warn"` in `.br-pre-commit.toml` (see
+`project-settings.example.toml`); unknown hooks then run serially instead of
+blocking. This is a workaround, not a replacement for using registered IDs.
+
 2. From `my_project`, install the clone-local hook:
 
 ```sh
