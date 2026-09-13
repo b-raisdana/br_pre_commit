@@ -172,27 +172,62 @@ async def _run_hooks(staged: list[str]) -> list[JobResult]:
                 timeout_seconds=timeout,
             )
         )
+        jobs.append(
+            _run_job(
+                "advisory-radon",
+                ["radon", "mi", "--show", "--min", "B", "--max", "C", *py_files],
+                terminal_lock,
+                stream_output=False,
+                timeout_seconds=timeout,
+            )
+        )
     results.extend(await asyncio.gather(*jobs))
     return results
 
 
 def _advisory_warnings(results: list[JobResult]) -> list[dict[str, object]]:
-    result = next((item for item in results if item.job_id == "advisory-ruff"), None)
-    if result is None:
-        return []
-    try:
-        violations = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError:
-        return []
-    return [
-        {
-            "file": Path(v["filename"]).resolve().relative_to(REPO_ROOT).as_posix(),
-            "line": v["location"]["row"],
-            "code": v["code"],
-            "message": v["message"],
-        }
-        for v in violations
-    ]
+    warnings: list[dict[str, object]] = []
+
+    ruff_result = next((item for item in results if item.job_id == "advisory-ruff"), None)
+    if ruff_result is not None:
+        try:
+            violations = json.loads(ruff_result.stdout or "[]")
+        except json.JSONDecodeError:
+            pass
+        else:
+            warnings.extend(
+                {
+                    "file": Path(v["filename"]).resolve().relative_to(REPO_ROOT).as_posix(),
+                    "line": v["location"]["row"],
+                    "code": v["code"],
+                    "message": v["message"],
+                }
+                for v in violations
+            )
+
+    radon_result = next((item for item in results if item.job_id == "advisory-radon"), None)
+    if radon_result is not None:
+        for line in radon_result.stdout.splitlines():
+            line = line.strip()
+            if not line or " - " not in line:
+                continue
+            # radon mi output: "path/to/file.py - B (12.34)"
+            try:
+                file_part, score_part = line.split(" - ", 1)
+                rank, score = score_part.split()
+                score = score.strip("()")
+                warnings.append(
+                    {
+                        "file": file_part.strip(),
+                        "line": 0,
+                        "code": f"radon-mi-{rank}",
+                        "message": f"Maintainability Index: {score} ({rank})",
+                    }
+                )
+            except (IndexError, ValueError):
+                continue
+
+    return warnings
 
 
 def _write_report(human_ts: str, results: list[JobResult]) -> Path:
@@ -263,6 +298,9 @@ async def _main_async() -> int:
         results = [await _run_job("pre-commit", ["pre-commit", "run", "--hook-stage", "pre-commit"], asyncio.Lock())]
     else:
         try:
+            # This context restores its private patch in a finally block, including
+            # when asyncio cancellation propagates after Ctrl-C. It does not use or
+            # mutate the user's git stash.
             with staged_files_only(Store().directory):
                 results = await _run_hooks(staged)
         except ValueError as exc:
@@ -270,7 +308,7 @@ async def _main_async() -> int:
             sys.stdout.write(message + "\n")
             results = [JobResult("configuration", (), 2, 0.0, "", message)]
 
-    passed = all(result.returncode == 0 for result in results if result.job_id != "advisory-ruff")
+    passed = all(result.returncode == 0 for result in results if not result.job_id.startswith("advisory-"))
     snapshot_dir: str | None = None
     if not passed:
         backup_result, snapshot_dir = await _run_backup(asyncio.Lock())

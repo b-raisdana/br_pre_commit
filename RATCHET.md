@@ -26,7 +26,7 @@ Fix: two independent layers, computed fresh on every commit - no persisted per-f
 | tool | rule |
 | --- | --- |
 | `mypy` / `ruff` / `xenon` | zero tolerance: a touched file's own violation count may not increase at all. A new file has an implicit before of 0, so any violation in it already blocks - no special case needed. |
-| `loc` | a file already over 500 lines may grow by at most a 5-line slack (`LOC_SLACK`) - not a hard freeze, so a small legitimate fix isn't blocked outright. A brand-new file must be ≤500 lines at introduction (the slack-diff rule alone can't cover a file with no "before"). A file crossing 500 lines for the first time in this commit isn't blocked by this rule - only the non-blocking project-wide sum notices it. |
+| `loc` | a file already over 300 lines may grow by at most a 5-line slack (`LOC_SLACK`) - not a hard freeze, so a small legitimate fix isn't blocked outright. A brand-new file must be ≤300 lines at introduction (the slack-diff rule alone can't cover a file with no "before"). A file crossing 300 lines for the first time in this commit isn't blocked by this rule - only the non-blocking project-wide sum notices it. |
 
 Splitting an over-limit file into two or more files is a legitimate way to get back under the loc cap - there's no equivalent escape for `mypy`/`ruff`/`xenon` since those count actual defects, not size. Whether a split was a meaningful seam vs. arbitrary chopping to dodge the check isn't something line counts alone can judge - left as a review norm, not a mechanical check.
 
@@ -42,8 +42,8 @@ Getting an accurate per-file "before" count for `mypy` needs the whole `app/` pa
 | --- | --- | --- |
 | `mypy:code` | `mypy --config-file pyproject.toml app` | one key per bracketed `[code]` on each `error:` line; lines with no code fall into `mypy:uncoded` |
 | `ruff:code` | `ruff check app --output-format=json` | one key per violation's `code` field |
-| `xenon` | `radon cc app -j` | single count: blocks ranked worse than `B` (matches `.pre-commit-config.yaml`'s `--max-absolute B`) |
-| `loc` | walks `app/**/*.py` | single count: sum of `max(0, line_count - 500)` per file |
+| `xenon` | `radon cc app -j` | single count: blocks ranked worse than `B` (configurable via `ratchet.xenon-max-absolute`, default `B`) |
+| `loc` | walks `app/**/*.py` | single count: sum of `max(0, line_count - 300)` per file |
 
 `mypy`/`ruff` are split per rule/error code so the trend stays legible as rules are added or removed over time (each code bootstraps/retires independently) - this has no effect on blocking, which is entirely the per-file gate above.
 

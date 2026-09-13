@@ -83,6 +83,34 @@ def test_write_report_orders_results_and_preserves_streams(tmp_path, monkeypatch
     assert "first-out" in report and "second-err" in report
 
 
+def test_advisory_warnings_parse_ruff_and_radon_results(monkeypatch, tmp_path):
+    monkeypatch.setattr(precommit_wrapper, "REPO_ROOT", tmp_path)
+    source = tmp_path / "app" / "module.py"
+    results = [
+        precommit_wrapper.JobResult(
+            "advisory-ruff",
+            (),
+            1,
+            0.0,
+            '[{"filename": "'
+            + source.as_posix()
+            + '", "location": {"row": 7}, "code": "ERA001", "message": "commented code"}]',
+            "",
+        ),
+        precommit_wrapper.JobResult("advisory-radon", (), 0, 0.0, "app/module.py - B (12.34)\n", ""),
+    ]
+
+    assert precommit_wrapper._advisory_warnings(results) == [
+        {"file": "app/module.py", "line": 7, "code": "ERA001", "message": "commented code"},
+        {
+            "file": "app/module.py",
+            "line": 0,
+            "code": "radon-mi-B",
+            "message": "Maintainability Index: 12.34 (B)",
+        },
+    ]
+
+
 def test_run_hooks_finishes_mutators_before_starting_read_only_jobs(monkeypatch):
     calls = []
     both_readers_started = asyncio.Event()

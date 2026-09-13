@@ -7,6 +7,7 @@
 
 # [ratchet]
 # target = "src"                   # "app" is the shared default
-# max-lines = 600                   # 500 is the shared default
-# line-growth-slack = 10            # 5 is the shared default
-# complexity-ranks = "CDEF"         # "ABCDEF" is the shared default
+# max-lines = 300                   # 300 is the shared default
+# line-growth-slack = 5            # 5 is the shared default
+# complexity-ranks = "ABCDEF"       # "ABCDEF" is the shared default
+# xenon-max-absolute = "B"          # "B" is the shared default

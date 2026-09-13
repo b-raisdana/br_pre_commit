@@ -8,6 +8,7 @@ protected-branches = ["main"]
 
 [ratchet]
 target = "app"
-max-lines = 500
+max-lines = 300
 line-growth-slack = 5
 complexity-ranks = "ABCDEF"
+xenon-max-absolute = "B"

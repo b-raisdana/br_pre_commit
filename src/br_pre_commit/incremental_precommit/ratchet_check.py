@@ -35,6 +35,7 @@ TARGET = str(_SETTINGS["target"])
 COMPLEXITY_RANKS = str(_SETTINGS["complexity-ranks"])
 LOC_MAX_LINES = int(_SETTINGS["max-lines"])
 LOC_SLACK = int(_SETTINGS["line-growth-slack"])
+XENON_MAX_ABSOLUTE = str(_SETTINGS["xenon-max-absolute"])
 
 MYPY_CODED_ERROR_RE = re.compile(r": error: .*\[([\w-]+)\]\s*$")
 MYPY_UNCODED_ERROR_RE = re.compile(r": error: ")
@@ -206,14 +207,14 @@ def xenon_run(root: Path = ROOT) -> dict:
     return _parse_xenon_json(stdout)
 
 
-def _xenon_total(data: dict, max_absolute: str = "B") -> int:
+def _xenon_total(data: dict, max_absolute: str = XENON_MAX_ABSOLUTE) -> int:
     threshold = COMPLEXITY_RANKS.index(max_absolute)
     return sum(
         1 for blocks in data.values() for block in blocks if COMPLEXITY_RANKS.index(block.get("rank", "A")) > threshold
     )
 
 
-def _group_xenon_by_file(data: dict, max_absolute: str = "B") -> dict[str, int]:
+def _group_xenon_by_file(data: dict, max_absolute: str = XENON_MAX_ABSOLUTE) -> dict[str, int]:
     threshold = COMPLEXITY_RANKS.index(max_absolute)
     result: dict[str, int] = {}
     for file_path, blocks in data.items():
@@ -347,7 +348,7 @@ def print_mypy_details(paths: list[Path]) -> None:
     print(output.rstrip() or "    mypy reported no errors on these files")
 
 
-def print_xenon_details(paths: list[Path], max_absolute: str = "B") -> None:
+def print_xenon_details(paths: list[Path], max_absolute: str = XENON_MAX_ABSOLUTE) -> None:
     paths = _exclude_tests(paths)
     if not paths:
         print("    no files to inspect")
@@ -364,7 +365,7 @@ def print_xenon_details(paths: list[Path], max_absolute: str = "B") -> None:
             print(f"    {file_path}:{block.get('lineno')} {block.get('type')} {block.get('name')} rank {rank}")
             printed = True
     if not printed:
-        print("    xenon/radon reported no rank > B blocks on these files")
+        print(f"    xenon/radon reported no rank > {max_absolute} blocks on these files")
 
 
 def print_loc_details(paths: list[Path], max_lines: int = LOC_MAX_LINES) -> None:

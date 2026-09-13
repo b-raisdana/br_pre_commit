@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src/br_pre_commit/incremental_precommit"))
-import ratchet_check  # noqa: E402
+import ratchet_check
 
 pytestmark = pytest.mark.unit
 
@@ -59,7 +59,7 @@ def test_xenon_total_and_by_file_share_the_same_threshold():
 
 
 def test_loc_excess_total_sums_only_the_overage():
-    assert ratchet_check.loc_excess_total({"a.py": 300, "b.py": 520, "c.py": 505}) == 25
+    assert ratchet_check.loc_excess_total({"a.py": 100, "b.py": 320, "c.py": 305}) == 25
 
 
 def test_current_analyzers_start_concurrently(monkeypatch):
@@ -174,11 +174,11 @@ def test_new_file_has_implicit_zero_before_for_mypy_ruff_xenon(monkeypatch):
 def test_loc_new_file_must_fit_under_cap(monkeypatch):
     touched = [ratchet_check.TouchedFile(path=Path("app/new.py"), is_new=True, old_path=None)]
 
-    monkeypatch.setattr(ratchet_check, "_line_count", lambda path: 600)
-    blocked = ratchet_check.evaluate_file_gate(touched, _dicts(), _dicts())
-    assert ("loc-new-file", Path("app/new.py"), 0, 600) in blocked
-
     monkeypatch.setattr(ratchet_check, "_line_count", lambda path: 400)
+    blocked = ratchet_check.evaluate_file_gate(touched, _dicts(), _dicts())
+    assert ("loc-new-file", Path("app/new.py"), 0, 400) in blocked
+
+    monkeypatch.setattr(ratchet_check, "_line_count", lambda path: 250)
     blocked = ratchet_check.evaluate_file_gate(touched, _dicts(), _dicts())
     assert not any(b[0].startswith("loc") for b in blocked)
 
@@ -186,21 +186,21 @@ def test_loc_new_file_must_fit_under_cap(monkeypatch):
 def test_loc_slack_only_applies_once_a_file_is_already_over_the_cap(monkeypatch):
     touched = [ratchet_check.TouchedFile(path=Path("app/a.py"), is_new=False, old_path=Path("app/a.py"))]
 
-    # already over 500, grows past the +5 slack -> blocked
-    monkeypatch.setattr(ratchet_check, "_head_line_count", lambda relpath: 520)
-    monkeypatch.setattr(ratchet_check, "_line_count", lambda path: 526)
+    # already over 300, grows past the +5 slack -> blocked
+    monkeypatch.setattr(ratchet_check, "_head_line_count", lambda relpath: 320)
+    monkeypatch.setattr(ratchet_check, "_line_count", lambda path: 326)
     blocked = ratchet_check.evaluate_file_gate(touched, _dicts(), _dicts())
-    assert ("loc", Path("app/a.py"), 520, 526) in blocked
+    assert ("loc", Path("app/a.py"), 320, 326) in blocked
 
-    # already over 500, grows within the +5 slack -> not blocked
-    monkeypatch.setattr(ratchet_check, "_line_count", lambda path: 524)
+    # already over 300, grows within the +5 slack -> not blocked
+    monkeypatch.setattr(ratchet_check, "_line_count", lambda path: 324)
     blocked = ratchet_check.evaluate_file_gate(touched, _dicts(), _dicts())
     assert blocked == []
 
-    # was under 500 before, jumps well past 500 -> not blocked by this rule (by design:
+    # was under 300 before, jumps well past 300 -> not blocked by this rule (by design:
     # only the non-blocking project-wide sum notices a file crossing the cap for the first time)
-    monkeypatch.setattr(ratchet_check, "_head_line_count", lambda relpath: 490)
-    monkeypatch.setattr(ratchet_check, "_line_count", lambda path: 900)
+    monkeypatch.setattr(ratchet_check, "_head_line_count", lambda relpath: 290)
+    monkeypatch.setattr(ratchet_check, "_line_count", lambda path: 700)
     blocked = ratchet_check.evaluate_file_gate(touched, _dicts(), _dicts())
     assert blocked == []
 
