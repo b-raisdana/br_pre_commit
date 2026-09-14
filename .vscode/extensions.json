@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "ms-vscode-remote.remote-wsl",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "charliermarsh.ruff",
+    "ms-python.mypy-type-checker",
+    "ms-toolsai.jupyter",
+    "ms-toolsai.jupyter-renderers",
+    "esbenp.prettier-vscode",
+    "streetsidesoftware.code-spell-checker",
+    "ltex-plus.vscode-ltex-plus"
+  ]
+}

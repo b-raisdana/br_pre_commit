@@ -1,0 +1,78 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Debug Current File",
+      "type": "python",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYDEVD_DISABLE_FILE_VALIDATION": "1"
+      }
+    },
+    {
+      "name": "Python: Debug Current File (no justMyCode)",
+      "type": "python",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYDEVD_DISABLE_FILE_VALIDATION": "1"
+      }
+    },
+    {
+      "name": "Python: Debug pytest (file)",
+      "type": "python",
+      "request": "launch",
+      "program": "-m",
+      "args": [
+        "pytest",
+        "${file}"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYDEVD_DISABLE_FILE_VALIDATION": "1"
+      }
+    },
+    {
+      "name": "Python: Debug pytest (selected)",
+      "type": "python",
+      "request": "launch",
+      "program": "-m",
+      "args": [
+        "pytest",
+        "${file}:${line}"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYDEVD_DISABLE_FILE_VALIDATION": "1"
+      }
+    },
+    {
+      "name": "Python: Debug pytest (all)",
+      "type": "python",
+      "request": "launch",
+      "program": "-m",
+      "args": [
+        "pytest"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYDEVD_DISABLE_FILE_VALIDATION": "1"
+      }
+    }
+  ]
+}

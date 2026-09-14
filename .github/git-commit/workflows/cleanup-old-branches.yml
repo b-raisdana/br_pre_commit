@@ -1,0 +1,96 @@
+name: Cleanup Old Merged Branches
+
+on:
+  schedule:
+    # Every day at 03:00 UTC
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cleanup old merged branches
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          readonly MAX_AGE_DAYS=7
+          readonly CUTOFF="$(date -d "${MAX_AGE_DAYS} days ago" +%s)"
+
+          # Only these branch prefixes are eligible for automatic deletion.
+          readonly ALLOWED_PREFIXES=(
+            "fix/"
+            "feat/"
+            "chore/"
+            "docs/"
+            "doc/"
+            "test/"
+            "refactor/"
+            "perf/"
+            "build/"
+            "ci/"
+            "churn/"
+          )
+
+          is_allowed_branch() {
+            local branch="$1"
+
+            for prefix in "${ALLOWED_PREFIXES[@]}"; do
+              if [[ "$branch" == "$prefix"* ]]; then
+                return 0
+              fi
+            done
+
+            return 1
+          }
+
+          echo "Fetching remote branches..."
+          git fetch --prune origin
+
+          while read -r branch; do
+
+            # Safety: never delete main.
+            [[ "$branch" == "main" ]] && continue
+
+            # Only process explicitly allowed branch prefixes.
+            if ! is_allowed_branch "$branch"; then
+              echo "SKIP  $branch (prefix not allowed)"
+              continue
+            fi
+
+            # Strong safety check:
+            # branch must be fully merged into main.
+            if ! git merge-base --is-ancestor \
+                "origin/$branch" \
+                "origin/main"; then
+              echo "KEEP  $branch (contains unmerged commits)"
+              continue
+            fi
+
+            # Get timestamp of the branch's latest commit.
+            commit_time="$(git log -1 --format=%ct "origin/$branch")"
+
+            if (( commit_time >= CUTOFF )); then
+              echo "KEEP  $branch (latest commit is less than ${MAX_AGE_DAYS} days old)"
+              continue
+            fi
+
+            echo "DELETE $branch (fully merged and older than ${MAX_AGE_DAYS} days)"
+
+            git push origin --delete "$branch"
+
+          done < <(
+            git for-each-ref \
+              --format='%(refname:strip=3)' \
+              refs/remotes/origin/
+          )

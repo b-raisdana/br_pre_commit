@@ -1,0 +1,9 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "mcp": {
+    "jupyter": {
+      "type": "remote",
+      "url": "http://127.0.0.1:8888/mcp?token=267fd5fe51ea8f46baef650f2d1ebc3ad22e0a2373aefe30"
+    }
+  }
+}
