@@ -33,3 +33,12 @@ repos:
         entry: python -m pytest -q -m unit
         pass_filenames: false
         files: ^(src/.*\.py|tests/.*\.py|pyproject\.toml)$
+
+  - repo: local
+    hooks:
+      - id: incremental-ratchet
+        name: incremental ratchet
+        language: system
+        entry: ../br_pre_commit/ratchet
+        pass_filenames: false
+        files: ^src/.*\.py$

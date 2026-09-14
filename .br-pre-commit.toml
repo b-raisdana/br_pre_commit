@@ -1,0 +1,6 @@
+[ratchet]
+target = "src"
+max-lines = 300
+line-growth-slack = 5
+complexity-ranks = "ABCDEF"
+xenon-max-absolute = "B"
