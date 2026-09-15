@@ -9,27 +9,20 @@ import logging
 import shutil
 import sys
 import zlib
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 log = logging.getLogger("backup")
 
+sys.path.insert(0, str(Path(__file__).parent))
+
+from models import Manifest  # noqa: E402
+
 STAGED_PREFIX = "staged"
 UNSTAGED_PREFIX = "unstaged"
 UNTRACKED_PREFIX = "untracked"
-
-
-@dataclass
-class Manifest:
-    branch: str
-    commit_hash: str
-    timestamp: str
-    snapshot_dir: str
-    staged: list[dict[str, str]]
-    unstaged: list[dict[str, str]]
-    untracked: list[dict[str, str]]
 
 
 def _flatten_path(path: str) -> str:

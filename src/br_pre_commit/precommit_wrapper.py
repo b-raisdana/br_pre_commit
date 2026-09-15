@@ -9,10 +9,12 @@ import os
 import signal
 import subprocess
 import sys
+from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from precommit_config import (
+    HookSpec,
     classify_hooks,
     enabled_pre_commit_hook_ids,
     job_timeout_seconds,
@@ -139,6 +141,37 @@ async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
         await proc.wait()
 
 
+def _reader_jobs(
+    specs: Sequence[HookSpec], staged: list[str], terminal_lock: asyncio.Lock, timeout: float
+) -> list[Awaitable[JobResult]]:
+    return [
+        _run_job(spec.hook_id, _hook_command(spec.hook_id, staged), terminal_lock, timeout_seconds=timeout)
+        for spec in specs
+        if not spec.mutates_files
+    ]
+
+
+def _advisory_jobs(py_files: list[str], terminal_lock: asyncio.Lock, timeout: float) -> list[Awaitable[JobResult]]:
+    if not py_files:
+        return []
+    return [
+        _run_job(
+            "advisory-ruff",
+            ["ruff", "check", "--select", ADVISORY_RUFF_RULES, "--output-format=json", *py_files],
+            terminal_lock,
+            stream_output=False,
+            timeout_seconds=timeout,
+        ),
+        _run_job(
+            "advisory-radon",
+            ["radon", "mi", "--show", "--min", "B", "--max", "C", *py_files],
+            terminal_lock,
+            stream_output=False,
+            timeout_seconds=timeout,
+        ),
+    ]
+
+
 async def _run_hooks(staged: list[str]) -> list[JobResult]:
     policy = unknown_hook_policy(REPO_ROOT)
     timeout = job_timeout_seconds(REPO_ROOT)
@@ -153,31 +186,9 @@ async def _run_hooks(staged: list[str]) -> list[JobResult]:
             await _run_job(spec.hook_id, _hook_command(spec.hook_id, staged), terminal_lock, timeout_seconds=timeout)
         )
 
-    jobs = [
-        _run_job(spec.hook_id, _hook_command(spec.hook_id, staged), terminal_lock, timeout_seconds=timeout)
-        for spec in specs
-        if not spec.mutates_files
-    ]
+    jobs = _reader_jobs(specs, staged, terminal_lock, timeout)
     py_files = [f for f in staged if f.startswith("app/") and f.endswith(".py") and (REPO_ROOT / f).exists()]
-    if py_files:
-        jobs.append(
-            _run_job(
-                "advisory-ruff",
-                ["ruff", "check", "--select", ADVISORY_RUFF_RULES, "--output-format=json", *py_files],
-                terminal_lock,
-                stream_output=False,
-                timeout_seconds=timeout,
-            )
-        )
-        jobs.append(
-            _run_job(
-                "advisory-radon",
-                ["radon", "mi", "--show", "--min", "B", "--max", "C", *py_files],
-                terminal_lock,
-                stream_output=False,
-                timeout_seconds=timeout,
-            )
-        )
+    jobs.extend(_advisory_jobs(py_files, terminal_lock, timeout))
     results.extend(await asyncio.gather(*jobs))
     return results
 

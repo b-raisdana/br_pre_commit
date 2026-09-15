@@ -15,27 +15,16 @@ import json
 import logging
 import sys
 import time
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TextIO
 
 from git import Repo
 from git.exc import GitCommandError
+from models import Manifest
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("recover")
-
-
-@dataclass
-class Manifest:
-    branch: str
-    commit_hash: str
-    timestamp: str
-    snapshot_dir: str
-    staged: list[dict[str, str]]
-    unstaged: list[dict[str, str]]
-    untracked: list[dict[str, str]]
 
 
 @lru_cache
@@ -139,6 +128,30 @@ def _recover_untracked(
     return failures
 
 
+def _checkout_commit(r: Repo, manifest: Manifest, dry_run: bool) -> None:
+    if dry_run:
+        log.info("[dry-run] would checkout commit %s", manifest.commit_hash)
+        return
+    r.git.checkout(manifest.commit_hash)
+    log.info("Checked out commit %s", manifest.commit_hash)
+
+
+def _recover_category(
+    repo_root: Path,
+    snapshot_dir: Path,
+    manifest: Manifest,
+    category: str,
+    dry_run: bool,
+) -> list[str]:
+    if category == "staged":
+        return _recover_patches(repo_root, snapshot_dir, manifest.staged, category, True, dry_run)
+    if category == "unstaged":
+        return _recover_patches(repo_root, snapshot_dir, manifest.unstaged, category, False, dry_run)
+    if category == "untracked":
+        return _recover_untracked(repo_root, snapshot_dir, manifest.untracked, dry_run)
+    return [f"unknown recovery category: {category}"]
+
+
 def recover(
     snapshot_dir: Path,
     repo_root: Path,
@@ -161,20 +174,11 @@ def recover(
 
         r = repo(repo_root)
         if to_commit:
-            if dry_run:
-                log.info("[dry-run] would checkout commit %s", manifest.commit_hash)
-            else:
-                r.git.checkout(manifest.commit_hash)
-                log.info("Checked out commit %s", manifest.commit_hash)
+            _checkout_commit(r, manifest, dry_run)
 
         categories = ["staged", "unstaged", "untracked"] if only is None else [only]
         for category in categories:
-            if category == "staged":
-                failures.extend(_recover_patches(repo_root, snapshot_dir, manifest.staged, category, True, dry_run))
-            elif category == "unstaged":
-                failures.extend(_recover_patches(repo_root, snapshot_dir, manifest.unstaged, category, False, dry_run))
-            elif category == "untracked":
-                failures.extend(_recover_untracked(repo_root, snapshot_dir, manifest.untracked, dry_run))
+            failures.extend(_recover_category(repo_root, snapshot_dir, manifest, category, dry_run))
     finally:
         if lock_fd is not None:
             _release_lock(lock_fd)

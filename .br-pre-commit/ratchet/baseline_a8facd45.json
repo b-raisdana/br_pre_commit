@@ -3,5 +3,5 @@
   "mypy:func-returns-value": 0,
   "mypy:import-untyped": 0,
   "mypy:var-annotated": 0,
-  "xenon": 2
+  "xenon": 0
 }

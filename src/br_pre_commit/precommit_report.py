@@ -198,5 +198,5 @@ def main() -> int:
 if __name__ == "__main__":
     from precommit_wrapper import REPO_ROOT, log  # noqa: F402,E402  # type: ignore[has-type]
 
-    log.info("Running pre-commit wrapper in %s", REPO_ROOT)
+    log.info("Running pre-commit wrapper in %s", REPO_ROOT)  # type: ignore[has-type]
     sys.exit(main())
