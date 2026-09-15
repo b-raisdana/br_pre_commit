@@ -1,7 +1,0 @@
-{
-  "loc": 386,
-  "mypy:func-returns-value": 1,
-  "mypy:import-untyped": 3,
-  "mypy:var-annotated": 1,
-  "xenon": 9
-}

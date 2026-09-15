@@ -10,11 +10,8 @@ import signal
 import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
-from pre_commit.staged_files_only import staged_files_only
-from pre_commit.store import Store
 from precommit_config import (
     classify_hooks,
     enabled_pre_commit_hook_ids,
@@ -58,19 +55,6 @@ def _branch_protection_result(branch: str) -> JobResult | None:
         return None
     message = f"Direct commits to protected branch '{branch}' are not allowed. Create a feature branch."
     return JobResult("branch-protection", (), 1, 0.0, "", message)
-
-
-async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
-    if proc.returncode is not None:
-        return
-    try:
-        os.killpg(proc.pid, signal.SIGTERM)
-        await asyncio.wait_for(proc.wait(), timeout=3)
-    except ProcessLookupError:
-        return
-    except TimeoutError:
-        os.killpg(proc.pid, signal.SIGKILL)
-        await proc.wait()
 
 
 async def _run_job(
@@ -142,6 +126,19 @@ def _hook_command(hook_id: str, staged: list[str]) -> list[str]:
     return ["pre-commit", "run", hook_id, "--hook-stage", "pre-commit", "--color", "always", "--files", *staged]
 
 
+async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
+    if proc.returncode is not None:
+        return
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+        await asyncio.wait_for(proc.wait(), timeout=3)
+    except ProcessLookupError:
+        return
+    except TimeoutError:
+        os.killpg(proc.pid, signal.SIGKILL)
+        await proc.wait()
+
+
 async def _run_hooks(staged: list[str]) -> list[JobResult]:
     policy = unknown_hook_policy(REPO_ROOT)
     timeout = job_timeout_seconds(REPO_ROOT)
@@ -185,73 +182,6 @@ async def _run_hooks(staged: list[str]) -> list[JobResult]:
     return results
 
 
-def _advisory_warnings(results: list[JobResult]) -> list[dict[str, object]]:
-    warnings: list[dict[str, object]] = []
-
-    ruff_result = next((item for item in results if item.job_id == "advisory-ruff"), None)
-    if ruff_result is not None:
-        try:
-            violations = json.loads(ruff_result.stdout or "[]")
-        except json.JSONDecodeError:
-            pass
-        else:
-            warnings.extend(
-                {
-                    "file": Path(v["filename"]).resolve().relative_to(REPO_ROOT).as_posix(),
-                    "line": v["location"]["row"],
-                    "code": v["code"],
-                    "message": v["message"],
-                }
-                for v in violations
-            )
-
-    radon_result = next((item for item in results if item.job_id == "advisory-radon"), None)
-    if radon_result is not None:
-        for line in radon_result.stdout.splitlines():
-            line = line.strip()
-            if not line or " - " not in line:
-                continue
-            # radon mi output: "path/to/file.py - B (12.34)"
-            try:
-                file_part, score_part = line.split(" - ", 1)
-                rank, score = score_part.split()
-                score = score.strip("()")
-                warnings.append(
-                    {
-                        "file": file_part.strip(),
-                        "line": 0,
-                        "code": f"radon-mi-{rank}",
-                        "message": f"Maintainability Index: {score} ({rank})",
-                    }
-                )
-            except (IndexError, ValueError):
-                continue
-
-    return warnings
-
-
-def _write_report(human_ts: str, results: list[JobResult]) -> Path:
-    report_dir = LOG_DIR / "pre-commit-runs"
-    report_dir.mkdir(parents=True, exist_ok=True)
-    report_path = report_dir / f"{human_ts}.log"
-    sections = [
-        f"## {result.job_id}\nstatus: {'pass' if result.returncode == 0 else 'fail'}\n"
-        f"exit: {result.returncode}\nduration_seconds: {result.duration_seconds:.3f}\n"
-        f"command: {' '.join(result.command)}\n\nstdout:\n{result.stdout}\n\nstderr:\n{result.stderr}\n"
-        for result in results
-    ]
-    temporary_path = report_path.with_suffix(".tmp")
-    temporary_path.write_text("\n".join(sections), encoding="utf-8")
-    temporary_path.replace(report_path)
-    return report_path
-
-
-def _append_summary(entry: dict[str, object]) -> None:
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    with LOG_FILE.open("a", encoding="utf-8") as output:
-        output.write(json.dumps(entry) + "\n")
-
-
 async def _run_backup(terminal_lock: asyncio.Lock) -> tuple[JobResult, str | None]:
     result = await _run_job(
         "backup",
@@ -272,82 +202,12 @@ async def _run_backup(terminal_lock: asyncio.Lock) -> tuple[JobResult, str | Non
     return result, snapshot_dir
 
 
-async def _main_async() -> int:
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    human_ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
-    branch = _git("rev-parse", "--abbrev-ref", "HEAD")
-    staged = _staged_files()
-
-    try:
-        branch_result = _branch_protection_result(branch)
-    except ValueError as exc:
-        branch_result = None
-        message = f"configuration error: {exc}"
-        sys.stdout.write(message + "\n")
-        results = [JobResult("configuration", (), 2, 0.0, "", message)]
-    else:
-        results = []
-
-    if branch_result is not None:
-        sys.stdout.write(branch_result.stderr + "\n")
-        results = [branch_result]
-    elif results:
-        pass
-    elif not staged:
-        sys.stdout.write("No staged files; running the standard pre-commit pipeline.\n")
-        results = [await _run_job("pre-commit", ["pre-commit", "run", "--hook-stage", "pre-commit"], asyncio.Lock())]
-    else:
-        try:
-            # This context restores its private patch in a finally block, including
-            # when asyncio cancellation propagates after Ctrl-C. It does not use or
-            # mutate the user's git stash.
-            with staged_files_only(Store().directory):
-                results = await _run_hooks(staged)
-        except ValueError as exc:
-            message = f"configuration error: {exc}"
-            sys.stdout.write(message + "\n")
-            results = [JobResult("configuration", (), 2, 0.0, "", message)]
-
-    passed = all(result.returncode == 0 for result in results if not result.job_id.startswith("advisory-"))
-    snapshot_dir: str | None = None
-    if not passed:
-        backup_result, snapshot_dir = await _run_backup(asyncio.Lock())
-        results.append(backup_result)
-
-    report_path = _write_report(human_ts, results)
-    warnings = _advisory_warnings(results)
-    for hit in warnings:
-        sys.stdout.write(f"warning: {hit['file']}:{hit['line']} {hit['code']} {hit['message']}\n")
-
-    entry: dict[str, object] = {
-        "timestamp": timestamp,
-        "branch": branch,
-        "staged_files": staged,
-        "result": "pass" if passed else "fail",
-        "jobs": {result.job_id: result.returncode for result in results},
-        "advisory_lint_warnings": warnings,
-        "report": report_path.relative_to(REPO_ROOT).as_posix(),
-    }
-    if snapshot_dir is not None:
-        entry["snapshot_dir"] = snapshot_dir
-    _append_summary(entry)
-
-    if not passed:
-        sys.stdout.write(f"Pre-commit failed; report: {report_path.relative_to(REPO_ROOT)}\n")
-        if snapshot_dir:
-            sys.stdout.write(f"Working state backed up to {snapshot_dir}\n")
-        return 1
-    return 0
-
-
-def main() -> int:
-    try:
-        return asyncio.run(_main_async())
-    except KeyboardInterrupt as exc:
-        log.error("Pre-commit wrapper terminated: %s", exc)
-        return 1
-
+from precommit_report import (  # noqa: E402, F401
+    _advisory_warnings,
+    _main_async,
+    _write_report,
+    main,
+)
 
 if __name__ == "__main__":
-    log.info("Running pre-commit wrapper in %s", REPO_ROOT)
     sys.exit(main())
