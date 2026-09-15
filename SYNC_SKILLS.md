@@ -9,6 +9,7 @@ Wired in `.pre-commit-config.yaml` as `sync-skill-files` and runs when a `SKILL.
 1. **Detect from git (source of truth).** The skills that need attention are read from `git diff --cached --name-status` — additions, modifications, renames and staged deletions. Working-tree-only edits that are not staged are never silently overwritten.
 2. **Sync the staged intent.** The single canonical staged version of a modified/added skill is propagated to every mirror (missing mirrors are created, stale clean mirrors are overwritten and staged). A staged deletion is propagated everywhere as a staged `git rm`.
 3. **Verify by folder scan.** A full scan confirms every shared skill's mirrors are byte-identical. Missing mirrors with identical existing copies are created automatically (low risk). Genuine content conflicts — mirrors that already diverge with no single canonical staged version — are **not** auto-fixed; the hook prints exactly which agents diverge and the manual steps, then blocks the commit.
+4. **Remove empty skill directories.** Git does not track empty directories, so a staged deletion of a `SKILL.md` otherwise leaves an empty `<agent>/skills/<skill-name>/` folder behind. The hook sweeps all agent skill folders (and the `.github/git-commit` slot) and removes any directory that is completely empty. Only truly-empty directories are touched; anything still containing files is left alone. This is best-effort and never blocks the commit.
 
 ## Safety: safe auto-fix vs. manual
 

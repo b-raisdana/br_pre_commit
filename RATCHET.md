@@ -71,7 +71,7 @@ Considered (e.g. `mypy-baseline`, ignore-comment sprinkling) and rejected: those
 
 Incremental pre-commit ratchet - see README.md in this folder for the full design.
 
-Two layers: a per-touched-file before/after diff is the blocking gate (zero tolerance for mypy/ruff/xenon, a 5-line slack for loc on files already over the 500-line cap, a hard 500-line cap for brand-new files). A project-wide count per key is kept only as a trend metric feeding the mutation-safety reminder - it never blocks a commit by itself, so an unrelated file improving elsewhere can't mask a regression in the file you touched, and there's no "first time this rule's been seen" loophole the way a project-wide-only baseline would have.
+Two layers: a per-touched-file before/after diff is the blocking gate (zero tolerance for mypy/ruff/xenon, a 5-line slack for loc on files already over the 300-line cap, a hard 300-line cap for brand-new files). A project-wide count per key is kept only as a trend metric feeding the mutation-safety reminder - it never blocks a commit by itself, so an unrelated file improving elsewhere can't mask a regression in the file you touched, and there's no "first time this rule's been seen" loophole the way a project-wide-only baseline would have.
 
 ### mypy_count cwd choice
 
@@ -102,7 +102,7 @@ main()
   │     ├── run ruff/mypy/xenon again in the worktree -> by-file "before" dicts
   │     ├── evaluate_file_gate(touched, after, before):
   │     │     mypy/ruff/xenon: block if after > before (0 for new files)
-  │     │     loc: block if before>500 and after > before+5; new file must be <=500
+  │     │     loc: block if before>300 and after > before+5; new file must be <=300
   │     └── remove the worktree
   ├── block (exit 1) if evaluate_file_gate found anything - this is the ONLY blocking path
   ├── else: compute_new_baseline(old_baseline, current_counts) = union + min (never drops vectors)
@@ -144,7 +144,7 @@ main()
 
 #### F3 — zero automated tests for the gate itself (P0)
 
-**Partially covered**: `tests/unit/git_hooks/test_ratchet_check.py` now exists and covers rule-code/by-file grouping, `touched_app_python_files` (including renames), `evaluate_file_gate` (zero-tolerance, new-file handling, the loc slack/cap/already-over-500 scoping, renamed-file before-lookup), bootstrap, the trend layer never blocking on its own, an actual touched-file regression blocking, baseline resync, and the characterization-test reminder. Not covered: `_head_worktree`/`_remove_worktree` against a real git repo (exercised live in this session, not in the suite), and cases 7-9 below (loud failure on tool crash / malformed baseline / unparseable output), which are still open - they depend on F1, which hasn't been implemented.
+**Partially covered**: `tests/unit/git_hooks/test_ratchet_check.py` now exists and covers rule-code/by-file grouping, `touched_app_python_files` (including renames), `evaluate_file_gate` (zero-tolerance, new-file handling, the loc slack/cap/already-over-300 scoping, renamed-file before-lookup), bootstrap, the trend layer never blocking on its own, an actual touched-file regression blocking, baseline resync, and the characterization-test reminder. Not covered: `_head_worktree`/`_remove_worktree` against a real git repo (exercised live in this session, not in the suite), and cases 7-9 below (loud failure on tool crash / malformed baseline / unparseable output), which are still open - they depend on F1, which hasn't been implemented.
 
 **Location**: entire file.
 
@@ -171,7 +171,7 @@ main()
 
 **Resolved by removal, not by wiring config.json in.** `RATCHET_IMPROVEMENT_RATIO`/`chunk_size` are gone: baseline.json now fully resyncs to the fresh counts after every successful commit instead of waiting for a threshold, so there's no ratio/chunk_size left to configure. `config.json` was deleted. See `scripts/git-hooks/incremental-precommit/README.md` § "keeping baseline current". The rest of this item (below) is left for history; `TARGET`/`COMPLEXITY_RANKS`/`max_lines`/`max_absolute` are still hardcoded and the config-extraction idea still applies to those if wanted later.
 
-**Location**: `RATCHET_IMPROVEMENT_RATIO = 0.03` (`ratchet_check.py:30`), `TARGET = "app"` (`ratchet_check.py:28`), `COMPLEXITY_RANKS = "ABCDEF"` (`ratchet_check.py:29`), `max_lines: int = 500` in `loc_count` / `loc_detail_count` (`ratchet_check.py:92,211`), `max_absolute: str = "B"` in `xenon_count` / `xenon_detail_count` (`ratchet_check.py:75,183`).
+**Location**: `RATCHET_IMPROVEMENT_RATIO = 0.03` (`ratchet_check.py:30`), `TARGET = "app"` (`ratchet_check.py:28`), `COMPLEXITY_RANKS = "ABCDEF"` (`ratchet_check.py:29`), `max_lines: int = 300` in `loc_count` / `loc_detail_count` (`ratchet_check.py:92,211`), `max_absolute: str = "B"` in `xenon_count` / `xenon_detail_count` (`ratchet_check.py:75,183`).
 
 **Weakness**: `config.json` held only `chunk_size: 3` (this doc and the README each cited a different, wrong default before the resolution above). The ratchet improvement threshold, the xenon rank ceiling, the loc line threshold, and the target directory are all hardcoded in the script despite being policy decisions that already have prose documentation in `infrastructure.md` and the README. Moving them to `config.json` makes them editable without touching code and keeps policy and implementation in one place.
 
@@ -180,7 +180,7 @@ main()
   ```json
   {
     "xenon_max_absolute": "B",
-    "loc_max_lines": 500,
+    "loc_max_lines": 300,
     "target": "app"
   }
   ```

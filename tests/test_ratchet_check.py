@@ -29,7 +29,8 @@ def test_ruff_groups_by_file_relativizing_absolute_filenames():
     assert ratchet_check._group_ruff_by_file(violations, root=root) == {"app/a.py": 2, "app/b.py": 1}
 
 
-def test_mypy_records_group_by_rule_and_by_file_ignore_notes_and_summary():
+def test_mypy_records_group_by_rule_and_by_file_ignore_notes_and_summary(monkeypatch):
+    monkeypatch.setattr(ratchet_check, "TARGET", "app")
     output = "\n".join(
         [
             "a.py:1: error: bad type  [type-arg]",
@@ -102,6 +103,7 @@ def test_current_and_before_analyzers_start_concurrently(monkeypatch, tmp_path):
 
 
 def test_touched_app_python_files_parses_status_and_renames(monkeypatch, tmp_path):
+    monkeypatch.setattr(ratchet_check, "TARGET", "app")
     existing = "app/config/Config.py"  # a real file, so the exists() check passes
     monkeypatch.setattr(ratchet_check, "ROOT", tmp_path)
     (tmp_path / existing).parent.mkdir(parents=True)

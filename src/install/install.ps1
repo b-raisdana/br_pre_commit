@@ -25,9 +25,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# Get the tool root (directory containing this script)
-$ToolRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$ToolRoot = Resolve-Path $ToolRoot
+# Get the tool root (repository root containing the launchers)
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$ToolRoot = Resolve-Path (Join-Path $ScriptDir '..\..')
 
 # Resolve repo root
 $RepoRoot = Resolve-Path $RepoRoot

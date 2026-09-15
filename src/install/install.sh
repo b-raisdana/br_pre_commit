@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
-tool_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+tool_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 repo_root=${1:-$(git rev-parse --show-toplevel)}
 repo_root=$(CDPATH= cd -- "$repo_root" && pwd)
 git_dir=$(git -C "$repo_root" rev-parse --absolute-git-dir)

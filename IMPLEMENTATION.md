@@ -134,7 +134,7 @@ Current config: `strict = true`, `disallow_any_explicit = true`, `ignore_missing
 
 ## Pre-commit improvement plan
 
-Current state: `.pre-commit-config.yaml` + `pyproject.toml` + `scripts/git-hooks/incremental-precommit/ratchet_check.py` gate four project-wide vectors (`ruff`, `mypy`, `xenon`, `loc`) through an incremental ratchet that blocks only regressions in committed `baseline.json`. Ruff selects `E,F,I,UP,B,C4,SIM,W`; xenon uses `radon cc` to count cyclomatic-complexity blocks ranked worse than `B` (9 in baseline); mypy runs `--strict --disallow-any-explicit` (90 errors in baseline); loc sums excess lines over 500. `archive_not_used_trash/` is excluded from all scans.
+Current state: `.pre-commit-config.yaml` + `pyproject.toml` + `scripts/git-hooks/incremental-precommit/ratchet_check.py` gate four project-wide vectors (`ruff`, `mypy`, `xenon`, `loc`) through an incremental ratchet that blocks only regressions in committed `baseline.json`. Ruff selects `E,F,I,UP,B,C4,SIM,W`; xenon uses `radon cc` to count cyclomatic-complexity blocks ranked worse than `B` (9 in baseline); mypy runs `--strict --disallow-any-explicit` (90 errors in baseline); loc sums excess lines over 300. `archive_not_used_trash/` is excluded from all scans.
 
 ### Ruff-first principle
 

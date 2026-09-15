@@ -39,7 +39,7 @@ repos:
       - id: sync-skill-files
         name: sync skill files
         language: system
-        entry: python src/br_pre_commit/sync_skill_files.py
+        entry: python src/br_pre_commit/sync_skill.py
         pass_filenames: false
         files: SKILL\.md
       - id: incremental-ratchet

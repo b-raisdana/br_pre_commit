@@ -3,10 +3,9 @@ from pathlib import Path
 
 import pytest
 
-# The hook file is named with hyphens (sync-skill-files.py), so it can't be
-# imported by module name; load it by path instead.
-_hook_path = Path(__file__).resolve().parents[1] / "src/br_pre_commit/sync_skill_files.py"
-_spec = importlib.util.spec_from_file_location("sync_skill_files", _hook_path)
+# The hook file is named sync_skill.py (entry point), load it by path instead.
+_hook_path = Path(__file__).resolve().parents[1] / "src/br_pre_commit/sync_skill.py"
+_spec = importlib.util.spec_from_file_location("sync_skill", _hook_path)
 m = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(m)
 
@@ -149,3 +148,85 @@ def test_intent_modify_and_delete_same_skill_is_a_conflict():
     assert conflicts == {"pytest"}
     assert deletions == {"pytest"}
     assert mods == {}
+
+
+# ---- cleanup_empty_skill_dirs ----
+
+
+def _make_parents(tmp_path: Path) -> dict[str, Path]:
+    parents = {}
+    for agent in AGENTS:
+        p = tmp_path / f".{agent}" / "skills"
+        p.mkdir(parents=True, exist_ok=True)
+        parents[agent] = p
+    return parents
+
+
+def test_cleanup_removes_empty_skill_dirs(tmp_path):
+    parents = _make_parents(tmp_path)
+    # An empty skill directory (left behind after SKILL.md was deleted).
+    empty = parents["kilo"] / "old-skill"
+    empty.mkdir()
+    assert empty.is_dir()
+
+    removed = m.cleanup_empty_skill_dirs(parents, tmp_path)
+
+    assert not empty.exists()
+    assert m._rel(empty, tmp_path) in removed
+
+
+def test_cleanup_leaves_non_empty_dirs_alone(tmp_path):
+    parents = _make_parents(tmp_path)
+    keep = parents["kilo"] / "pytest"
+    keep.mkdir()
+    (keep / "SKILL.md").write_bytes(b"content")
+
+    removed = m.cleanup_empty_skill_dirs(parents, tmp_path)
+
+    assert keep.is_dir()
+    assert (keep / "SKILL.md").exists()
+    assert removed == []
+
+
+def test_cleanup_leaves_dir_with_other_files_alone(tmp_path):
+    parents = _make_parents(tmp_path)
+    skill_dir = parents["kilo"] / "git-commit"
+    skill_dir.mkdir()
+    (skill_dir / "notes.txt").write_bytes(b"keep me")
+    # No SKILL.md at all, but a stray file -> not empty -> must stay.
+    removed = m.cleanup_empty_skill_dirs(parents, tmp_path)
+    assert skill_dir.is_dir()
+    assert removed == []
+
+
+def test_cleanup_handles_github_slot_when_truly_empty(tmp_path):
+    parents = _make_parents(tmp_path)
+    (tmp_path / ".github").mkdir(exist_ok=True)
+    gh_dir = tmp_path / ".github" / "git-commit"
+    gh_dir.mkdir()
+
+    removed = m.cleanup_empty_skill_dirs(parents, tmp_path)
+
+    assert not gh_dir.exists()
+    assert ".github/git-commit" in removed
+
+
+def test_cleanup_does_not_remove_github_slot_with_workflows(tmp_path):
+    parents = _make_parents(tmp_path)
+    (tmp_path / ".github").mkdir(exist_ok=True)
+    gh_dir = tmp_path / ".github" / "git-commit"
+    gh_dir.mkdir()
+    (gh_dir / "SKILL.md").write_bytes(b"...")
+    (gh_dir / "workflows").mkdir()
+
+    removed = m.cleanup_empty_skill_dirs(parents, tmp_path)
+
+    assert gh_dir.is_dir()
+    assert removed == []
+
+
+def test_cleanup_idempotent_when_no_empty_dirs(tmp_path):
+    parents = _make_parents(tmp_path)
+    (parents["kilo"] / "pytest" / "SKILL.md").parent.mkdir(parents=True, exist_ok=True)
+    (parents["kilo"] / "pytest" / "SKILL.md").write_bytes(b"v")
+    assert m.cleanup_empty_skill_dirs(parents, tmp_path) == []
