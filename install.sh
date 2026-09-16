@@ -10,16 +10,7 @@ hook="$git_dir/hooks/pre-commit"
     printf 'export BR_PRE_COMMIT_REPO_ROOT=%s\n' "$(printf %s "$repo_root" | sed "s/'/'\\''/g; s/^/'/; s/$/'/")"
     printf 'export BR_PRE_COMMIT_TOOL_ROOT=%s\n' "$(printf %s "$tool_root" | sed "s/'/'\\''/g; s/^/'/; s/$/'/")"
     cat <<'EOF'
-if ! command -v wsl.exe >/dev/null 2>&1; then
-    exec "$BR_PRE_COMMIT_TOOL_ROOT/run"
-fi
-export WSLENV="BR_PRE_COMMIT_REPO_ROOT/p:BR_PRE_COMMIT_TOOL_ROOT/p${GIT_INDEX_FILE:+:GIT_INDEX_FILE/p}${WSLENV:+:$WSLENV}"
-exec wsl.exe -d Ubuntu-24.04 -- bash -lc '
-    source ~/miniconda3/etc/profile.d/conda.sh &&
-    conda activate tf &&
-    cd "$BR_PRE_COMMIT_REPO_ROOT" &&
-    exec "$BR_PRE_COMMIT_TOOL_ROOT/run"
-'
+exec "$BR_PRE_COMMIT_TOOL_ROOT/run"
 EOF
 } > "$hook"
 chmod +x "$hook"
