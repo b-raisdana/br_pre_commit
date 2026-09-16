@@ -25,16 +25,33 @@ A checklist to get a new project running with `br_pre_commit`:
    [`br_pre_commit/.pre-commit-config.yaml`](.pre-commit-config.yaml) as your
    starting point. Only use **recognized hook IDs** (see the table below).
 
-4. **Install the hook** from `my_project`:
+4. **Create `my_project/.br-pre-commit.toml`** (optional overrides):
+   ```sh
+   cp ../br_pre_commit/project-settings.example.toml .br-pre-commit.toml
+   ```
+   Edit to set `target = "src"` if your code lives in `src/` instead of `app/`,
+   or adjust `protected-branches`, `job-timeout-seconds`, etc.
+
+5. **Install the hook** from `my_project`:
    ```sh
    bash ../br_pre_commit/install.sh "$PWD"
    ```
 
-5. **Verify** on a feature branch:
+6. **Add convenience launcher** (optional but recommended):
+   ```sh
+   cp ../br_pre_commit/pre-commit ./pre-commit
+   git add .pre-commit-config.yaml .br-pre-commit.toml pre-commit
+   ```
+
+7. **Verify** on a feature branch (not `main`):
    ```sh
    git switch -c feature/initial-setup
    .git/hooks/pre-commit
    ```
+
+8. **Bootstrap ratchet baselines** (first successful commit):
+   The incremental ratchet creates `baseline_*.json` in `.br-pre-commit/ratchet/`
+   automatically on the first passing commit.
 
 See [Integrate into a new project](#integrate-into-a-new-project) below for
 full details, and [Troubleshooting](#troubleshooting) if anything fails.
@@ -172,6 +189,29 @@ override examples. Unspecified values inherit from
 [defaults.toml](defaults.toml). The default protects `main`; set
 `wrapper.protected-branches = []` only when a project deliberately permits direct
 commits.
+
+### Complete integration checklist
+
+After the quick start, verify these features are configured for your project:
+
+- [ ] **Core hygiene hooks** (from `pre-commit-hooks`): `trailing-whitespace`, `end-of-file-fixer`, `check-yaml`, `check-toml`, `check-added-large-files`, `check-merge-conflict`, `check-case-conflict`, `debug-statements`, `mixed-line-ending`
+- [ ] **Ruff lint + format**: `ruff` (with `--fix`), `ruff-format`
+- [ ] **Type checking**: `mypy` (strict mode) — add to `.pre-commit-config.yaml` as a local hook
+- [ ] **Complexity**: `incremental-ratchet` (replaces `xenon`/`radon`; uses ruff `C901`)
+- [ ] **Unit tests**: `pytest-fast` (runs `pytest -q -m unit`)
+- [ ] **Integration tests**: `pytest-integration-collect` + `integration-tests` (if applicable)
+- [ ] **Pandera validation**: `check-pandera-decorator` (if using pandera)
+- [ ] **Branch protection**: `no-commit-to-main` (built into wrapper via `protected-branches`)
+- [ ] **Security scanning**: `detect-secrets` or `gitleaks` (add as blocking hook)
+- [ ] **Dependency audit**: `pip-audit` (weekly, block on high/critical CVEs)
+- [ ] **In-code security**: `bandit` (ratchet-tracked, start with `--exit-zero`)
+- [ ] **Dead code detection**: `vulture` (non-blocking warnings)
+- [ ] **Unused dependencies**: `deptry` (weekly report)
+- [ ] **Docstring coverage**: `interrogate` (weekly, target 80%)
+- [ ] **Skill file sync**: `sync-skill-files` (if using shared skills across agents)
+
+See [IMPLEMENTATION.md](IMPLEMENTATION.md) § "Pre-commit gap analysis" for the full
+priority-ordered roadmap (P0–P3).
 
 ## Troubleshooting
 
