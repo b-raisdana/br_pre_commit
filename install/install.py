@@ -9,7 +9,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 # def get_tool_root() -> Path:
 #     return Path(__file__).resolve().parent.parent
 
@@ -21,7 +20,8 @@ def get_user_repo_root(repo_path: str | None) -> Path:
         subprocess.check_output(
             ["git", "rev-parse", "--show-toplevel"],
             text=True,
-        ).strip())
+        ).strip()
+    )
     return result
 
 
@@ -36,10 +36,12 @@ def get_br_pre_commit_root():
 
 
 def get_git_dir(repo_root: Path) -> Path:
-    result = Path(subprocess.check_output(
-        ["git", "-C", str(repo_root), "rev-parse", "--absolute-git-dir"],
-        text=True,
-    ).strip())
+    result = Path(
+        subprocess.check_output(
+            ["git", "-C", str(repo_root), "rev-parse", "--absolute-git-dir"],
+            text=True,
+        ).strip()
+    )
     return result
 
 
@@ -47,43 +49,49 @@ def is_wsl() -> bool:
     return "WSL_DISTRO_NAME" in os.environ
 
 
-def generate_posix_hook(repo_root: Path, br_pre_commit_repo_root: Path) -> str:
+def generate_posix_hook(br_pre_commit_repo_root: Path) -> str:
+    active_venv = get_active_venv()
+    assert isinstance(active_venv, Path)
+
     return (
-        f"#!/usr/bin/env sh\n"
-        f"export BR_PRE_COMMIT_REPO_ROOT={repo_root}\n"
-        f'export PYTHONPATH="{br_pre_commit_repo_root}/src"\n'
-        'exec python -m precommit_wrapper "$@"\n'
+        "#!/usr/bin/env sh\n"
+        f"export BR_PRE_COMMIT_REPO_ROOT='{br_pre_commit_repo_root}'\n"
+        f"export PYTHONPATH='{br_pre_commit_repo_root / 'src'}'\n\n"
+        f"export PATH='{active_venv.parent}':\"$PATH\"\n\n"
+        f'exec "{active_venv}" -m precommit_wrapper "$@"\n'
     )
 
 
-def generate_powershell_hook(repo_root: Path, br_pre_commit_repo_root: Path) -> str:
+def generate_powershell_hook(br_pre_commit_repo_root: Path) -> str:
+    active_venv = get_active_venv()
+    assert isinstance(active_venv, Path)
+
     return (
         "#!/bin/sh\n"
         f"export BR_PRE_COMMIT_REPO_ROOT='{br_pre_commit_repo_root}'\n"
-        f"export PYTHONPATH='{br_pre_commit_repo_root/ 'src'}'\n\n"
-
+        f"export PYTHONPATH='{br_pre_commit_repo_root / 'src'}'\n"
+        f"export PATH='{active_venv.parent}':\"$PATH\"\n\n"
         "if command -v pwsh > /dev/null 2>&1; then\n"
-        "   exec pwsh -NoProfile -Command 'python -m precommit_wrapper $args' -- \"$@\"\n"
+        f""" exec pwsh -NoProfile -Command '& "{active_venv}" -m precommit_wrapper $args' -- "$@"\n"""
         "elif command -v powershell > /dev/null 2>&1; then\n"
-        "   exec powershell -NoProfile -Command 'python -m precommit_wrapper $args' -- \"$@\"\n"
+        f""" exec powershell -NoProfile -Command '& "{active_venv}" -m precommit_wrapper $args' -- "$@"\n"""
         "else\n"
-        "   echo \"ERROR: PowerShell is required.\" >&2\n"
-        "   exit 1\n"
+        ' echo "ERROR: PowerShell is required." >&2\n'
+        " exit 1\n"
         "fi\n"
     )
 
 
 def install(repo_path: str | None, force: bool, dry_run: bool) -> int:
-    # tool_root = get_tool_root()
     user_repo_root = get_user_repo_root(repo_path)
     br_pre_commit_repo_root = get_br_pre_commit_root()
     git_dir = get_git_dir(user_repo_root)
     hook_path = git_dir / "hooks" / "pre-commit"
 
     if is_wsl():
-        hook_content = generate_posix_hook(user_repo_root, br_pre_commit_repo_root)
+        hook_content = generate_posix_hook(br_pre_commit_repo_root)
     elif sys.platform == "win32":
-        hook_content = generate_powershell_hook(user_repo_root, br_pre_commit_repo_root)
+        hook_content = generate_powershell_hook(br_pre_commit_repo_root)
     else:
         hook_content = generate_posix_hook(user_repo_root, br_pre_commit_repo_root)
 
@@ -102,7 +110,29 @@ def install(repo_path: str | None, force: bool, dry_run: bool) -> int:
     return 0
 
 
+def get_active_venv() -> Path | None:
+    venv_ = os.environ.get("VIRTUAL_ENV")
+
+    if not venv_:
+        return None
+
+    venv_path = Path(venv_)
+
+    if os.name == "nt":
+        return venv_path / "Scripts" / "python.exe"
+
+    return venv_path / "bin" / "python"
+
+
 def main() -> int:
+    venv_path = get_active_venv()
+
+    if venv_path:
+        print(f"Active virtual environment: {venv_path}")
+    else:
+        print("No active virtual environment!")
+        return -1
+
     parser = argparse.ArgumentParser(prog="br_pre_commit.install")
     parser.add_argument("repo_path", nargs="?", default=None)
     parser.add_argument("--force", action="store_true")

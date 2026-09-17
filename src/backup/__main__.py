@@ -283,7 +283,7 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description="Backup working state to disk (read-only)")
     parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root")
-    parser.add_argument("--print-manifest-json", action="store_true")
+    parser.add_argument("--print-manifest-json", default=False, action="store_true")
     args = parser.parse_args()
     return asyncio.run(_main_async(args.repo.resolve(), print_manifest_json=args.print_manifest_json))
 
