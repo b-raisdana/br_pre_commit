@@ -22,11 +22,12 @@ from .config import (
     unknown_hook_policy,
 )
 
-REPO_ROOT = Path(os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd())).resolve()
+BR_PRE_COMMIT_REPO_ROOT = Path(os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd())).resolve()
+USER_REPO_ROOT = Path(os.environ.get("USER_REPO_ROOT", Path.cwd())).resolve()
 TOOL_ROOT = Path(__file__).resolve().parents[1]
-LOG_DIR = REPO_ROOT / "logs" / "pre-commit"
+LOG_DIR = USER_REPO_ROOT / "logs" / "pre-commit"
 LOG_FILE = LOG_DIR / "pre-commit.log"
-CONFIG_PATH = REPO_ROOT / ".pre-commit-config.yaml"
+CONFIG_PATH = USER_REPO_ROOT / ".pre-commit-config.yaml"
 ADVISORY_RUFF_RULES = "Q,RUF,T10,T20,ERA"
 
 logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
@@ -44,7 +45,8 @@ class JobResult:
 
 
 def _git(*args: str) -> str:
-    return subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=True).stdout.strip()
+    return subprocess.run(
+        ["git", *args], cwd=USER_REPO_ROOT, capture_output=True, text=True, check=True).stdout.strip()
 
 
 def _staged_files() -> list[str]:
@@ -53,19 +55,19 @@ def _staged_files() -> list[str]:
 
 
 def _branch_protection_result(branch: str) -> JobResult | None:
-    if branch not in protected_branches(REPO_ROOT):
+    if branch not in protected_branches():
         return None
     message = f"Direct commits to protected branch '{branch}' are not allowed. Create a feature branch."
     return JobResult("branch-protection", (), 1, 0.0, "", message)
 
 
 async def _run_job(
-    job_id: str,
-    command: list[str],
-    terminal_lock: asyncio.Lock,
-    *,
-    stream_output: bool = True,
-    timeout_seconds: float | None = None,
+        job_id: str,
+        command: list[str],
+        terminal_lock: asyncio.Lock,
+        *,
+        stream_output: bool = True,
+        timeout_seconds: float | None = None,
 ) -> JobResult:
     loop = asyncio.get_running_loop()
     started = loop.time()
@@ -75,7 +77,7 @@ async def _run_job(
     try:
         proc = await asyncio.create_subprocess_exec(
             *command,
-            cwd=REPO_ROOT,
+            cwd=USER_REPO_ROOT,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             start_new_session=True,
@@ -142,7 +144,7 @@ async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
 
 
 def _reader_jobs(
-    specs: Sequence[HookSpec], staged: list[str], terminal_lock: asyncio.Lock, timeout: float
+        specs: Sequence[HookSpec], staged: list[str], terminal_lock: asyncio.Lock, timeout: float
 ) -> list[Awaitable[JobResult]]:
     return [
         _run_job(spec.hook_id, _hook_command(spec.hook_id, staged), terminal_lock, timeout_seconds=timeout)
@@ -173,8 +175,8 @@ def _advisory_jobs(py_files: list[str], terminal_lock: asyncio.Lock, timeout: fl
 
 
 async def _run_hooks(staged: list[str]) -> list[JobResult]:
-    policy = unknown_hook_policy(REPO_ROOT)
-    timeout = job_timeout_seconds(REPO_ROOT)
+    policy = unknown_hook_policy()
+    timeout = job_timeout_seconds()
     specs, unknown = classify_hooks(enabled_pre_commit_hook_ids(CONFIG_PATH), policy=policy)
     if unknown:
         sys.stdout.write(f"warning: unregistered hooks run serially: {', '.join(unknown)}\n")
@@ -201,11 +203,11 @@ async def _run_backup(terminal_lock: asyncio.Lock) -> tuple[JobResult, str | Non
             "-m",
             "backup",
             "--repo",
-            str(REPO_ROOT),
+            str(USER_REPO_ROOT),
             "--print-manifest-json",
         ],
         terminal_lock,
-        timeout_seconds=job_timeout_seconds(REPO_ROOT),
+        timeout_seconds=job_timeout_seconds(),
     )
     try:
         snapshot_dir = json.loads(result.stdout.splitlines()[-1])["snapshot_dir"] if result.returncode == 0 else None

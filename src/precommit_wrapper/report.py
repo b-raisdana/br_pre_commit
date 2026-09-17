@@ -92,12 +92,12 @@ def _parse_radon_warnings(radon_result: ResultWithOutput | None) -> list[LintWar
 
 
 def _advisory_warnings(results: list[JobResult]) -> list[LintWarning]:
-    from .__main__ import REPO_ROOT  # noqa: F402,E402
+    from .__main__ import USER_REPO_ROOT  # noqa: F402,E402
 
     warnings: list[LintWarning] = []
     ruff_result = next((item for item in results if getattr(item, "job_id", None) == "advisory-ruff"), None)
     if ruff_result is not None:
-        warnings.extend(_parse_ruff_warnings(ruff_result, REPO_ROOT))
+        warnings.extend(_parse_ruff_warnings(ruff_result, USER_REPO_ROOT))
 
     radon_result = next((item for item in results if getattr(item, "job_id", None) == "advisory-radon"), None)
     warnings.extend(_parse_radon_warnings(radon_result))
@@ -174,7 +174,7 @@ def _write_summary(human_ts: str, results: list[JobResult]) -> tuple[Path, list[
 
 
 async def _main_async() -> int:
-    from .__main__ import REPO_ROOT, _git, _run_backup, _staged_files  # noqa: F402,E402
+    from .__main__ import _git, _run_backup, _staged_files, USER_REPO_ROOT  # noqa: F402,E402
 
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     human_ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
@@ -198,7 +198,7 @@ async def _main_async() -> int:
         "result": "pass" if passed else "fail",
         "jobs": {result.job_id: result.returncode for result in results},
         "advisory_lint_warnings": warnings,
-        "report": report_path.relative_to(REPO_ROOT).as_posix(),
+        "report": report_path.relative_to(USER_REPO_ROOT).as_posix(),
     }
     if snapshot_dir is not None:
         entry["snapshot_dir"] = snapshot_dir
@@ -211,9 +211,9 @@ async def _main_async() -> int:
 
 
 def _report_failure(report_path: Path, snapshot_dir: str | None) -> None:
-    from .__main__ import REPO_ROOT  # noqa: F402,E402
+    from .__main__ import USER_REPO_ROOT  # noqa: F402,E402
 
-    sys.stdout.write(f"Pre-commit failed; report: {report_path.relative_to(REPO_ROOT)}\n")
+    sys.stdout.write(f"Pre-commit failed; report: {report_path.relative_to(USER_REPO_ROOT)}\n")
     if snapshot_dir:
         sys.stdout.write(f"Working state backed up to {snapshot_dir}\n")
 

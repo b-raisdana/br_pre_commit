@@ -75,7 +75,7 @@ def _merge_wrapper(base: WrapperConfig | None, override: WrapperConfig | None) -
         return override
     if override is None:
         return base
-    return {**base, **override}
+    return WrapperConfig(**base, **override)
 
 
 def _merge_ratchet(base: RatchetConfig | None, override: RatchetConfig | None) -> RatchetConfig | None:
@@ -83,13 +83,14 @@ def _merge_ratchet(base: RatchetConfig | None, override: RatchetConfig | None) -
         return override
     if override is None:
         return base
-    return {**base, **override}
+    return RatchetConfig(**base, **override)
 
 
-def _merged_config(repo_root: Path) -> AppConfig:
+def _merged_config() -> AppConfig:
     """Load shared defaults from [tool.br_pre_commit.*] in pyproject.toml."""
     defaults = _flatten_defaults()
-    return cast(AppConfig, defaults)
+    result = AppConfig(**defaults)
+    return result
 
 
 @dataclass(frozen=True)
@@ -130,8 +131,8 @@ _READ_ONLY_HOOKS = frozenset(
 )
 
 
-def unknown_hook_policy(repo_root: Path) -> str:
-    config = _merged_config(repo_root)
+def unknown_hook_policy() -> str:
+    config = _merged_config()
     wrapper = config.get("wrapper")
     if wrapper is None:
         raise ValueError("wrapper configuration is missing")
@@ -141,8 +142,8 @@ def unknown_hook_policy(repo_root: Path) -> str:
     return policy
 
 
-def job_timeout_seconds(repo_root: Path) -> float:
-    config = _merged_config(repo_root)
+def job_timeout_seconds() -> float:
+    config = _merged_config()
     wrapper = config.get("wrapper")
     if wrapper is None:
         raise ValueError("wrapper configuration is missing")
@@ -152,8 +153,8 @@ def job_timeout_seconds(repo_root: Path) -> float:
     return timeout
 
 
-def protected_branches(repo_root: Path) -> tuple[str, ...]:
-    config = _merged_config(repo_root)
+def protected_branches() -> tuple[str, ...]:
+    config = _merged_config()
     wrapper = config.get("wrapper")
     if wrapper is None:
         raise ValueError("wrapper configuration is missing")
@@ -163,8 +164,8 @@ def protected_branches(repo_root: Path) -> tuple[str, ...]:
     return tuple(branches)
 
 
-def ratchet_settings(repo_root: Path) -> RatchetConfig:
-    config = _merged_config(repo_root)
+def ratchet_settings() -> RatchetConfig:
+    config = _merged_config()
     settings = config.get("ratchet")
     if settings is None:
         raise ValueError("ratchet configuration is missing")
