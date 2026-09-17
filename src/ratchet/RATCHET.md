@@ -1,9 +1,10 @@
 # incremental pre-commit ratchet
 
 The implementation now lives in this repository at
-`src/br_pre_commit/incremental_precommit/ratchet_check.py`. Runtime repository
+`src/ratchet/__main__.py`. Runtime repository
 state and baselines stay in the target project under `.br-pre-commit/ratchet/`.
-Shared defaults come from `defaults.toml`; `.br-pre-commit.toml` overrides them.
+Shared defaults come from the `[tool.br_pre_commit.ratchet]` section of
+`pyproject.toml`.
 
 - [per-file blocking rules](#per-file-blocking-rules)
 - [performance](#performance)

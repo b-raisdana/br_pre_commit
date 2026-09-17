@@ -50,9 +50,9 @@ A checklist to get a new project running with `br_pre_commit`:
    starting point. Only use **recognized hook IDs** (see the table below).
 
 4. **Install the hook** from `your_project`:
-   ```sh
-   bash br_pre_commit/install.sh "$PWD"
-   ```
+    ```sh
+    bash br_pre_commit/install/install.sh "$PWD"
+    ```
 
 5. **Verify** on a feature branch:
    ```sh
@@ -67,7 +67,7 @@ full details, and [Troubleshooting](#troubleshooting) if anything fails.
 
 **Every hook ID in your `.pre-commit-config.yaml` must be one of the IDs below.**
 The wrapper classifies each ID against two fixed sets in
-`src/br_pre_commit/precommit_config.py`. An ID not in either set is
+`src/precommit_wrapper/config.py`. An ID not in either set is
 "unregistered" and aborts the commit.
 
 | Hook ID | Category | Description |
@@ -104,7 +104,6 @@ The wrapper classifies each ID against two fixed sets in
 your_project_root/
 ├── .git/
 ├── .gitmodules
-├── br_pre_commit/     <-- git submodule
 └── ...your project files...
 ```
 
@@ -115,7 +114,7 @@ If your project is itself a git submodule of a larger superproject, add `br_pre_
 Hook selection remains project-owned. Copy the reference config and adjust:
 
 ```sh
-cp br_pre_commit/.pre-commit-config.yaml .pre-commit-config.yaml
+cp .pre-commit-config.yaml .pre-commit-config.yaml
 ```
 
 Then edit it: change entry commands, file patterns, and args to match your
@@ -135,19 +134,19 @@ For a local incremental-ratchet hook, use:
 ```
 
 > **Note:** If your project uses `src/` instead of `app/`, set
-> `target = "src"` in a `.br-pre-commit.toml` file (see
-> [project-settings.example.toml](project-settings.example.toml)) so the
-> ratchet and other tools find your code.
+> `target = "src"` in the `[tool.br_pre_commit.ratchet]` section of
+> `pyproject.toml` (see below) so the ratchet and other tools find
+> your code.
 
 ### 2. Install the hook
 
 From your project directory:
 
 ```sh
-bash br_pre_commit/install.sh "$PWD"
+bash install/install.sh "$PWD"
 ```
 
-This writes a clone-local `.git/hooks/pre-commit` shim that records the
+This writes `.git/hooks/pre-commit` that records the
 absolute paths of both your project and the `br_pre_commit` tool. Run it
 directly to verify:
 
@@ -166,26 +165,25 @@ git switch -c feature/initial-setup
 ### 3. Add a convenience launcher (optional)
 
 ```sh
-cp br_pre_commit/pre-commit ./pre-commit
+cp pre-commit ./pre-commit
 git add .pre-commit-config.yaml pre-commit
 ```
 
 After that, `./pre-commit` and an ordinary `git commit` both use the shared
-wrapper. Re-run `install.sh` after moving either checkout.
+wrapper. Re-run `install/install.sh` after moving either checkout.
 
 ### Project-provided files
 
 | File | Purpose |
 |------|---------|
 | `.pre-commit-config.yaml` | Enabled hooks and project-specific hook commands |
-| `.br-pre-commit.toml` | Optional: overrides of shared defaults |
 | `.br-pre-commit/ratchet/baseline_*.json` | Project's trend baselines (bootstrapped on first successful commit) |
 
-See [project-settings.example.toml](project-settings.example.toml) for commented
-override examples. Unspecified values inherit from
-[defaults.toml](defaults.toml). The default protects `main`; set
+All configuration lives in `[tool.br_pre_commit.*]` sections of
+`pyproject.toml` (`unknown-hook-policy`, `job-timeout-seconds`, `protected-branches`,
+ratchet parameters, backup exclusions). The default protects `main`; set
 `wrapper.protected-branches = []` only when a project deliberately permits direct
-commits.
+commits. See `pyproject.toml` for the full set of recognized keys.
 
 ## Troubleshooting
 
@@ -205,7 +203,7 @@ On hook failure, snapshots are written inside the target project under
 `logs/pre-commit/backup-patches/`. Restore one explicitly with:
 
 ```sh
-python br_pre_commit/src/br_pre_commit/recover.py \
+python -m src.backup.recover \
   --repo "$PWD" \
   --snapshot logs/pre-commit/backup-patches/<snapshot>
 ```
@@ -216,23 +214,21 @@ python br_pre_commit/src/br_pre_commit/recover.py \
 |-----|-----------------|
 | [IMPLEMENTATION.md](IMPLEMENTATION.md) | Full design of the concurrent wrapper, branch protection, logging, advisory lint, and the backup/recovery pipeline. |
 | [RATCHET.md](RATCHET.md) | Incremental pre-commit ratchet: per-file blocking gate, project-wide trend baselines, and the upgrade plan. |
-| [SYNC_SKILLS.md](SYNC_SKILLS.md) | Bidirectional `SKILL.md` mirroring across agent directories (`.claude`, `.codex`, `.devin`, etc.) and conflict-resolution rules. |
-| [defaults.toml](defaults.toml) | Shared default settings (`unknown-hook-policy`, `job-timeout-seconds`, `protected-branches`, ratchet parameters). |
-| [project-settings.example.toml](project-settings.example.toml) | Commented template for a project-level `.br-pre-commit.toml` override file. |
+| [src/sync_skills/README.md](src/sync_skills/README.md) | Bidirectional `SKILL.md` mirroring across agent directories (`.claude`, `.codex`, `.devin`, etc.) and conflict-resolution rules. |
+| [pyproject.toml](pyproject.toml) | Shared default settings under `[tool.br_pre_commit.*]` (`unknown-hook-policy`, `job-timeout-seconds`, `protected-branches`, ratchet parameters, backup exclusions). |
 | [docs/pre-commit-hook-id-diagnosis.md](docs/pre-commit-hook-id-diagnosis.md) | Troubleshooting guide for the "unregistered pre-commit hook(s)" error — root cause and fix. |
 | [docs/development/cross-environment-installation-design.md](docs/development/cross-environment-installation-design.md) | Linux, WSL, and Windows installation modes, Python/toolchain assumptions, and cross-environment commit policy. |
 | [src/README.md](src/README.md) | Source-tree layout overview. |
-| [src/br_pre_commit/README.md](src/br_pre_commit/README.md) | Module-level overview of the runtime package. |
-| [src/br_pre_commit/incremental_precommit/README.md](src/br_pre_commit/incremental_precommit/README.md) | Ratchet module entry point and launcher reference. |
+| [src/ratchet/README.md](src/ratchet/README.md) | Ratchet module entry point and launcher reference. |
 | [tests/README.md](tests/README.md) | How to run the test suite. |
 
 ## Development
 
 ```sh
-bash install.sh "$PWD"
+bash install/install.sh "$PWD"
 ./pre-commit
 python -m pytest -q
-python -m py_compile src/br_pre_commit/*.py src/br_pre_commit/incremental_precommit/*.py
+python -m py_compile src/*.py src/ratchet/*.py
 ```
 
 This repository uses the same shared wrapper it provides to projects using it as a submodule.

@@ -1,13 +1,5 @@
 {
   "loc": 0,
-  "mypy:attr-defined": 0,
-  "mypy:explicit-any": 0,
-  "mypy:func-returns-value": 0,
-  "mypy:import-untyped": 0,
-  "mypy:no-any-return": 0,
-  "mypy:type-arg": 0,
-  "mypy:unused-ignore": 0,
-  "mypy:var-annotated": 0,
   "ruff:B002": 0,
   "ruff:B003": 0,
   "ruff:B004": 0,

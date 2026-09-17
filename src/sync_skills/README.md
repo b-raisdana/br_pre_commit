@@ -22,7 +22,7 @@ Two mechanisms keep agent-specific skills from propagating:
 
 ### 1. Hardcoded skip list (`HARDCODED_SKIPS`)
 
-Exact folder names in the Python `set` at the top of `sync-skill-files.py`:
+Exact folder names in the Python `set` at the top of `src/sync_skills/__main__.py`:
 
 ```python
 HARDCODED_SKIPS = {"use-aget-skills", "kilo-only-todo-discipline"}
@@ -46,10 +46,10 @@ Examples: `kilo-only-todo-discipline`, `claude-only-review`, `codex-only-experim
 
 ## Adding a new shared agent
 
-1. Add the agent slug to the `AGENTS` list in `sync-skill-files.py`.
+1. Add the agent slug to the `AGENTS` list in `src/sync_skills/__main__.py`.
 2. Create `.<agent>/skills/` in the repo.
 3. The sync loop includes it automatically.
 
 ## Dependency
 
-`sync-skill-files.py` uses [GitPython](https://github.com/gitpython-developers/GitPython) via its `repo.git` raw-command interface (declared in `requirements-dev.txt`). The high-level `Repo.index.diff(...)` object API is deliberately **not** used: in gitpython 3.1.x it misreports staged deletions as additions, which would silently break delete detection.
+`src/sync_skills/__main__.py` uses [GitPython](https://github.com/gitpython-developers/GitPython) via its `repo.git` raw-command interface (declared in `requirements-dev.txt`). The high-level `Repo.index.diff(...)` object API is deliberately **not** used: in gitpython 3.1.x it misreports staged deletions as additions, which would silently break delete detection.

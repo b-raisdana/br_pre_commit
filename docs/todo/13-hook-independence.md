@@ -86,7 +86,7 @@ def resolve_via_submodule(repo_root: Path) -> Optional[Path]:
 def resolve_via_package_location() -> Optional[Path]:
     """Resolve via __file__ if running as installed package."""
     try:
-        # This file: src/br_pre_commit/precommit_wrapper.py
+        # This file: src/precommit_wrapper.py
         # Tool root: parent of src/br_pre_commit
         current_file = Path(__file__).resolve()
         # Navigate up to find br_pre_commit root

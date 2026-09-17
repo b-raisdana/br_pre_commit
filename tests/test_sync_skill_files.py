@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-# The hook file is named sync_skill.py (entry point), load it by path instead.
-_hook_path = Path(__file__).resolve().parents[1] / "src/br_pre_commit/sync_skill.py"
-_spec = importlib.util.spec_from_file_location("sync_skill", _hook_path)
+# The hook entry point is src/sync_skills/__main__.py; load it by path instead.
+_hook_path = Path(__file__).resolve().parents[1] / "src" / "sync_skills" / "__main__.py"
+_spec = importlib.util.spec_from_file_location("sync_skills", _hook_path)
 m = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(m)
 

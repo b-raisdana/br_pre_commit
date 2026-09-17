@@ -124,7 +124,7 @@ def create_parser() -> argparse.ArgumentParser:
 
 ### TOML Parsing — Manual or `configparser`
 
-For `.br-pre-commit.toml` if needed:
+For `pyproject.toml` if needed:
 
 ```python
 # Simple TOML subset parser using stdlib only

@@ -1,4 +1,5 @@
 [tool.pytest.ini_options]
+pythonpath = ["src"]
 testpaths = ["tests"]
 markers = ["unit: fast isolated unit tests"]
 
@@ -25,3 +26,29 @@ follow_imports = "silent"
 # archive_not_used_trash/ holds unreachable-from-presentation code kept for reference, not linted -
 # see app/archive_not_used_trash/README.md.
 exclude = "(^|/)archive_not_used_trash/"
+
+# Shared defaults for br_pre_commit. A project may override any
+# value under [tool.br_pre_commit.wrapper] / [tool.br_pre_commit.ratchet] /
+# [tool.br_pre_commit.backup]. See README.md § "Recognized hook IDs" for the list of
+# hook IDs the wrapper can classify; unrecognized IDs trigger an error under the policy below.
+[tool.br_pre_commit.wrapper]
+unknown-hook-policy = "error"
+job-timeout-seconds = 900
+protected-branches = ["main"]
+
+[tool.br_pre_commit.ratchet]
+target = "src"
+max-lines = 300
+line-growth-slack = 5
+complexity-ranks = "ABCDEF"
+xenon-max-absolute = "B"
+# Directory excluded from ratchet/ruff/mypy/xenon scans. Unreachable-from-presentation
+# reference code kept for reference, not linted - see <repo>/<exclude-dir>/README.md.
+exclude-dir = "archive_not_used_trash"
+
+[tool.br_pre_commit.backup]
+# Regex (matched against each path part) for directories whose files are excluded
+# from patch backups and instead backed up as full file copies under
+# logs/pre-commit/full_backup/. Patch filtering for tracked/untracked files is
+# handled by .gitignore; this regex only controls the full-vs-patch split.
+full_backup_exclude_dir_regex = '^(data|logs|archive_not_used_trash|\.[^/]+)$'

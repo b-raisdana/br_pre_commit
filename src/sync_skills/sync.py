@@ -10,7 +10,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from git import Repo
-from sync_skill_core import (
+
+from sync_skills.core import (
     _index_bytes,
     _rel,
     _stage,

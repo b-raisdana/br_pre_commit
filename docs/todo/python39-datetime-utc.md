@@ -2,7 +2,7 @@
 
 ## Problem
 
-`src/br_pre_commit/precommit_wrapper.py:13` imports `UTC` from `datetime`:
+`src/precommit_wrapper.py:13` imports `UTC` from `datetime`:
 
 ```python
 from datetime import UTC
@@ -12,7 +12,7 @@ from datetime import UTC
 
 ## Usage
 
-The import is used at `src/br_pre_commit/precommit_wrapper.py:276`:
+The import is used at `src/precommit_wrapper.py:276`:
 
 ```python
 timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -40,8 +40,8 @@ timestamp = datetime.now(timezone.utc).strftime(...)
 
 | File | Line | Change |
 |------|------|--------|
-| `src/br_pre_commit/precommit_wrapper.py` | 13 | `from datetime import UTC` → `from datetime import timezone` |
-| `src/br_pre_commit/precommit_wrapper.py` | 276 | `datetime.now(UTC)` → `datetime.now(timezone.utc)` |
+| `src/precommit_wrapper.py` | 13 | `from datetime import UTC` → `from datetime import timezone` |
+| `src/precommit_wrapper.py` | 276 | `datetime.now(UTC)` → `datetime.now(timezone.utc)` |
 
 ## Verification
 

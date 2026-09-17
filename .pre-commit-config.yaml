@@ -39,18 +39,17 @@ repos:
       - id: sync-skill-files
         name: sync skill files
         language: system
-        entry: python src/br_pre_commit/sync_skill.py
+        entry: python -m src.sync_skills
         pass_filenames: false
         files: SKILL\.md
       - id: incremental-ratchet
         name: incremental ratchet
         language: system
-        entry: ../br_pre_commit/ratchet
+        entry: python -m src.ratchet
         pass_filenames: false
         files: ^src/.*\.py$
-
       - id: no-object-annotations
         name: no object type annotations
         language: system
-        entry: python scripts/check_no_object_annotations.py
+        entry: python -m src.check_no_object_annotations
         types: [python]

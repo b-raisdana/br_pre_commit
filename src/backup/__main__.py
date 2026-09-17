@@ -6,75 +6,36 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 import shutil
 import sys
-import tomllib
-import zlib
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import TypedDict
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # noqa: E402
+
+from models import Manifest  # noqa: E402
+
+from .common import (  # noqa: E402
+    _DEFAULT_FULL_BACKUP_EXCLUDE_DIR_REGEX,
+    STAGED_PREFIX,
+    UNSTAGED_PREFIX,
+    UNTRACKED_PREFIX,
+    _backup_settings,
+    _content_hash,
+    _decode_paths,
+    _flatten_path,
+    _get_full_backup_dir,
+    _git,
+    _is_excluded,
+)
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 log = logging.getLogger("backup")
 
-sys.path.insert(0, str(Path(__file__).parent))
 
-from models import Manifest  # noqa: E402
-
-STAGED_PREFIX = "staged"
-UNSTAGED_PREFIX = "unstaged"
-UNTRACKED_PREFIX = "untracked"
-FULL_BACKUP_DIR = "full_backup"
-
-_DEFAULTS_PATH = Path(__file__).resolve().parents[2] / "defaults.toml"
-
-
-class BackupSettings(TypedDict, total=False):
-    exclude_dir: str
-
-
-def _backup_settings(repo_root: Path) -> BackupSettings:
-    """Load backup settings: defaults overlaid by project .br-pre-commit.toml."""
-    settings: BackupSettings = {"exclude_dir": "archive_not_used_trash"}
-    project_path = repo_root / ".br-pre-commit.toml"
-    if not project_path.exists():
-        return settings
-    data = tomllib.loads(project_path.read_text(encoding="utf-8"))
-    section = data.get("backup")
-    if isinstance(section, dict) and "exclude-dir" in section:
-        settings["exclude_dir"] = str(section["exclude-dir"])
-    return settings
-
-
-def _flatten_path(path: str) -> str:
-    return path.replace("/", "_").replace("\\", "_")
-
-
-def _content_hash(content: bytes) -> str:
-    """Return a short, non-cryptographic content identifier."""
-    return f"{zlib.crc32(content) & 0xFFFFFFFF:08x}"[-7:]
-
-
-async def _git(repo_root: Path, *args: str) -> bytes:
-    proc = await asyncio.create_subprocess_exec(
-        "git", *args, cwd=repo_root, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await proc.communicate()
-    if proc.returncode:
-        message = stderr.decode("utf-8", errors="replace").strip()
-        log.error("git %s failed: %s", " ".join(args), message)
-        raise subprocess_error(proc.returncode, args, stdout, stderr)
-    return stdout
-
-
-def subprocess_error(returncode: int, args: tuple[str, ...], stdout: bytes, stderr: bytes) -> RuntimeError:
-    return RuntimeError(f"git {' '.join(args)} exited {returncode}: {stderr.decode('utf-8', errors='replace').strip()}")
-
-
-def _decode_paths(output: bytes) -> list[str]:
-    return [path.decode("utf-8", errors="surrogateescape") for path in output.split(b"\0") if path]
+def _write_manifest(path: Path, manifest: Manifest) -> None:
+    path.write_text(json.dumps(asdict(manifest), indent=2) + "\n", encoding="utf-8")
 
 
 def _write_patch(snapshot_dir: Path, prefix: str, path: str, patch: bytes) -> dict[str, str]:
@@ -83,8 +44,6 @@ def _write_patch(snapshot_dir: Path, prefix: str, path: str, patch: bytes) -> di
         content = patch + b"\n"
         source_path = Path(path)
         ext = source_path.suffix.lstrip(".") or "bin"
-        # Stored name: <prefix>/<dir>/<stem>.<ext>.<hash>.patch
-        # e.g. src/foo/__init__.py.d30c167.patch
         stored_path = Path(prefix) / source_path.with_name(f"{source_path.stem}.{ext}.{_content_hash(content)}.patch")
         destination = snapshot_dir / stored_path
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -96,15 +55,24 @@ def _write_patch(snapshot_dir: Path, prefix: str, path: str, patch: bytes) -> di
     return entry
 
 
-def _copy_full_file(full_backup_dir: Path, repo_root: Path, path: str) -> dict[str, str] | None:
-    """Copy an excluded-path file verbatim into the content-addressed full-backup store.
+def _is_text_file(path: Path) -> bool:
+    """Check if a file is a text file (UTF-8 decodable)."""
+    try:
+        path.read_text(encoding="utf-8")
+        return True
+    except UnicodeDecodeError:
+        return False
+    except Exception:
+        return False
 
-    The stored name is ``<relpath-flattened>.<ext>.<7-digit-content-hash>`` so that
-    different versions of the same file keep distinct copies and identical versions
-    overwrite each other. e.g. ``src_archive_not_used_trash_legacy.py.abc1234``.
-    """
+
+def _copy_full_file(
+    full_backup_dir: Path, repo_root: Path, path: str, *, text_only: bool = False
+) -> dict[str, str] | None:
     source = repo_root / path
     if not source.is_file():
+        return None
+    if text_only and not _is_text_file(source):
         return None
     try:
         content = source.read_bytes()
@@ -112,16 +80,23 @@ def _copy_full_file(full_backup_dir: Path, repo_root: Path, path: str) -> dict[s
         log.exception("Failed to read %s for full backup: %s", path, exc)
         return {"original_path": path, "type": "failed", "error": str(exc)}
     try:
-        flat = _flatten_path(path)
-        ext = source.suffix.lstrip(".") or "bin"
-        stored_path = f"{flat}.{ext}.{_content_hash(content)}"
+        path_obj = Path(path)
+        stem = path_obj.stem
+        ext = path_obj.suffix.lstrip(".") or "bin"
+        hash_suffix = _content_hash(content)
+        stored_name = f"{stem}.{hash_suffix}.{ext}"
+        stored_path = path_obj.with_name(stored_name)
         destination = full_backup_dir / stored_path
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(content)
-        return {"original_path": path, "type": "full", "stored_path": stored_path}
+        return {"original_path": path, "type": "full", "stored_path": stored_path.as_posix()}
     except Exception as exc:
         log.exception("Failed to backup full file %s: %s", path, exc)
         return {"original_path": path, "type": "failed", "error": str(exc)}
+
+
+def _snapshot_size(snapshot_dir: Path) -> int:
+    return sum(path.stat().st_size for path in snapshot_dir.rglob("*") if path.is_file())
 
 
 async def _backup_diff(snapshot_dir: Path, repo_root: Path, prefix: str, path: str) -> dict[str, str]:
@@ -163,38 +138,31 @@ async def _backup_untracked(snapshot_dir: Path, repo_root: Path, paths: list[str
     return sorted((entry for entry in entries if entry is not None), key=lambda entry: entry["original_path"])
 
 
-def _write_manifest(path: Path, manifest: Manifest) -> None:
-    path.write_text(json.dumps(asdict(manifest), indent=2) + "\n", encoding="utf-8")
+async def _get_all_tracked_files(repo_root: Path) -> list[str]:
+    """Get all files tracked by git in the repository."""
+    output = await _git(repo_root, "ls-files", "-z")
+    return _decode_paths(output)
 
 
-def _snapshot_size(snapshot_dir: Path) -> int:
-    return sum(path.stat().st_size for path in snapshot_dir.rglob("*") if path.is_file())
+async def _backup_all_tracked_files(full_backup_dir: Path, repo_root: Path, exclude_regex: str) -> list[dict[str, str]]:
+    """Copy all tracked text files (except those matching exclude_regex) to full backup store."""
+    all_tracked = await _get_all_tracked_files(repo_root)
+    filtered = [p for p in all_tracked if not _is_excluded(p, exclude_regex)]
+    entries = await asyncio.gather(
+        *(asyncio.to_thread(_copy_full_file, full_backup_dir, repo_root, path, text_only=True) for path in filtered)
+    )
+    return sorted((entry for entry in entries if entry is not None), key=lambda entry: entry["original_path"])
 
 
-def _is_excluded(path: str, exclude_dir: str) -> bool:
-    """Return True when ``path`` is under the configured exclude directory.
-
-    ``exclude_dir`` may be either a literal directory name (matched against any
-    path part) or a regex anchored to match a single path part.
-    """
-    if not exclude_dir:
-        return False
-    parts = Path(path).parts
-    try:
-        pattern = re.compile(exclude_dir)
-    except re.error:
-        # Literal directory name - match against any path part.
-        return exclude_dir in parts
-    # Regex - each path part is matched in full.
-    return any(pattern.fullmatch(part) for part in parts)
+def _split_by_exclude(paths: list[str], exclude_regex: str) -> tuple[list[str], list[str]]:
+    keep: list[str] = []
+    full: list[str] = []
+    for path in paths:
+        (full if _is_excluded(path, exclude_regex) else keep).append(path)
+    return keep, full
 
 
-def _get_full_backup_dir(repo_root: Path) -> Path:
-    return repo_root / "logs" / "pre-commit" / FULL_BACKUP_DIR
-
-
-async def take_snapshot_async(repo_root: Path) -> Manifest:
-    log.debug("Taking snapshot %s...", repo_root)
+async def _gather_git_info(repo_root: Path) -> tuple[str, str, list[str], list[str], list[str]]:
     branch_raw, commit_raw, staged_raw, unstaged_raw, untracked_raw = await asyncio.gather(
         _git(repo_root, "rev-parse", "--abbrev-ref", "HEAD"),
         _git(repo_root, "rev-parse", "HEAD"),
@@ -204,36 +172,51 @@ async def take_snapshot_async(repo_root: Path) -> Manifest:
     )
     branch = branch_raw.decode().strip()
     commit_hash = commit_raw.decode().strip()
-    snapshot_dir = get_snapshot_dir(branch, commit_hash, repo_root)
+    return branch, commit_hash, _decode_paths(staged_raw), _decode_paths(unstaged_raw), _decode_paths(untracked_raw)
 
-    settings = _backup_settings(repo_root)
-    exclude_dir = settings.get("exclude_dir", "archive_not_used_trash")
 
-    staged_paths = _decode_paths(staged_raw)
-    unstaged_paths = _decode_paths(unstaged_raw)
-    untracked_paths = _decode_paths(untracked_raw)
-
-    def _split(paths: list[str]) -> tuple[list[str], list[str]]:
-        keep: list[str] = []
-        full: list[str] = []
-        for path in paths:
-            (full if _is_excluded(path, exclude_dir) else keep).append(path)
-        return keep, full
-
-    staged_keep, staged_full = _split(staged_paths)
-    unstaged_keep, unstaged_full = _split(unstaged_paths)
-    untracked_keep, untracked_full = _split(untracked_paths)
-
-    full_backup_dir = _get_full_backup_dir(repo_root)
+async def _build_full_backups(
+    full_backup_dir: Path,
+    repo_root: Path,
+    exclude_regex: str,
+    staged_full: list[str],
+    unstaged_full: list[str],
+    untracked_full: list[str],
+) -> list[dict[str, str]]:
     full_entries = await asyncio.gather(
         *(
-            asyncio.to_thread(_copy_full_file, full_backup_dir, repo_root, path)
+            asyncio.to_thread(_copy_full_file, full_backup_dir, repo_root, path, text_only=True)
             for path in staged_full + unstaged_full + untracked_full
         )
     )
     full_backups = sorted(
         (entry for entry in full_entries if entry is not None),
         key=lambda entry: entry["original_path"],
+    )
+    all_tracked_backups = await _backup_all_tracked_files(full_backup_dir, repo_root, exclude_regex)
+    existing_paths = {entry["original_path"] for entry in full_backups}
+    for entry in all_tracked_backups:
+        if entry["original_path"] not in existing_paths:
+            full_backups.append(entry)
+    full_backups.sort(key=lambda entry: entry["original_path"])
+    return full_backups
+
+
+async def take_snapshot_async(repo_root: Path) -> Manifest:
+    log.debug("Taking snapshot %s...", repo_root)
+    branch, commit_hash, staged_paths, unstaged_paths, untracked_paths = await _gather_git_info(repo_root)
+    snapshot_dir = get_snapshot_dir(branch, commit_hash, repo_root)
+
+    settings = _backup_settings(repo_root)
+    exclude_regex = settings.get("full_backup_exclude_dir_regex", _DEFAULT_FULL_BACKUP_EXCLUDE_DIR_REGEX)
+
+    staged_keep, staged_full = _split_by_exclude(staged_paths, exclude_regex)
+    unstaged_keep, unstaged_full = _split_by_exclude(unstaged_paths, exclude_regex)
+    untracked_keep, untracked_full = _split_by_exclude(untracked_paths, exclude_regex)
+
+    full_backup_dir = _get_full_backup_dir(repo_root)
+    full_backups = await _build_full_backups(
+        full_backup_dir, repo_root, exclude_regex, staged_full, unstaged_full, untracked_full
     )
 
     staged, unstaged, untracked = await asyncio.gather(

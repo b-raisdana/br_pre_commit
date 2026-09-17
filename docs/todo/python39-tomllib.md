@@ -2,7 +2,7 @@
 
 ## Problem
 
-`src/br_pre_commit/precommit_config.py:3` imports the standard library `tomllib`:
+`src/precommit_config.py:3` imports the standard library `tomllib`:
 
 ```python
 import tomllib
@@ -12,7 +12,9 @@ import tomllib
 
 ## Usage
 
-`tomllib.loads()` and `tomllib.load()` are used at `precommit_config.py:17-19` for loading TOML config files (`.br-pre-commit.toml` and `defaults.toml`).
+`tomllib.loads()` and `tomllib.load()` are used at
+`precommit_config.py` for loading `[tool.br_pre_commit.*]` sections of
+`pyproject.toml`.
 
 ## Fix options
 
@@ -45,7 +47,7 @@ Not recommended — overkill for config parsing.
 
 | File | Change |
 |------|--------|
-| `src/br_pre_commit/precommit_config.py` | Add `tomli` fallback import |
+| `src/precommit_config.py` | Add `tomli` fallback import |
 | `pyproject.toml` | Add `tomli; python_version < "3.11"` dependency |
 
 ## Verification

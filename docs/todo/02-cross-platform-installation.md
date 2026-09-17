@@ -45,9 +45,14 @@ Running the installer multiple times must:
 - Detect a conflicting hook → preserve user's hook, report conflict, suggest migration
 - Never duplicate hook content
 
-### No Dependency on `run` / `run.ps1`
+### `run` / `run.ps1` Launchers
 
-The installer must not require `run` or `run.ps1` to exist. The hook should point directly to the Python implementation.
+The repository root contains `run` (POSIX) and `run.ps1` (PowerShell) scripts that serve as cross-platform launchers for the pre-commit tool. These set environment variables and dispatch to `src/precommit_wrapper.py`.
+
+| Script | Platforms | Dispatches to |
+|--------|-----------|---------------|
+| `run` | Linux, WSL, macOS | `python src/precommit_wrapper.py` |
+| `run.ps1` | Windows native | `python src/precommit_wrapper.py` |
 
 ## Design: Python-Native Installer
 
@@ -63,9 +68,9 @@ GapAnalyzer           → validates installation (see 06)
 
 ### Entry Points
 
-- `python -m br_pre_commit.install` — primary entry point
-- `install.sh` — minimal POSIX wrapper: `exec python -m br_pre_commit.install "$@"`
-- `install.ps1` — minimal PowerShell wrapper: `python -m br_pre_commit.install $args`
+- `install/install.py` — primary entry point (all install logic)
+- `install/install.sh` — minimal POSIX wrapper: `exec python install/install.py "$@"`
+- `install/install.ps1` — minimal PowerShell wrapper: `python install/install.py $args`
 
 ### Submodule Path Resolution
 
@@ -91,7 +96,7 @@ def resolve_submodule_path(repo_root: Path) -> Path:
     # 3. Fallback: common locations (for backward compat)
     for candidate in ["br_pre_commit", "tools/br_pre_commit", ".br_pre_commit"]:
         p = repo_root / candidate
-        if (p / "src" / "br_pre_commit").exists():
+        if (p / "src" / "precommit_wrapper.py").exists():
             return p.resolve()
 
     raise InstallError("br_pre_commit submodule not found")
@@ -101,10 +106,9 @@ def resolve_submodule_path(repo_root: Path) -> Path:
 
 | Old Behavior | New Behavior |
 |--------------|--------------|
-| Hook → `./run` | Hook → `python -m br_pre_commit.precommit_wrapper` |
-| Hook → `./run.ps1` | Hook → `python -m br_pre_commit.precommit_wrapper` |
-| Hardcoded paths | Dynamic path resolution at hook runtime |
-| Separate POSIX/Windows logic | Unified Python installer, platform-specific hook template |
+| Hook → `./run` | Hook → direct `python <tool_root>/src/precommit_wrapper.py` (run script kept for manual launcher) |
+| Hook → `./run.ps1` | Hook → direct `python <tool_root>/src/precommit_wrapper.py` (run.ps1 kept for manual launcher) |
+| Logic in install.sh + install.ps1 + run + run.ps1 | Logic in install.py, run/run.ps1 as cross-platform launchers |
 
 ## Verification Checklist
 

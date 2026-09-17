@@ -1,15 +1,17 @@
 import json
+import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.unit
 
-BACKUP_PATH = Path(__file__).resolve().parents[1] / "src/br_pre_commit/backup.py"
-RECOVER_PATH = Path(__file__).resolve().parents[1] / "src/br_pre_commit/recover.py"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+BACKUP_MODULE = "src.backup"
+RECOVER_MODULE = "src.backup.recover"
+_TEST_ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
 
 
 def _init_git_repo(tmp_path: Path) -> Path:
@@ -25,11 +27,12 @@ def _init_git_repo(tmp_path: Path) -> Path:
 
 def _run_backup(repo_root: Path) -> Path:
     subprocess.run(
-        [sys.executable, str(BACKUP_PATH), "--repo", str(repo_root)],
+        [sys.executable, "-m", BACKUP_MODULE, "--repo", str(repo_root)],
         capture_output=True,
         text=True,
         check=True,
         cwd=repo_root,
+        env=_TEST_ENV,
     )
     snapshot_dirs = list((repo_root / "logs" / "pre-commit" / "backup-patches").iterdir())
     assert snapshot_dirs, "No snapshot directory created"
@@ -39,10 +42,10 @@ def _run_backup(repo_root: Path) -> Path:
 def _run_recover(
     snapshot_dir: Path, repo_root: Path, extra_args: list[str] | None = None
 ) -> subprocess.CompletedProcess:
-    args = [sys.executable, str(RECOVER_PATH), "--snapshot", str(snapshot_dir), "--repo", str(repo_root)]
+    args = [sys.executable, "-m", RECOVER_MODULE, "--snapshot", str(snapshot_dir), "--repo", str(repo_root)]
     if extra_args:
         args.extend(extra_args)
-    return subprocess.run(args, capture_output=True, text=True, cwd=repo_root)
+    return subprocess.run(args, capture_output=True, text=True, cwd=repo_root, env=_TEST_ENV)
 
 
 # ---- (a) staged + unstaged round-trip ----
@@ -106,6 +109,8 @@ def test_backup_keeps_changed_patches_and_refreshes_identical_patch(tmp_path: Pa
     first_manifest = json.loads((snapshot_dir / "manifest.json").read_text())
     first_patch = snapshot_dir / first_manifest["staged"][0]["stored_path"]
     first_mtime = first_patch.stat().st_mtime_ns
+
+    import time
 
     time.sleep(0.01)
     _run_backup(tmp_path)

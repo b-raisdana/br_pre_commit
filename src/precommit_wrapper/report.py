@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 
 if TYPE_CHECKING:
-    from precommit_wrapper import JobResult
+    from .__main__ import JobResult
 
 
 class ResultWithOutput(Protocol):
@@ -92,12 +92,12 @@ def _parse_radon_warnings(radon_result: ResultWithOutput | None) -> list[LintWar
 
 
 def _advisory_warnings(results: list[JobResult]) -> list[LintWarning]:
-    from precommit_wrapper import REPO_ROOT  # noqa: F402,E402
+    from .__main__ import REPO_ROOT  # noqa: F402,E402
 
     warnings: list[LintWarning] = []
     ruff_result = next((item for item in results if getattr(item, "job_id", None) == "advisory-ruff"), None)
     if ruff_result is not None:
-        warnings.extend(_parse_ruff_warnings(ruff_result, cast(Path, REPO_ROOT)))
+        warnings.extend(_parse_ruff_warnings(ruff_result, REPO_ROOT))
 
     radon_result = next((item for item in results if getattr(item, "job_id", None) == "advisory-radon"), None)
     warnings.extend(_parse_radon_warnings(radon_result))
@@ -105,9 +105,9 @@ def _advisory_warnings(results: list[JobResult]) -> list[LintWarning]:
 
 
 def _write_report(human_ts: str, results: list[JobResult]) -> Path:
-    from precommit_wrapper import LOG_DIR  # noqa: F402,E402
+    from .__main__ import LOG_DIR  # noqa: F402,E402
 
-    report_dir = cast(Path, LOG_DIR) / "pre-commit-runs"
+    report_dir = LOG_DIR / "pre-commit-runs"
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / f"{human_ts}.log"
     sections = [
@@ -123,20 +123,20 @@ def _write_report(human_ts: str, results: list[JobResult]) -> Path:
 
 
 def _append_summary(entry: SummaryEntry) -> None:
-    from precommit_wrapper import LOG_DIR, LOG_FILE  # noqa: F402,E402
+    from .__main__ import LOG_DIR, LOG_FILE  # noqa: F402,E402
 
-    log_dir = cast(Path, LOG_DIR)
-    log_file = cast(Path, LOG_FILE)
+    log_dir = LOG_DIR
+    log_file = LOG_FILE
     log_dir.mkdir(parents=True, exist_ok=True)
     with log_file.open("a", encoding="utf-8") as output:
         output.write(json.dumps(entry) + "\n")
 
 
 def _run_branch_protection(branch: str) -> list[JobResult]:
-    from precommit_wrapper import JobResult, _branch_protection_result  # noqa: F402,E402
+    from .__main__ import JobResult, _branch_protection_result  # noqa: F402,E402
 
     try:
-        result = cast(JobResult | None, _branch_protection_result(branch))
+        result = _branch_protection_result(branch)
     except ValueError as exc:
         message = f"configuration error: {exc}"
         sys.stdout.write(message + "\n")
@@ -148,7 +148,7 @@ def _run_branch_protection(branch: str) -> list[JobResult]:
 
 
 async def _run_pipeline(staged: list[str]) -> list[JobResult]:
-    from precommit_wrapper import JobResult, _run_hooks, _run_job  # noqa: F402,E402
+    from .__main__ import JobResult, _run_hooks, _run_job  # noqa: F402,E402
 
     if not staged:
         sys.stdout.write("No staged files; running the standard pre-commit pipeline.\n")
@@ -158,7 +158,7 @@ async def _run_pipeline(staged: list[str]) -> list[JobResult]:
         from pre_commit.store import Store
 
         with staged_files_only(Store().directory):
-            return cast(list[JobResult], await _run_hooks(staged))
+            return await _run_hooks(staged)
     except ValueError as exc:
         message = f"configuration error: {exc}"
         sys.stdout.write(message + "\n")
@@ -174,7 +174,7 @@ def _write_summary(human_ts: str, results: list[JobResult]) -> tuple[Path, list[
 
 
 async def _main_async() -> int:
-    from precommit_wrapper import REPO_ROOT, _git, _run_backup, _staged_files  # noqa: F402,E402
+    from .__main__ import REPO_ROOT, _git, _run_backup, _staged_files  # noqa: F402,E402
 
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     human_ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
@@ -211,7 +211,7 @@ async def _main_async() -> int:
 
 
 def _report_failure(report_path: Path, snapshot_dir: str | None) -> None:
-    from precommit_wrapper import REPO_ROOT  # noqa: F402,E402
+    from .__main__ import REPO_ROOT  # noqa: F402,E402
 
     sys.stdout.write(f"Pre-commit failed; report: {report_path.relative_to(REPO_ROOT)}\n")
     if snapshot_dir:
@@ -219,17 +219,10 @@ def _report_failure(report_path: Path, snapshot_dir: str | None) -> None:
 
 
 def main() -> int:
-    from precommit_wrapper import log  # noqa: F402,E402
+    from .__main__ import log  # noqa: F402,E402
 
     try:
         return asyncio.run(_main_async())
     except KeyboardInterrupt as exc:
         log.error("Pre-commit wrapper terminated: %s", exc)
         return 1
-
-
-if __name__ == "__main__":
-    from precommit_wrapper import REPO_ROOT, log  # noqa: F402,E402
-
-    log.info("Running pre-commit wrapper in %s", REPO_ROOT)
-    sys.exit(main())

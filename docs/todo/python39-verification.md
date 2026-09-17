@@ -18,7 +18,7 @@ python3.9 -m pip install -e .
 python3.9 -m pip install pre-commit pyyaml
 ```
 
-Verify `gitpython` (used by `sync_skill_core.py`, `sync_skill_sync.py`, etc.) supports 3.9.
+Verify `gitpython` (used by `src/sync_skills/core.py`, `src/sync_skills/sync.py`, etc.) supports 3.9.
 
 ### 2. Lint with Python 3.9 target
 
@@ -45,10 +45,10 @@ All tests in `tests/` must pass. Key test files:
 
 ### 4. Run integration / end-to-end checks
 
-- Execute `src/br_pre_commit/sync_skill.py` as a script in a test repo.
-- Execute `src/br_pre_commit/precommit_wrapper.py` on a repo with staged changes.
-- Execute `src/br_pre_commit/backup.py` and `src/br_pre_commit/recover.py` round-trip.
-- Execute `src/br_pre_commit/incremental_precommit/ratchet_check.py` against a real commit.
+- Execute `python -m src.sync_skills` as a script in a test repo.
+- Execute `python -m src.precommit_wrapper` on a repo with staged changes.
+- Execute `python -m src.backup` and `python -m src.backup.recover` round-trip.
+- Execute `PYTHONPATH=src python -m ratchet` against a real commit.
 
 ### 5. Pre-commit hook validation
 
@@ -73,7 +73,7 @@ python3.12 -m pytest -m unit
 
 ### Critical blocker: `tomllib`
 
-`src/br_pre_commit/precommit_config.py` imports `tomllib` which **does not exist** in Python 3.9. This is the most fundamental blocker — the module cannot be imported at all without a fallback. See dedicated doc `docs/todo/python39-tomllib.md` for the fix strategy (likely `tomli` fallback with `try/except ModuleNotFoundError`).
+`src/precommit_config.py` imports `tomllib` which **does not exist** in Python 3.9. This is the most fundamental blocker — the module cannot be imported at all without a fallback. See dedicated doc `docs/todo/python39-tomllib.md` for the fix strategy (likely `tomli` fallback with `try/except ModuleNotFoundError`).
 
 ## Sign-off checklist
 

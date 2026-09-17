@@ -1,67 +1,78 @@
-# 08 — Direct `precommit_wrapper.py` Registration Design
+# 08 — Cross-Platform `run` Script Design
 
 ## Overview
 
-Eliminate `run` and `run.ps1` as execution shims. The final design should register the pre-commit hook directly to the Python implementation (`src/br_pre_commit/precommit_wrapper.py`) without requiring intermediate shell scripts.
+The `run` (POSIX) and `run.ps1` (PowerShell) scripts in the repository root serve as cross-platform launchers for the pre-commit tool. They set up environment variables and dispatch to the Python implementation (`src/precommit_wrapper.py`) based on the operating system.
 
 ## Requirements
 
-### Elimination Targets
+### Launcher Scripts
 
-| Shim | Current Role | Replacement |
-|------|--------------|-------------|
-| `run` (POSIX shell) | Entry point for Linux/WSL hook | Direct `python -m br_pre_commit.precommit_wrapper` |
-| `run.ps1` (PowerShell) | Entry point for Windows hook | Direct `python -m br_pre_commit.precommit_wrapper` |
+| Script | Platform | Role |
+|--------|----------|------|
+| `run` (POSIX shell) | Linux, WSL, macOS | Entry point for POSIX environments |
+| `run.ps1` (PowerShell) | Windows native | Entry point for Windows environments |
 
 ### Hook Registration
 
-The hook should ultimately execute:
+The Git hook installed by the installer executes `precommit_wrapper.py` directly via `python`. For manual invocation or CI, the `run` / `run.ps1` scripts provide a consistent entry point:
+
 ```
-src/br_pre_commit/precommit_wrapper.py
-```
-via:
-```
-python -m br_pre_commit.precommit_wrapper
-```
-without requiring:
-```
-./run
-./run.ps1
+./run                    # POSIX: exec python src/precommit_wrapper.py
+./run.ps1                # Windows: python src/precommit_wrapper.py
 ```
 
-### Cross-Platform Hook
+### Cross-Platform Dispatch
 
-The same hook design works on both platforms:
-- POSIX: `#!/usr/bin/env sh` + `exec python -m br_pre_commit.precommit_wrapper "$@"`
-- Windows: `#!/usr/bin/env pwsh` + `python -m br_pre_commit.precommit_wrapper $args`
+The `run` script detects the platform and dispatches accordingly:
 
-## Design: Direct Module Execution
+- **Linux/WSL**: `exec python "$BR_PRE_COMMIT_TOOL_ROOT/src/precommit_wrapper.py" "$@"`
+- **Windows (via `run`)**: delegates to `run.ps1` via PowerShell
+- **`run.ps1`**: `python "$BR_PRE_COMMIT_TOOL_ROOT/src/precommit_wrapper.py" $args`
 
-### Why `python -m br_pre_commit.precommit_wrapper`?
+## Design: `run` Script
 
-1. **No path assumptions** — Python finds the module via `sys.path`
-2. **Works from any directory** — Git runs hook from repo root
-3. **Uses active Python** — `python` resolves to the environment's Python
-4. **No intermediate files** — No `run`/`run.ps1` to maintain or sync
-5. **Standard Python pattern** — `-m` is the standard way to run modules
+### Why a launcher script?
+
+1. **Centralized entry point** — One script for all platforms
+2. **Environment setup** — Sets `BR_PRE_COMMIT_TOOL_ROOT` and other variables
+3. **Platform dispatch** — Routes to correct implementation per OS
+4. **Consistent interface** — Same invocation pattern regardless of platform
 
 ### Module Structure
 
 ```
-br_pre_commit/
-├── __init__.py
-├── precommit_wrapper.py    # Main entry point
-├── gap_analyzer.py
-├── hook_installer.py
-├── install.py              # Installer entry point
-├── requirements.txt        # Runtime dependencies
+repo-root/
+├── run               # POSIX launcher
+├── run.ps1           # PowerShell launcher
+├── src/
+│   ├── precommit_wrapper/
+│   │   ├── __main__.py    # Main entry point
+│   │   └── config.py
+│   ├── backup/
+│   │   ├── __main__.py
+│   │   ├── common.py
+│   │   └── recover.py
+│   ├── sync_skills/
+│   │   ├── __main__.py
+│   │   ├── core.py
+│   │   ├── sync.py
+│   │   └── utils.py
+│   ├── ratchet/
+│   │   ├── __init__.py
+│   │   ├── __main__.py
+│   │   ├── baseline.py
+│   │   ├── details.py
+│   │   ├── gate.py
+│   │   └── tools.py
+│   └── ...
 └── ...
 ```
 
 ### `precommit_wrapper.py` Responsibilities
 
 ```python
-# src/br_pre_commit/precommit_wrapper.py
+# src/precommit_wrapper.py
 """Main entry point for the pre-commit hook."""
 
 import sys
@@ -78,50 +89,27 @@ def main():
     check_dependencies(tool_root / "requirements.txt")
 
     # 4. Run the actual pre-commit logic
-    # Delegate to pre_commit package or internal implementation
     return run_pre_commit(repo_root, tool_root)
 
 if __name__ == "__main__":
     sys.exit(main())
 ```
 
-### Removing `run` and `run.ps1`
-
-**Current (to be removed):**
-```
-.git/hooks/pre-commit → ./run → python -m br_pre_commit.precommit_wrapper
-.git/hooks/pre-commit → ./run.ps1 → python -m br_pre_commit.precommit_wrapper
-```
-
-**New (direct):**
-```
-.git/hooks/pre-commit → python -m br_pre_commit.precommit_wrapper
-```
-
-### Migration Steps
-
-1. Update hook installer to generate direct hook (see 07)
-2. Update gap analyzer to flag `run`/`run.ps1` as obsolete (see 06)
-3. Remove `run` and `run.ps1` from repository
-4. Update documentation and README
-5. Verify installer works without them
-
 ### Backward Compatibility
 
 During transition, the installer should:
 - Detect hooks pointing to `run`/`run.ps1` → migrate automatically
-- Not require `run`/`run.ps1` to exist
-- Gap analyzer reports them as WARNING with remediation
+- Support `run`/`run.ps1` as valid entry points
+- Gap analyzer reports legacy hooks as WARNING with remediation
 
 ## Verification Checklist
 
-- [ ] Hook executes `python -m br_pre_commit.precommit_wrapper` directly
-- [ ] No `run` file in repository
-- [ ] No `run.ps1` file in repository
+- [ ] `run` executes `python src/precommit_wrapper.py` on Linux/WSL
+- [ ] `run.ps1` executes `python src/precommit_wrapper.py` on Windows
+- [ ] `run` delegates to `run.ps1` on Windows (MINGW/MSYS/CYGWIN)
+- [ ] `run` is executable
 - [ ] Hook works on Linux/WSL (POSIX)
 - [ ] Hook works on Windows (PowerShell)
-- [ ] Gap analyzer flags obsolete shims
-- [ ] Installer migrates old hooks automatically
+- [ ] Gap analyzer correctly identifies launcher scripts
 - [ ] `precommit_wrapper.py` handles all responsibilities
-- [ ] No path assumptions in hook
 - [ ] Works from any working directory

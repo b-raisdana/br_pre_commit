@@ -21,8 +21,8 @@ An analyzer that verifies the installation and current integration. It checks a 
 | Python version supported | ≥ 3.9 | ERROR |
 | Required packages installed | All packages from requirements.txt importable | ERROR |
 | Required packages importable | Same as above (redundant check) | ERROR |
-| Obsolete run shim detected | `.git/hooks/pre-commit` → `./run` | WARNING |
-| Obsolete run.ps1 shim detected | `.git/hooks/pre-commit` → `./run.ps1` | WARNING |
+| Obsolete hook calls run | `.git/hooks/pre-commit` → `exec ./run` | WARNING |
+| Obsolete hook calls run.ps1 | `.git/hooks/pre-commit` → `./run.ps1` | WARNING |
 | Stale hook detected | Hook points to old/moved location | WARNING |
 | Duplicate hook registration detected | Multiple hook mechanisms active | WARNING |
 
@@ -62,8 +62,8 @@ Each WARNING/ERROR should provide a practical fix command:
 
 | Issue | Remediation |
 |-------|-------------|
-| Obsolete run shim | `python -m br_pre_commit.install --force` |
-| Obsolete run.ps1 shim | `python -m br_pre_commit.install --force` |
+| Obsolete hook shim | `python -m br_pre_commit.install --force` |
+| Obsolete run ps1 shim | `python -m br_pre_commit.install --force` |
 | Stale hook (path mismatch) | `python -m br_pre_commit.install` |
 | Duplicate hook | `python -m br_pre_commit.install --clean` |
 | Missing packages | `python -m pip install -r "/abs/path/to/requirements.txt"` |
@@ -73,7 +73,7 @@ Each WARNING/ERROR should provide a practical fix command:
 ## Design: `GapAnalyzer` Class
 
 ```python
-# src/br_pre_commit/gap_analyzer.py
+# src/gap_analyzer.py
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -155,9 +155,15 @@ class GapAnalyzer:
 
         if expected_marker in content:
             self._ok("Hook points to expected implementation")
-        elif "./run" in content or "./run.ps1" in content:
+        # Check for hooks that call run/run.ps1 as legacy shims
+        if "exec ./run" in content or 'exec "./run"' in content:
             self._warning(
-                "Obsolete run/run.ps1 shim detected in hook",
+                "Obsolete run shim detected in hook",
+                'python -m br_pre_commit.install --force'
+            )
+        elif "./run.ps1" in content or ".\\run.ps1" in content:
+            self._warning(
+                "Obsolete run.ps1 shim detected in hook",
                 'python -m br_pre_commit.install --force'
             )
         else:
@@ -167,13 +173,17 @@ class GapAnalyzer:
             )
 
     def _check_obsolete_shims(self):
-        # Check for run/run.ps1 files that shouldn't be used
+        # Check for obsolete run/run.ps1 hook scripts that no longer exist.
+        # The run and run.ps1 launcher scripts in the repo root are valid
+        # and should NOT be flagged.
         for shim in ["run", "run.ps1"]:
             shim_path = self.tool_root / shim
-            if shim_path.exists():
+            # Only flag if they exist in .git/hooks as leftover hook files
+            hook_shim = self.repo_root / ".git" / "hooks" / shim
+            if hook_shim.exists():
                 self._warning(
-                    f"Obsolete {shim} shim detected",
-                    f"Remove {shim_path} after verifying new hook works"
+                    f"Obsolete {shim} hook file in .git/hooks",
+                    f"Remove {hook_shim} or reinstall hook"
                 )
 
     def _check_stale_hook(self):
@@ -275,7 +285,7 @@ python -m br_pre_commit.gap_analyzer
 - [ ] `python -m pip` used in remediation
 - [ ] Runs as standalone command
 - [ ] Runs automatically after install
-- [ ] Detects obsolete `run`/`run.ps1` shims
+- [ ] Detects legacy `./run`/`./run.ps1` hooks (not the launcher scripts)
 - [ ] Detects stale hook paths
 - [ ] Detects duplicate hook registration
 - [ ] Exit code: 0 for OK/WARNING, 1 for ERROR

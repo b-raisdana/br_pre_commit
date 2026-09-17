@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 ROOT = Path(os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd())).resolve()
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-from precommit_config import ratchet_settings  # noqa: E402
+from precommit_wrapper.config import ratchet_settings  # noqa: E402
 
 _SETTINGS = ratchet_settings(ROOT)
 BASELINE_DIR = ROOT / ".br-pre-commit" / "ratchet"

@@ -1,6 +1,15 @@
-# Source tree
+# br_pre_commit package
 
-`src/` contains the shared pre-commit implementation. The executable shell
-launchers at the repository root delegate into the `br_pre_commit` package.
+This package contains the shared runtime used by installed Git hooks:
 
-Application code belongs in [`br_pre_commit/`](br_pre_commit/README.md).
+- `precommit_wrapper` schedules configured hooks, protects branches, logs
+  results, and triggers a backup after failure.
+- `precommit_wrapper/` schedules configured hooks, protects branches, logs
+  results, and triggers a backup after failure.
+- `precommit_wrapper/config.py` merges shared defaults with optional project settings.
+- `backup/` and `recover` preserve and restore Git working state.
+- `sync_skills/` synchronizes project skill mirrors.
+- `ratchet/` contains the quality ratchet implementation.
+
+These modules are invoked through the hook installed by `install/install.sh`
+or `install/install.ps1`; they are not copied into consuming projects.

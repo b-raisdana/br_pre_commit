@@ -13,23 +13,23 @@ from __future__ import annotations
 import fcntl
 import json
 import logging
+import subprocess
 import sys
 import time
-from functools import lru_cache
 from pathlib import Path
 from typing import TextIO
 
-from git import Repo
-from git.exc import GitCommandError
-from models import Manifest
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # noqa: E402
+
+from models import Manifest  # noqa: E402
+
+from .common import (  # noqa: E402
+    _get_full_backup_dir,
+    _run_git,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("recover")
-
-
-@lru_cache
-def repo(path: Path) -> Repo:
-    return Repo(path)
 
 
 def _load_manifest(snapshot_dir: Path) -> Manifest:
@@ -66,6 +66,12 @@ def _release_lock(fd: TextIO) -> None:
         pass
 
 
+def _git_error(exc: subprocess.CalledProcessError, category: str, path: str) -> str:
+    """Format a git failure for the failures list and log."""
+    detail = (exc.stderr or exc.stdout).strip()
+    return f"{category} {path}: {detail}"
+
+
 def _recover_patches(
     repo_root: Path,
     snapshot_dir: Path,
@@ -75,7 +81,6 @@ def _recover_patches(
     dry_run: bool,
 ) -> list[str]:
     failures: list[str] = []
-    r = repo(repo_root)
     for entry in entries:
         if entry.get("type") != "patch":
             continue
@@ -88,14 +93,17 @@ def _recover_patches(
             continue
         try:
             if cached:
-                r.git.reset("HEAD", "--", entry["original_path"])
-                r.git.apply("--cached", str(src))
+                _run_git(repo_root, "reset", "HEAD", "--", entry["original_path"])
+                _run_git(repo_root, "apply", "--cached", str(src))
             else:
-                r.git.apply(str(src))
+                _run_git(repo_root, "apply", str(src))
             log.info("Restored %s %s", category, entry["original_path"])
-        except GitCommandError as exc:
-            failures.append(f"{category} {entry['original_path']}: {exc}")
-            log.error("Failed to restore %s %s: %s", category, entry["original_path"], exc)
+        except subprocess.CalledProcessError as exc:
+            msg = _git_error(exc, category, entry["original_path"])
+            failures.append(msg)
+            log.error(
+                "Failed to restore %s %s: %s", category, entry["original_path"], (exc.stderr or exc.stdout).strip()
+            )
     return failures
 
 
@@ -158,11 +166,11 @@ def _recover_full(
     return failures
 
 
-def _checkout_commit(r: Repo, manifest: Manifest, dry_run: bool) -> None:
+def _checkout_commit(repo_root: Path, manifest: Manifest, dry_run: bool) -> None:
     if dry_run:
         log.info("[dry-run] would checkout commit %s", manifest.commit_hash)
         return
-    r.git.checkout(manifest.commit_hash)
+    _run_git(repo_root, "checkout", manifest.commit_hash)
     log.info("Checked out commit %s", manifest.commit_hash)
 
 
@@ -180,8 +188,7 @@ def _recover_category(
     if category == "untracked":
         return _recover_untracked(repo_root, snapshot_dir, manifest.untracked, dry_run)
     if category == "full":
-        full_backup_dir = repo_root / "logs" / "pre-commit" / "full_backup"
-        return _recover_full(repo_root, full_backup_dir, manifest.full_backups, dry_run)
+        return _recover_full(repo_root, _get_full_backup_dir(repo_root), manifest.full_backups, dry_run)
     return [f"unknown recovery category: {category}"]
 
 
@@ -205,9 +212,8 @@ def recover(
         if not dry_run:
             lock_fd = _acquire_lock(repo_root)
 
-        r = repo(repo_root)
         if to_commit:
-            _checkout_commit(r, manifest, dry_run)
+            _checkout_commit(repo_root, manifest, dry_run)
 
         categories = ["staged", "unstaged", "untracked"] if only is None else [only]
         for category in categories:

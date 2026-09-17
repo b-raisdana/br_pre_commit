@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from br_pre_commit.ratchet import (
+from ratchet import (
     TouchedFile,
     _group_mypy_by_file,
     _group_mypy_by_rule,
@@ -39,7 +39,7 @@ def test_ruff_groups_by_file_relativizing_absolute_filenames():
 
 
 def test_mypy_records_group_by_rule_and_by_file_ignore_notes_and_summary(monkeypatch):
-    monkeypatch.setattr("br_pre_commit.ratchet.tools.TARGET", "app")
+    monkeypatch.setattr("ratchet.tools.TARGET", "app")
     output = "\n".join(
         [
             "a.py:1: error: bad type  [type-arg]",
@@ -82,7 +82,7 @@ def test_touched_app_python_files_parses_status_and_renames(monkeypatch, tmp_pat
     (tmp_path / existing).touch()
 
     # Mock the run function directly in the baseline module
-    import br_pre_commit.ratchet.baseline as baseline_module
+    import ratchet.baseline as baseline_module
 
     monkeypatch.setattr(baseline_module, "TARGET", "app")
     monkeypatch.setattr(baseline_module, "ROOT", tmp_path)
@@ -98,13 +98,13 @@ def test_touched_app_python_files_parses_status_and_renames(monkeypatch, tmp_pat
     monkeypatch.setattr(baseline_module, "run", lambda *a, **k: diff_output)
 
     # Also need to patch the module in gate since it imports from baseline
-    import br_pre_commit.ratchet.gate as gate_module
+    import ratchet.gate as gate_module
 
     monkeypatch.setattr(gate_module, "ROOT", tmp_path)
     monkeypatch.setattr(gate_module, "TARGET", "app")
     monkeypatch.setattr(gate_module, "run", lambda *a, **k: diff_output)
 
-    from br_pre_commit.ratchet.gate import touched_app_python_files
+    from ratchet.gate import touched_app_python_files
 
     touched = touched_app_python_files()
 
@@ -125,8 +125,8 @@ def _dicts(mypy=None, ruff=None, xenon=None):
 
 
 def test_zero_tolerance_blocks_any_increase_for_mypy_ruff_xenon(monkeypatch):
-    import br_pre_commit.ratchet.baseline as baseline_module
-    import br_pre_commit.ratchet.gate as gate_module
+    import ratchet.baseline as baseline_module
+    import ratchet.gate as gate_module
 
     monkeypatch.setattr(baseline_module, "_line_count", lambda path: 10)
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)
@@ -140,8 +140,8 @@ def test_zero_tolerance_blocks_any_increase_for_mypy_ruff_xenon(monkeypatch):
 
 
 def test_equal_or_improved_count_does_not_block(monkeypatch):
-    import br_pre_commit.ratchet.baseline as baseline_module
-    import br_pre_commit.ratchet.gate as gate_module
+    import ratchet.baseline as baseline_module
+    import ratchet.gate as gate_module
 
     monkeypatch.setattr(baseline_module, "_line_count", lambda path: 10)
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)
@@ -155,7 +155,7 @@ def test_equal_or_improved_count_does_not_block(monkeypatch):
 
 
 def test_new_file_has_implicit_zero_before_for_mypy_ruff_xenon(monkeypatch):
-    import br_pre_commit.ratchet.baseline as baseline_module
+    import ratchet.baseline as baseline_module
 
     monkeypatch.setattr(baseline_module, "_line_count", lambda path: 10)
     touched = [TouchedFile(path=Path("app/new.py"), is_new=True, old_path=None)]
@@ -168,7 +168,7 @@ def test_new_file_has_implicit_zero_before_for_mypy_ruff_xenon(monkeypatch):
 
 
 def test_loc_new_file_must_fit_under_cap(monkeypatch):
-    import br_pre_commit.ratchet.baseline as baseline_module
+    import ratchet.baseline as baseline_module
 
     touched = [TouchedFile(path=Path("app/new.py"), is_new=True, old_path=None)]
 
@@ -182,8 +182,8 @@ def test_loc_new_file_must_fit_under_cap(monkeypatch):
 
 
 def test_loc_slack_only_applies_once_a_file_is_already_over_the_cap(monkeypatch):
-    import br_pre_commit.ratchet.baseline as baseline_module
-    import br_pre_commit.ratchet.gate as gate_module
+    import ratchet.baseline as baseline_module
+    import ratchet.gate as gate_module
 
     touched = [TouchedFile(path=Path("app/a.py"), is_new=False, old_path=Path("app/a.py"))]
 
@@ -203,8 +203,8 @@ def test_loc_slack_only_applies_once_a_file_is_already_over_the_cap(monkeypatch)
 
 
 def test_renamed_file_looks_up_before_state_under_the_old_path(monkeypatch):
-    import br_pre_commit.ratchet.baseline as baseline_module
-    import br_pre_commit.ratchet.gate as gate_module
+    import ratchet.baseline as baseline_module
+    import ratchet.gate as gate_module
 
     monkeypatch.setattr(baseline_module, "_line_count", lambda path: 10)
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)

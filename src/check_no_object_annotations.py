@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import sys
 from pathlib import Path
+from typing import cast
 
 IGNORE_TAG = "no-object-annotations"
 
@@ -47,9 +48,11 @@ def check_file(path: Path) -> list[str]:
                 continue
 
             for child in ast.walk(annotation):
-                if is_object_annotation(child):
+                child_expr: ast.expr = cast(ast.expr, child)
+                if is_object_annotation(child_expr):
                     errors.append(
-                        f"{path}:{child.lineno}:{child.col_offset + 1}: explicit 'object' type annotation is forbidden"
+                        f"{path}:{child_expr.lineno}:{child_expr.col_offset + 1}: "
+                        "explicit 'object' type annotation is forbidden"
                     )
 
     return errors

@@ -9,8 +9,30 @@ import yaml
 
 PRE_COMMIT_STAGE = "pre-commit"
 RATCHET_HOOK_ID = "incremental-ratchet"
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "defaults.toml"
-PROJECT_CONFIG_NAME = ".br-pre-commit.toml"
+PYPROJECT_PATH = Path(__file__).resolve().parents[2] / "pyproject.toml"
+
+
+def _read_toml_section(path: Path, section: str) -> dict[str, object]:  # ignore: no-object-annotations
+    """Read a top-level section from a TOML file, returning {} on any error."""
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    value = data.get(section)
+    if not isinstance(value, dict):
+        return {}
+    return cast("dict[str, object]", value)  # ignore: no-object-annotations
+
+
+def _shared_defaults() -> dict[str, dict[str, object]]:  # ignore: no-object-annotations
+    """Read shared defaults from [tool.br_pre_commit.*] in pyproject.toml."""
+    tool = _read_toml_section(PYPROJECT_PATH, "tool")
+    return cast("dict[str, dict[str, object]]", tool.get("br_pre_commit", {}))  # ignore: no-object-annotations
+
+
+def _flatten_defaults() -> dict[str, dict[str, object]]:  # ignore: no-object-annotations
+    """Map [tool.br_pre_commit.<name>] sections onto flat [name] sections."""
+    return _shared_defaults()
 
 
 WrapperConfig = TypedDict(
@@ -65,19 +87,9 @@ def _merge_ratchet(base: RatchetConfig | None, override: RatchetConfig | None) -
 
 
 def _merged_config(repo_root: Path) -> AppConfig:
-    """Load shared defaults, then overlay project settings."""
-    defaults = cast(AppConfig, tomllib.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")))
-    project_path = repo_root / PROJECT_CONFIG_NAME
-    project = cast(AppConfig, tomllib.loads(project_path.read_text(encoding="utf-8"))) if project_path.exists() else {}
-
-    result: AppConfig = {}
-    wrapper = _merge_wrapper(defaults.get("wrapper"), project.get("wrapper"))
-    if wrapper is not None:
-        result["wrapper"] = wrapper
-    ratchet = _merge_ratchet(defaults.get("ratchet"), project.get("ratchet"))
-    if ratchet is not None:
-        result["ratchet"] = ratchet
-    return result
+    """Load shared defaults from [tool.br_pre_commit.*] in pyproject.toml."""
+    defaults = _flatten_defaults()
+    return cast(AppConfig, defaults)
 
 
 @dataclass(frozen=True)
@@ -88,7 +100,7 @@ class HookSpec:
 
 # Recognized hook IDs the wrapper can classify. Projects must use IDs from
 # these sets; see README.md § "Recognized hook IDs" for the full list and
-# br_pre_commit/.pre-commit-config.yaml as the authoritative reference config.
+# .pre-commit-config.yaml as the authoritative reference config.
 _MUTATING_HOOKS = frozenset(
     {
         "trailing-whitespace",
@@ -179,7 +191,7 @@ def classify_hooks(hook_ids: list[str], *, policy: str) -> tuple[list[HookSpec],
     Hook IDs not in ``_MUTATING_HOOKS`` or ``_READ_ONLY_HOOKS`` are "unknown".
     With ``policy="error"`` they raise ``ValueError``; with ``"warn"`` they
     run serially. See README.md § "Recognized hook IDs" for the full list.
-    Projects must use IDs from those sets — see ``br_pre_commit/.pre-commit-config.yaml``
+    Projects must use IDs from those sets — see ``.pre-commit-config.yaml``
     as the authoritative reference.
     """
     specs: list[HookSpec] = []

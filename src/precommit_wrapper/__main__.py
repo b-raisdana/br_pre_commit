@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from precommit_config import (
+from .config import (
     HookSpec,
     classify_hooks,
     enabled_pre_commit_hook_ids,
@@ -23,7 +23,7 @@ from precommit_config import (
 )
 
 REPO_ROOT = Path(os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd())).resolve()
-TOOL_ROOT = Path(__file__).resolve().parents[2]
+TOOL_ROOT = Path(__file__).resolve().parents[1]
 LOG_DIR = REPO_ROOT / "logs" / "pre-commit"
 LOG_FILE = LOG_DIR / "pre-commit.log"
 CONFIG_PATH = REPO_ROOT / ".pre-commit-config.yaml"
@@ -198,7 +198,8 @@ async def _run_backup(terminal_lock: asyncio.Lock) -> tuple[JobResult, str | Non
         "backup",
         [
             sys.executable,
-            str(TOOL_ROOT / "src/br_pre_commit/backup.py"),
+            "-m",
+            "backup",
             "--repo",
             str(REPO_ROOT),
             "--print-manifest-json",
@@ -213,7 +214,7 @@ async def _run_backup(terminal_lock: asyncio.Lock) -> tuple[JobResult, str | Non
     return result, snapshot_dir
 
 
-from precommit_report import (  # noqa: E402, F401
+from .report import (  # noqa: E402, F401
     _advisory_warnings,
     _main_async,
     _write_report,

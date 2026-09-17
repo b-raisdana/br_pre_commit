@@ -1,16 +1,8 @@
 import asyncio
-import importlib.util
-import sys
-from pathlib import Path
 
 import pytest
 
-BACKUP_PATH = Path(__file__).resolve().parents[1] / "src/br_pre_commit/backup.py"
-SPEC = importlib.util.spec_from_file_location("backup", BACKUP_PATH)
-assert SPEC is not None and SPEC.loader is not None
-backup = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = backup
-SPEC.loader.exec_module(backup)
+import backup.__main__ as backup  # noqa: E402
 
 pytestmark = pytest.mark.unit
 
@@ -92,6 +84,42 @@ def test_copy_full_file_content_addressed_overwrites_same_version(tmp_path):
     assert (full_backup_dir / e3["stored_path"]).read_text() == "v2-changed\n"
 
 
+def test_copy_full_file_hash_before_extension(tmp_path):
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "archive_not_used_trash").mkdir(parents=True)
+    full_backup_dir = tmp_path / "full"
+    full_backup_dir.mkdir()
+
+    source = repo_root / "src" / "archive_not_used_trash" / "legacy.py"
+    source.write_text("content\n", encoding="utf-8")
+
+    entry = backup._copy_full_file(full_backup_dir, repo_root, "src/archive_not_used_trash/legacy.py")
+    assert entry is not None
+    stored = full_backup_dir / entry["stored_path"]
+    assert stored.exists()
+    # Format: <flattened-stem>.<7-digit-hash>.<ext>  (extension is the last part)
+    parts = stored.name.split(".")
+    assert parts[-1] == "py"
+    assert len(parts[-2]) == 7
+
+
+def test_copy_full_file_extensionless(tmp_path):
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "archive_not_used_trash").mkdir(parents=True)
+    full_backup_dir = tmp_path / "full"
+    full_backup_dir.mkdir()
+
+    source = repo_root / "src" / "archive_not_used_trash" / "Makefile"
+    source.write_text("all:\n", encoding="utf-8")
+
+    entry = backup._copy_full_file(full_backup_dir, repo_root, "src/archive_not_used_trash/Makefile")
+    assert entry is not None
+    stored = full_backup_dir / entry["stored_path"]
+    assert stored.exists()
+    assert stored.name.endswith(".bin")
+    assert len(stored.name.split(".")[-2]) == 7
+
+
 def test_is_excluded_literal_and_regex():
     assert backup._is_excluded("src/archive_not_used_trash/foo.py", "archive_not_used_trash")
     assert not backup._is_excluded("src/foo.py", "archive_not_used_trash")
@@ -101,10 +129,6 @@ def test_is_excluded_literal_and_regex():
     assert not backup._is_excluded("src/foo.py", "^(data|logs|\\.[^/]+)$")
 
 
-def test_backup_settings_defaults_and_override(tmp_path):
+def test_backup_settings_defaults(tmp_path):
     defaults = backup._backup_settings(tmp_path)
-    assert defaults.get("exclude_dir") == "archive_not_used_trash"
-
-    (tmp_path / ".br-pre-commit.toml").write_text('[backup]\nexclude-dir = "custom_excluded"\n', encoding="utf-8")
-    overridden = backup._backup_settings(tmp_path)
-    assert overridden.get("exclude_dir") == "custom_excluded"
+    assert defaults.get("full_backup_exclude_dir_regex") == r"^(data|logs|archive_not_used_trash|\.[^/]+)$"

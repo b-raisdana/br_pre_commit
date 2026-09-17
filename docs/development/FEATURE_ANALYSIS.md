@@ -4,17 +4,18 @@
 - [Pre-commit gap analysis](#pre-commit-gap-analysis)
 - [Pre-commit improvement plan](#pre-commit-improvement-plan)
 
-The clone-local `.git/hooks/pre-commit` shim is installed with `bash ../br_pre_commit/install.sh "$PWD"` from a target project.
+The clone-local `.git/hooks/pre-commit` shim is installed with `bash ../br_pre_commit/install/install.sh "$PWD"` from a target project.
 
-The installed hook delegates to `src/br_pre_commit/precommit_wrapper.py`. Before running project hooks, the wrapper blocks branches listed by `wrapper.protected-branches` (`["main"]` by default). It then reads the target project's `.pre-commit-config.yaml`, uses one shared staged-files context, runs file-mutating hooks serially, and runs read-only hooks in concurrent subprocesses. Unknown hooks fail by default (`wrapper.unknown-hook-policy` in `.br-pre-commit.toml`); `warn` runs them serially. Each job has the configured timeout.
+The installed hook delegates to `src/precommit_wrapper/__main__.py` (`python -m precommit_wrapper`). Before running project hooks, the wrapper blocks branches listed by `wrapper.protected-branches` (`["main"]` by default). It then reads the target project's `.pre-commit-config.yaml`, uses one shared staged-files context, runs file-mutating hooks serially, and runs read-only hooks in concurrent subprocesses. Unknown hooks fail by default (`wrapper.unknown-hook-policy` in
+`[tool.br_pre_commit.wrapper]` of `pyproject.toml`); `warn` runs them serially. Each job has the configured timeout.
 
 The hook IDs the wrapper can classify are defined as frozensets in `precommit_config.py` (`_MUTATING_HOOKS` and `_READ_ONLY_HOOKS`); see README.md § "Recognized hook IDs" for the full list and the requirement that every project config use only registered IDs.
 
 - **logging**: stdout/stderr stream live to stdout with job prefixes and remain in per-job RAM buffers. After all jobs stop, `logs/pre-commit/pre-commit-runs/<timestamp>.log` receives an ordered per-job report; `pre-commit.log` receives the JSON-line summary.
 - **advisory lint warnings**: `Q`/`RUF`/`T10`/`T20`/`ERA` (quote conventions, Ruff-specific likely-bug checks, debugger statements, print() calls, commented-out code) plus radon maintainability index (MI) are deliberately left out of `pyproject.toml`'s `[tool.ruff.lint] select` - no VS Code squiggle, no incremental-ratchet gate. They're still surfaced as non-blocking stdout warnings plus an `advisory_lint_warnings` field in the log entry.
-- **failure backup**: after all failed jobs stop, [backup.py](src/br_pre_commit/backup.py) runs in a dedicated subprocess and takes a read-only snapshot of staged, unstaged, and untracked state under `logs/pre-commit/backup-patches/<branch>.<short_commit>/`. Async Git subprocesses fetch metadata and per-file diffs concurrently; thread-offloaded writes/copies do not block the event loop. Backup never mutates shared Git state. Patches include a 7-hex CRC-32 content identifier so changed versions coexist; identical patches replace their prior copy and refresh its mtime. The snapshot also contains raw untracked copies and a `manifest.json`; use [recover.py](src/br_pre_commit/recover.py) to restore it.
+- **failure backup**: after all failed jobs stop, `python -m src.backup` runs in a dedicated subprocess and takes a read-only snapshot of staged, unstaged, and untracked state under `logs/pre-commit/backup-patches/<branch>.<short_commit>/`. Async Git subprocesses fetch metadata and per-file diffs concurrently; thread-offloaded writes/copies do not block the event loop. Backup never mutates shared Git state. Patches include a 7-hex CRC-32 content identifier so changed versions coexist; identical patches replace their prior copy and refresh its mtime. The snapshot also contains raw untracked copies and a `manifest.json`; use `python -m src.backup.recover` to restore it.
 
-[recover.py](src/br_pre_commit/recover.py) is the only script allowed to touch shared git state. It reads the snapshot's `manifest.json` and reapplies staged changes via `git apply --cached`, unstaged changes via `git apply`, and untracked files via raw copy. Its mutating steps are wrapped in an advisory file lock (`.git/recover.lock`, `fcntl.flock` with a short timeout) so concurrent sensitive operations can detect each other. The lock is advisory, not mandatory.
+[recover.py](src/backup/recover.py) is the only script allowed to touch shared git state. It reads the snapshot's `manifest.json` and reapplies staged changes via `git apply --cached`, unstaged changes via `git apply`, and untracked files via raw copy. Its mutating steps are wrapped in an advisory file lock (`.git/recover.lock`, `fcntl.flock` with a short timeout) so concurrent sensitive operations can detect each other. The lock is advisory, not mandatory.
 
 ## Backup & recovery
 
@@ -22,7 +23,7 @@ The hook IDs the wrapper can classify are defined as frozensets in `precommit_co
 
 Backup intentionally avoids touching any shared git state during backup (`HEAD`, the index, `refs/stash`, `refs/heads/`). This makes it safe to run concurrently with itself and with other git operations - a pre-commit hook or agentic process can snapshot at any moment without racing. Recovery is the only step that mutates git state, and it is invoked deliberately by a human or agent responding to a detected failure.
 
-### backup.py
+### backup (`__main__.py`)
 
 Pure read-only async snapshot. Allowed Git commands: `git diff`, `git diff --cached`, `git ls-files`, and `git rev-parse`.
 
@@ -50,7 +51,7 @@ Logs a one-line summary: snapshot path, counts, total size.
 Restores working state from a backup snapshot. CLI:
 
 ```
-python3 recover.py --snapshot <path-to-snapshot-dir> \
+python3 -m src.backup.recover --snapshot <path-to-snapshot-dir> \
                     [--to-commit] \
                     [--only staged|unstaged|untracked] \
                     [--dry-run] \

@@ -23,12 +23,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Ensure we can import sync modules when loaded as a script by path
-sys.path.insert(0, str(Path(__file__).parent))
+# Ensure we can import the sync_skills package when loaded as a script by path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from git import Repo  # noqa: E402
 from git.exc import InvalidGitRepositoryError  # noqa: E402
-from sync_skill_core import (  # noqa: E402
+
+from sync_skills.core import (  # noqa: E402
     _GITHUB_PATH,
     _REPO_ROOT,
     _SKILL_FILENAME,
@@ -44,7 +45,7 @@ from sync_skill_core import (  # noqa: E402
     mirror_slots,
     parse_staged_name_status,
 )
-from sync_skill_sync import (  # noqa: E402
+from sync_skills.sync import (  # noqa: E402
     apply_modification,
     compute_intent,
     get_staged_skill_changes,

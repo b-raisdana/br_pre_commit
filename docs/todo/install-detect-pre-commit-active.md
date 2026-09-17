@@ -11,7 +11,7 @@ today.
 ## Current behaviour
 
 Both installers unconditionally overwrite `.git/hooks/pre-commit` with a shim
-that calls `br_pre_commit/run` (or `run.ps1`). They do not inspect:
+that calls `precommit_wrapper.py` via `python`. They do not inspect:
 
 - whether the `pre-commit` Python package is installed,
 - whether a `.pre-commit-config.yaml` exists,
@@ -39,14 +39,14 @@ If all three are true, pre-commit is considered **already active**.
 
 - Do **not** clobber the existing `.git/hooks/pre-commit` shim.
 - Instead, install the `br_pre_commit` wrapper as a *separate* hook file,
-  e.g. `.git/hooks/br_pre_commit_pre_commit`, and make the existing hook
-  call it, or install the wrapper in a way that composes with the existing
-  hook. The cleanest approach is to wrap the existing hook: back it up to
-  `.git/hooks/pre-commit.orig` (only if not already backed up) and replace
-  `.git/hooks/pre-commit` with a shim that runs the original first, then
-  runs `br_pre_commit/run` (or vice versa, depending on policy).
-- Ensure `BR_PRE_COMMIT_REPO_ROOT` and `BR_PRE_COMMIT_TOOL_ROOT` are exported
-  in the new shim.
+   e.g. `.git/hooks/br_pre_commit_pre_commit`, and make the existing hook
+   call it, or install the wrapper in a way that composes with the existing
+   hook. The cleanest approach is to wrap the existing hook: back it up to
+   `.git/hooks/pre-commit.orig` (only if not already backed up) and replace
+   `.git/hooks/pre-commit` with a shim that runs the original first, then
+   runs the precommit_wrapper.py via python.
+- Ensure `BR_PRE_COMMIT_REPO_ROOT` is exported
+   in the new shim.
 - Print a message indicating pre-commit was detected and that the existing
   hook was preserved (backed up to `pre-commit.orig`).
 
@@ -68,7 +68,7 @@ If all three are true, pre-commit is considered **already active**.
 
 - The existing hook is **already** the `br_pre_commit` shim (re-install).
   Detect this by inspecting the hook contents for the
-  `BR_PRE_COMMIT_TOOL_ROOT` marker; treat as "already active, no-op".
+  `BR_PRE_COMMIT_REPO_ROOT` marker; treat as "already active, no-op".
 - The existing hook is a **different** pre-commit hook (e.g. standard
   `pre-commit install` output). Back it up and wrap it.
 - `pre-commit` is installed but no `.pre-commit-config.yaml` exists → treat

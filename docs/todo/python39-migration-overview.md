@@ -14,8 +14,8 @@ The project currently targets Python 3.12 (ruff `target-version = "py312"`). It 
 
 | Issue | File(s) | Severity |
 |-------|---------|----------|
-| `from datetime import UTC` (3.11+) | `src/br_pre_commit/precommit_wrapper.py:13` | Hard blocker |
-| `import tomllib` (3.11+) | `src/br_pre_commit/precommit_config.py:3` | Hard blocker |
+| `from datetime import UTC` (3.11+) | `src/precommit_wrapper.py:13` | Hard blocker |
+| `import tomllib` (3.11+) | `src/precommit_config.py:3` | Hard blocker |
 | PEP 604 union syntax `X \| Y` in annotations | All `src/**/*.py`, `tests/**/*.py` | Ruff flag (soft) |
 | `ruff target-version = "py312"` | `pyproject.toml:6` | Config |
 | No `python_requires` declared | `pyproject.toml` | Config |
@@ -45,8 +45,8 @@ The project currently targets Python 3.12 (ruff `target-version = "py312"`). It 
 
 | File | Change |
 |------|--------|
-| `src/br_pre_commit/precommit_wrapper.py` | Replace `from datetime import UTC` with `from datetime import timezone` |
-| `src/br_pre_commit/precommit_config.py` | Add `tomli` fallback for `tomllib` |
+| `src/precommit_wrapper.py` | Replace `from datetime import UTC` with `from datetime import timezone` |
+| `src/precommit_config.py` | Add `tomli` fallback for `tomllib` |
 | `pyproject.toml` | `target-version = "py39"`, add `python_requires` |
 | `src/**/*.py`, `tests/**/*.py` | Optional: convert PEP 604 unions (see annotations doc) |
 

@@ -104,7 +104,7 @@ For coexisting with other hooks (see `install-detect-pre-commit-active.md`):
 ## Design: `HookInstaller` Class
 
 ```python
-# src/br_pre_commit/hook_installer.py
+# src/hook_installer.py
 from pathlib import Path
 from enum import Enum
 import stat

@@ -8,40 +8,38 @@ This guide separates three things that are often confused: where the project fil
 
 ### Linux native
 
-A project and its Git client run in a normal Linux userland on a Linux filesystem. The supported entry point is `src/install/install.sh`, which installs a POSIX hook that runs `run`.
+A project and its Git client run in a normal Linux userland on a Linux filesystem. The supported entry point is `install/install.sh`, which installs a POSIX hook that directly executes `precommit_wrapper.py`.
 
 ### WSL
 
 WSL runs a Linux userland on Windows, so its Python, shell, Git, and POSIX filesystem semantics are Linux semantics. It is part of the Linux runtime family for most wrapper code, but needs a separate support row because it adds Windows interop: `wsl.exe`, Windows drive mounts, `\\wsl$` and `\\wsl.localhost` paths, path translation, line-ending differences, executable-bit behavior, and the possibility of invoking Git from either side.
 
-A WSL-native project is normally stored in the distro filesystem, for example `/home/<user>/...`. A path under `/mnt/c/...` is a Windows filesystem mounted into WSL and should be treated as a Windows-filesystem project unless the project explicitly opts into WSL execution.
-
 ### Windows native
 
-A project and its Git client run in Windows, normally on an NTFS path such as `C:\...`. The intended entry point is `src/install/install.ps1`, which installs a PowerShell hook that runs `run.ps1`. Native Windows support still has runtime gaps described below.
+A project and its Git client run in Windows, normally on an NTFS path such as `C:\...`. The intended entry point is `install/install.ps1`, which installs a PowerShell hook that directly executes `precommit_wrapper.py`. Native Windows support still has runtime gaps described below.
 
 ### Execution environment
 
-The execution environment is the process that runs the installed Git hook. It is not inferred from the editor, the operating system that last edited a file, or the operating system that created the checkout.
+The execution environment is the process that runs the installed Git hook. It is not inferred from the editor, the operating system that last edited the file, or the operating system that created the checkout.
 
 ## Support matrix
 
 | Project location | Commit environment | Installer/path | Runner | Python and tools | Current status |
 |---|---|---|---|---|---|
-| Linux filesystem | Linux Git | `src/install/install.sh` | `run` | Linux/POSIX environment | Supported |
-| WSL distro filesystem | WSL Git | `src/install/install.sh` from WSL | `run` inside the configured distro | WSL Python environment | Supported with hardcoded distro/conda assumptions |
-| Windows filesystem | Windows Git | `src/install/install.ps1` | `run.ps1` | Windows Python environment | Entry point exists; runtime gaps remain |
+| Linux filesystem | Linux Git | `install/install.sh` | `precommit_wrapper.py` (via Python) | Linux/POSIX environment | Supported |
+| WSL distro filesystem | WSL Git | `install/install.sh` from WSL | `precommit_wrapper.py` (via Python) inside the configured distro | WSL Python environment | Supported |
+| Windows filesystem | Windows Git | `install/install.ps1` | `precommit_wrapper.py` (via PowerShell) | Windows Python environment | Entry point exists; runtime gaps remain |
 | WSL distro filesystem | Windows Git | Existing WSL hook | Mixed WSL/Windows handoff | Both sides may be required | Unsupported by default |
 | Windows filesystem | WSL Git | Existing Windows hook | Mixed Windows/WSL handoff | Both sides may be required | Unsupported by default |
 | Network, removable, or unusual filesystem | Either Git client | Explicit configuration required | Explicit runner | Explicit toolchain | Unsupported until tested |
 
-The current scripts can sometimes make a mixed handoff appear to work. That is not a support guarantee. The hook contains absolute paths, and the current WSL branch is selected by the presence of `wsl.exe`, not by a validated project location or an explicit dual-environment contract.
+The current scripts can sometimes make a mixed handoff appear to work. That is not a support guarantee. The hook contains absolute paths.
 
 ## Scenario decisions
 
 ### Linux-native project
 
-Use `src/install/install.sh` and commit from Linux. The hook, Python interpreter, Git client, and project files all use the same Linux environment. This is the simplest supported mode.
+Use `install/install.sh` and commit from Linux. The hook, Python interpreter, Git client, and project files all use the same Linux environment. This is the simplest supported mode.
 
 ### WSL-native project edited from Windows
 
@@ -53,11 +51,9 @@ This is a cross-environment commit. The current hook may invoke `wsl.exe` from W
 
 The default policy should be **fail closed** for this combination: the hook should report that it was installed for WSL and must be run from WSL, with a short instruction for reinstalling for Windows. A project can opt into dual-mode support only after both runners, both toolchains, and both path directions are explicitly implemented and tested. The reverse case, Windows installation followed by a WSL commit, has the same policy.
 
-### Windows-only project and `run.ps1`
+### Windows-only project and `precommit_wrapper.py`
 
-Keeping `run.ps1` is the right separation: `run` is the POSIX/Linux/WSL entry point, while `run.ps1` is the native Windows entry point. A Windows-only project can use `run.ps1` without pretending that Windows has POSIX shell semantics.
-
-`run.ps1` alone does not make a WSL installation cross-platform. The Windows side also needs a compatible Python environment, dependencies, path translation, hook dispatch, and Windows-compatible project hook commands. In particular, the current `ratchet` launcher is a POSIX shell script, so a native Windows project needs a Windows-compatible launcher or an explicit WSL execution path.
+Keeping a single hook that directly executes `precommit_wrapper.py` via `python` is the right separation: the hook runs on the platform where Git executes it, using the `python` found in PATH. A Windows-only project can use the PowerShell hook without pretending that Windows has POSIX shell semantics.
 
 For dual-mode projects, the generated hook should dispatch based on the current execution environment and an explicit installation capability record. It should not dispatch solely from the project path.
 
@@ -71,7 +67,7 @@ Path detection can therefore support a warning or policy rejection, but it canno
 
 ### Current behavior
 
-`run`, `ratchet`, and `run.ps1` currently invoke bare `python` from `PATH`. The wrapper imports the `pre_commit` package. Recovery and skill synchronization import GitPython, and project hooks invoke tools such as `ruff`, `mypy`, `pytest`, and `radon` from the active environment or `PATH`.
+`precommit_wrapper/__main__.py` currently invokes bare `python` from `PATH`. The wrapper imports the `pre_commit` package. Skill synchronization uses GitPython, and project hooks invoke tools such as `ruff`, `mypy`, `pytest`, and `radon` from the active environment or `PATH`.
 
 The installers do not currently create a virtual environment, select a Python interpreter, or install dependencies. The README asks users to install `pre-commit` in the environment used by Git hooks.
 
@@ -91,7 +87,7 @@ Detection should answer two independent questions: what environment is running t
 
 These checks classify the path; they do not establish whether another Git client can access it. A path-based check can warn that a Windows commit is outside the supported installation mode, reject a mixed-mode commit under a fail-closed policy, or choose a tested dual-mode runner when dual-mode support is enabled. It must not conclude that Windows access is impossible.
 
-When a hook deliberately crosses the WSL boundary, path variables must be translated explicitly. The current use of `WSLENV` with `/p` for `BR_PRE_COMMIT_REPO_ROOT`, `BR_PRE_COMMIT_TOOL_ROOT`, and `GIT_INDEX_FILE` is a narrow handoff mechanism. UNC paths, substituted drives, spaces, Unicode, symlinks, case-sensitive paths, alternate index paths, Git worktrees, and Windows line-ending settings need defined behavior and tests.
+When a hook crosses environment boundaries, path variables must be translated explicitly. The installed hook sets only `BR_PRE_COMMIT_REPO_ROOT` and directly executes `precommit_wrapper.py` via `python`. UNC paths, substituted drives, spaces, Unicode, symlinks, case-sensitive paths, alternate index paths, Git worktrees, and Windows line-ending settings need defined behavior and tests.
 
 The installed hook records absolute project and tool paths. Moving either checkout requires reinstalling the hook; the hook should not silently follow a stale path.
 
@@ -110,7 +106,7 @@ The following behavior should be treated as a design requirement for future inst
 9. Define how Git for Windows executes the generated PowerShell hook, including shebang and execution-policy assumptions.
 10. Define Windows-compatible project hook entries, including the POSIX-only `ratchet` launcher.
 
-The current `src/install/install.sh` and `src/install/install.ps1` are not yet at parity. Both contain a WSL branch based on `wsl.exe`, both hardcode the same distro and conda environment, and they generate different hook formats. That divergence should be resolved before documenting mixed-mode behavior as supported.
+The current `install/install.sh` and `install/install.ps1` are not yet at parity. Both contain a WSL branch based on `wsl.exe`, both hardcode the same distro and conda environment, and they generate different hook formats. That divergence should be resolved before documenting mixed-mode behavior as supported.
 
 ## Cross-platform runtime gaps to clarify
 

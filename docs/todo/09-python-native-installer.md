@@ -22,19 +22,19 @@ all installation operations
 ```bash
 #!/usr/bin/env sh
 # Minimal launcher - delegates to Python installer
-exec python -m br_pre_commit.install "$@"
+exec python install/install.py "$@"
 ```
 
 **`install.ps1` (Windows):**
 ```powershell
 #!/usr/bin/env pwsh
 # Minimal launcher - delegates to Python installer
-python -m br_pre_commit.install $args
+python install/install.py $args
 ```
 
 ### Python Installer Responsibilities
 
-The Python installer (`src/br_pre_commit/install.py`) handles:
+The Python installer (`install/install.py`) handles:
 
 | Responsibility | Implementation |
 |----------------|----------------|
@@ -49,7 +49,7 @@ The Python installer (`src/br_pre_commit/install.py`) handles:
 | Permissions | `os.chmod` with `stat.S_IEXEC` (POSIX) |
 | Idempotency | Detect existing hook, compare, update if needed |
 | Error reporting | Structured errors with remediation |
-| Configuration | Read/write `.br-pre-commit.toml` |
+| Configuration | Read/write `pyproject.toml` (`[tool.br_pre_commit.*]`) |
 | Gap analysis | Integrate with `GapAnalyzer` |
 
 ### Avoided Duplication
@@ -65,7 +65,7 @@ The Python installer (`src/br_pre_commit/install.py`) handles:
 ### Python Installer Structure
 
 ```python
-# src/br_pre_commit/install.py
+# install/install.py
 """Main installer module - all installation logic in Python."""
 
 import argparse
@@ -148,14 +148,11 @@ if __name__ == "__main__":
 ### Supporting Modules
 
 ```
-src/br_pre_commit/
+install/
 ├── install.py              # Main entry point
-├── git_repo.py             # Git repository operations
-├── submodule.py            # Submodule resolution
-├── hook_installer.py       # Hook creation/installation
-├── gap_analyzer.py         # Installation verification
-├── precommit_wrapper.py    # Runtime hook entry point
-└── ...
+├── install.sh              # POSIX launcher
+├── install.ps1             # PowerShell launcher
+└── README.md               # Installer documentation
 ```
 
 ### Benefits
@@ -171,7 +168,7 @@ src/br_pre_commit/
 
 - [ ] `install.sh` is minimal launcher (≤ 5 lines)
 - [ ] `install.ps1` is minimal launcher (≤ 5 lines)
-- [ ] All installation logic in `src/br_pre_commit/install.py`
+- [ ] All installation logic in `install/install.py`
 - [ ] OS detection in Python
 - [ ] Path resolution in Python
 - [ ] Git operations in Python (`subprocess`)

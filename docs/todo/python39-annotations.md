@@ -4,8 +4,8 @@
 
 The codebase uses PEP 604 union syntax (`X | Y`, `bytes | None`, `str | None`, etc.) extensively in type annotations across all modules:
 
-- `dict[str, list[tuple[str, str, bytes | None]]` — `sync_skill_sync.py:24`
-- `bytes | None` — `sync_skill_core.py:48`
+- `dict[str, list[tuple[str, str, bytes | None]]` — `sync_skills/sync.py:24`
+- `bytes | None` — `sync_skills/core.py:48`
 - `str | None` — `precommit_wrapper.py:255,312`
 - `X | None` — `ratchet_check.py:243,257,282`
 - And many more occurrences throughout `src/**/*.py` and `tests/**/*.py`
@@ -55,14 +55,14 @@ The codebase already uses `from __future__ import annotations` consistently. Con
 
 | File | Example patterns |
 |------|-----------------|
-| `src/br_pre_commit/sync_skill.py` | `list[str]`, `set[str]` |
-| `src/br_pre_commit/sync_skill_sync.py` | `bytes | None`, `dict[str, ...]`, `set[str] \| None` |
-| `src/br_pre_commit/recover.py` | `str \| None`, `list[...]` |
-| `src/br_pre_commit/precommit_wrapper.py` | `str \| None`, `dict[str, object]`, `JobResult \| None` |
-| `src/br_pre_commit/backup.py` | `dict[str, str] \| None` |
-| `src/br_pre_commit/sync_skill_utils.py` | `bytes \| None`, `set[str]` |
-| `src/br_pre_commit/sync_skill_core.py` | `bytes \| None`, `tuple[str, str] \| None` |
-| `src/br_pre_commit/incremental_precommit/ratchet_check.py` | `int \| None`, `Path \| None` |
+| `src/sync_skills/__main__.py` | `list[str]`, `set[str]` |
+| `src/sync_skills/sync.py` | `bytes | None`, `dict[str, ...]`, `set[str] \| None` |
+| `src/backup/recover.py` | `str \| None`, `list[...]` |
+| `src/precommit_wrapper.py` | `str \| None`, `dict[str, object]`, `JobResult \| None` |
+| `src/backup/__main__.py` | `dict[str, str] \| None` |
+| `src/sync_skills/utils.py` | `bytes \| None`, `set[str]` |
+| `src/sync_skills/core.py` | `bytes \| None`, `tuple[str, str] \| None` |
+| `src/ratchet/__main__.py` | `int \| None`, `Path \| None` |
 | `tests/**/*.py` | Various union types |
 
 ## Verification

@@ -21,16 +21,16 @@ hook failure.
 
 The `br_pre_commit` wrapper classifies every hook ID in your
 `.pre-commit-config.yaml` against two fixed frozensets in
-`src/br_pre_commit/precommit_config.py`:
+`src/precommit_config.py`:
 
 - `_MUTATING_HOOKS` — run serially before read-only hooks (e.g. `ruff`,
   `ruff-format`, `trailing-whitespace`).
 - `_READ_ONLY_HOOKS` — run concurrently (e.g. `pytest-fast`, `check-yaml`,
   `incremental-ratchet`).
 
-The default `wrapper.unknown-hook-policy` is `"error"` (see `defaults.toml`,
-line 5). Any hook ID not present in either set is "unregistered" and aborts the
-commit with `ValueError: unregistered pre-commit hook(s): <ids>`.
+The default `wrapper.unknown-hook-policy` is `"error"` (see `pyproject.toml`,
+`[tool.br_pre_commit.wrapper]`, line 5). Any hook ID not present in either set is
+"unregistered" and aborts the commit with `ValueError: unregistered pre-commit hook(s): <ids>`.
 
 Your `chrge_migrate-to-pandas` branch's `.pre-commit-config.yaml` defines two
 local hooks whose IDs are not in those sets:
@@ -94,10 +94,11 @@ for classification. After this change, all three hooks are recognized:
 ## Alternative: warn-only policy (not recommended as a permanent fix)
 
 If the project has a genuinely custom hook that does not fit the recognized
-categories, you can create a `.br-pre-commit.toml` in the project root:
+categories, set `unknown-hook-policy = "warn"` in the `[tool.br_pre_commit.wrapper]`
+section of `pyproject.toml`:
 
 ```toml
-[wrapper]
+[tool.br_pre_commit.wrapper]
 unknown-hook-policy = "warn"
 ```
 
@@ -108,10 +109,11 @@ not a replacement for using registered IDs.
 ## Where to find the full list of recognized hook IDs
 
 - **README.md** — § "Recognized hook IDs" (this is the human-readable list).
-- **defaults.toml** — `unknown-hook-policy = "error"` (the default policy).
-- **src/br_pre_commit/precommit_config.py** — `_MUTATING_HOOKS` (lines 42–51)
+- **pyproject.toml** — `unknown-hook-policy = "error"` under
+  `[tool.br_pre_commit.wrapper]` (the default policy).
+- **src/precommit_config.py** — `_MUTATING_HOOKS` (lines 42–51)
   and `_READ_ONLY_HOOKS` (lines 52–67) are the source of truth.
-- **br_pre_commit/.pre-commit-config.yaml** — the reference config; all its
+- **.pre-commit-config.yaml** — the reference config; all its
   hook IDs pass the `test_repository_pre_commit_config_uses_registered_hooks`
   test.
 - **tests/test_precommit_config.py** — `classify_hooks` is unit-tested for

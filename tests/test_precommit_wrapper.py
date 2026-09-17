@@ -1,17 +1,9 @@
 import asyncio
-import importlib.util
 import sys
-from pathlib import Path
 
 import pytest
 
-HOOK_DIR = Path(__file__).resolve().parents[1] / "src/br_pre_commit"
-sys.path.insert(0, str(HOOK_DIR))
-SPEC = importlib.util.spec_from_file_location("precommit_wrapper", HOOK_DIR / "precommit_wrapper.py")
-assert SPEC is not None and SPEC.loader is not None
-precommit_wrapper = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = precommit_wrapper
-SPEC.loader.exec_module(precommit_wrapper)
+import precommit_wrapper.__main__ as precommit_wrapper  # noqa: E402
 
 pytestmark = pytest.mark.unit
 

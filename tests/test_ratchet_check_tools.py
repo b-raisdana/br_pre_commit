@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from br_pre_commit.ratchet import (
+from ratchet import (
     TouchedFile,
     compute_new_baseline,
     find_baseline_files,
@@ -19,9 +19,9 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def hermetic(tmp_path, monkeypatch):
-    import br_pre_commit.ratchet.baseline as baseline_module
-    import br_pre_commit.ratchet.gate as gate_module
-    import br_pre_commit.ratchet.tools as tools_module
+    import ratchet.baseline as baseline_module
+    import ratchet.gate as gate_module
+    import ratchet.tools as tools_module
 
     monkeypatch.setattr(baseline_module, "ROOT", tmp_path)
     monkeypatch.setattr(baseline_module, "BASELINE_DIR", tmp_path)
@@ -51,8 +51,8 @@ def _baseline_contents(baseline_dir: Path) -> list[dict[str, int]]:
 
 def test_aggregate_regression_alone_never_blocks(hermetic, monkeypatch, capsys):
     _seed(hermetic, {"ruff:E501": 3})
-    import br_pre_commit.ratchet.gate as gate_module
-    import br_pre_commit.ratchet.tools as tools_module
+    import ratchet.gate as gate_module
+    import ratchet.tools as tools_module
 
     monkeypatch.setattr(
         tools_module, "ruff_run", lambda root=None: [{"code": "E501", "filename": "/repo/app/a.py"}] * 5
@@ -61,7 +61,7 @@ def test_aggregate_regression_alone_never_blocks(hermetic, monkeypatch, capsys):
     monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: {})
     monkeypatch.setattr(gate_module, "touched_app_python_files", lambda: [])
 
-    from br_pre_commit.ratchet.__main__ import main
+    from ratchet.__main__ import main
 
     exit_code = main()
 
@@ -72,9 +72,9 @@ def test_aggregate_regression_alone_never_blocks(hermetic, monkeypatch, capsys):
 
 
 def test_touched_file_regression_blocks_even_with_no_prior_baseline(hermetic, monkeypatch, capsys):
-    import br_pre_commit.ratchet.baseline as baseline_module
-    import br_pre_commit.ratchet.gate as gate_module
-    import br_pre_commit.ratchet.tools as tools_module
+    import ratchet.baseline as baseline_module
+    import ratchet.gate as gate_module
+    import ratchet.tools as tools_module
 
     absolute_path = str(hermetic / "app/a.py")
     monkeypatch.setattr(tools_module, "ruff_run", lambda root=None: [{"code": "E501", "filename": absolute_path}])
@@ -90,7 +90,7 @@ def test_touched_file_regression_blocks_even_with_no_prior_baseline(hermetic, mo
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)
     monkeypatch.setattr(baseline_module, "run_output", lambda *a, **k: "")
 
-    from br_pre_commit.ratchet.__main__ import main
+    from ratchet.__main__ import main
 
     exit_code = main()
 
@@ -101,9 +101,9 @@ def test_touched_file_regression_blocks_even_with_no_prior_baseline(hermetic, mo
 
 def test_touched_file_with_no_regression_passes_and_resyncs_baseline(hermetic, monkeypatch):
     _seed(hermetic, {"ruff:OLD": 2})
-    import br_pre_commit.ratchet.baseline as baseline_module
-    import br_pre_commit.ratchet.gate as gate_module
-    import br_pre_commit.ratchet.tools as tools_module
+    import ratchet.baseline as baseline_module
+    import ratchet.gate as gate_module
+    import ratchet.tools as tools_module
 
     monkeypatch.setattr(tools_module, "ruff_run", lambda root=None: [])
     monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: [])
@@ -117,7 +117,7 @@ def test_touched_file_with_no_regression_passes_and_resyncs_baseline(hermetic, m
     monkeypatch.setattr(baseline_module, "_line_count", lambda path: 10)
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)
 
-    from br_pre_commit.ratchet.__main__ import main
+    from ratchet.__main__ import main
 
     exit_code = main()
 
@@ -136,14 +136,14 @@ def test_current_analyzers_start_concurrently(monkeypatch):
         barrier.wait(timeout=1)
         return value
 
-    import br_pre_commit.ratchet.tools as tools_module
+    import ratchet.tools as tools_module
 
     monkeypatch.setattr(tools_module, "ruff_run", lambda: completed([]))
     monkeypatch.setattr(tools_module, "mypy_run", lambda: completed([]))
     monkeypatch.setattr(tools_module, "xenon_run", lambda: completed({}))
     monkeypatch.setattr(tools_module, "loc_line_counts", lambda: completed({}))
 
-    from br_pre_commit.ratchet.tools import _run_current_analyzers
+    from ratchet.tools import _run_current_analyzers
 
     assert _run_current_analyzers() == ([], [], {}, {})
 
@@ -155,14 +155,14 @@ def test_current_and_before_analyzers_start_concurrently(monkeypatch, tmp_path):
         barrier.wait(timeout=1)
         return value
 
-    import br_pre_commit.ratchet.tools as tools_module
+    import ratchet.tools as tools_module
 
     monkeypatch.setattr(tools_module, "ruff_run", lambda root=None: completed([]))
     monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: completed([]))
     monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: completed({}))
     monkeypatch.setattr(tools_module, "loc_line_counts", lambda root=None: completed({}))
 
-    from br_pre_commit.ratchet.tools import _run_current_and_before_analyzers
+    from ratchet.tools import _run_current_and_before_analyzers
 
     assert _run_current_and_before_analyzers(tmp_path) == (
         [],
@@ -216,7 +216,7 @@ def test_compute_new_baseline_bootsraps_new_key():
 
 
 def test_baseline_filename_is_deterministic_hash_of_content():
-    from br_pre_commit.ratchet.baseline import baseline_filename
+    from ratchet.baseline import baseline_filename
 
     data = {"loc": 0, "ruff:E501": 3}
     name1 = baseline_filename(data)
@@ -251,7 +251,7 @@ def test_load_and_consolidate_single_file_is_untouched(hermetic):
 
 
 def test_load_and_consolidate_no_files_returns_empty(tmp_path, monkeypatch):
-    import br_pre_commit.ratchet.baseline as baseline_module
+    import ratchet.baseline as baseline_module
 
     monkeypatch.setattr(baseline_module, "BASELINE_DIR", tmp_path)
     assert load_and_consolidate_baselines() == {}
