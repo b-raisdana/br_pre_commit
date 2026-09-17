@@ -27,11 +27,13 @@ project-specific ratchet baselines.
 A checklist to get a new project running with `br_pre_commit`:
 
 1. **Install `pre-commit`** in your Python environment (required before step 3):
+
    ```sh
    pip install pre-commit
    ```
 
 2. **Add `br_pre_commit` as a git submodule** in your project:
+
    ```text
    your_project_root/
    ├── .git/
@@ -41,7 +43,7 @@ A checklist to get a new project running with `br_pre_commit`:
    ```
 
    ```sh
-   git submodule add https://github.com/your-org/br_pre_commit br_pre_commit
+   git submodule add git@github.com:b-raisdana/br_pre_commit.git br_pre_commit
    git submodule update --init --recursive
    ```
 
@@ -50,9 +52,10 @@ A checklist to get a new project running with `br_pre_commit`:
    starting point. Only use **recognized hook IDs** (see the table below).
 
 4. **Install the hook** from `your_project`:
-    ```sh
-    bash br_pre_commit/install/install.sh "$PWD"
-    ```
+
+   ```sh
+   bash br_pre_commit/install/install.sh "$PWD"
+   ```
 
 5. **Verify** on a feature branch:
    ```sh
@@ -70,26 +73,26 @@ The wrapper classifies each ID against two fixed sets in
 `src/precommit_wrapper/config.py`. An ID not in either set is
 "unregistered" and aborts the commit.
 
-| Hook ID | Category | Description |
-|---------|----------|-------------|
-| `trailing-whitespace` | Mutating | Strips trailing whitespace |
-| `end-of-file-fixer` | Mutating | Ensures files end with a newline |
-| `mixed-line-ending` | Mutating | Normalizes line endings |
-| `ruff` | Mutating | Runs `ruff check --fix` (formatter + linter) |
-| `ruff-format` | Mutating | Runs `ruff format` |
-| `sync-skill-files` | Mutating | Mirrors `SKILL.md` across agent dirs |
-| `check-yaml` | Read-only | Validates YAML syntax |
-| `check-toml` | Read-only | Validates TOML syntax |
-| `check-added-large-files` | Read-only | Rejects large staged files |
-| `check-merge-conflict` | Read-only | Detects unresolved conflict markers |
-| `check-case-conflict` | Read-only | Detects case-insensitive filename clashes |
-| `debug-statements` | Read-only | Blocks `breakpoint()` / `pdb` |
-| `incremental-ratchet` | Read-only | Per-file regression gate (ratchet) |
-| `pytest-fast` | Read-only | Runs unit tests with `pytest` |
-| `pytest-integration-collect` | Read-only | Collects integration tests |
-| `integration-tests` | Read-only | Runs integration tests |
-| `check-pandera-decorator` | Read-only | Validates pandera decorators |
-| `no-commit-to-main` | Read-only | Blocks direct commits to protected branches |
+| Hook ID                      | Category  | Description                                  |
+| ---------------------------- | --------- | -------------------------------------------- |
+| `trailing-whitespace`        | Mutating  | Strips trailing whitespace                   |
+| `end-of-file-fixer`          | Mutating  | Ensures files end with a newline             |
+| `mixed-line-ending`          | Mutating  | Normalizes line endings                      |
+| `ruff`                       | Mutating  | Runs `ruff check --fix` (formatter + linter) |
+| `ruff-format`                | Mutating  | Runs `ruff format`                           |
+| `sync-skill-files`           | Mutating  | Mirrors `SKILL.md` across agent dirs         |
+| `check-yaml`                 | Read-only | Validates YAML syntax                        |
+| `check-toml`                 | Read-only | Validates TOML syntax                        |
+| `check-added-large-files`    | Read-only | Rejects large staged files                   |
+| `check-merge-conflict`       | Read-only | Detects unresolved conflict markers          |
+| `check-case-conflict`        | Read-only | Detects case-insensitive filename clashes    |
+| `debug-statements`           | Read-only | Blocks `breakpoint()` / `pdb`                |
+| `incremental-ratchet`        | Read-only | Per-file regression gate (ratchet)           |
+| `pytest-fast`                | Read-only | Runs unit tests with `pytest`                |
+| `pytest-integration-collect` | Read-only | Collects integration tests                   |
+| `integration-tests`          | Read-only | Runs integration tests                       |
+| `check-pandera-decorator`    | Read-only | Validates pandera decorators                 |
+| `no-commit-to-main`          | Read-only | Blocks direct commits to protected branches  |
 
 ## Integrate into a new project
 
@@ -174,9 +177,9 @@ wrapper. Re-run `install/install.sh` after moving either checkout.
 
 ### Project-provided files
 
-| File | Purpose |
-|------|---------|
-| `.pre-commit-config.yaml` | Enabled hooks and project-specific hook commands |
+| File                                     | Purpose                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| `.pre-commit-config.yaml`                | Enabled hooks and project-specific hook commands                    |
 | `.br-pre-commit/ratchet/baseline_*.json` | Project's trend baselines (bootstrapped on first successful commit) |
 
 All configuration lives in `[tool.br_pre_commit.*]` sections of
@@ -187,12 +190,12 @@ commits. See `pyproject.toml` for the full set of recognized keys.
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-|---------|-------------|-----|
+| Symptom                                                     | Likely cause                              | Fix                                                                             |
+| ----------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------- |
 | `configuration error: unregistered pre-commit hook(s): ...` | Hook ID not in the recognized table above | Rename to the correct ID (e.g. `ruff-check` → `ruff`, `pytest` → `pytest-fast`) |
-| "No staged files" — hook skips entirely | Nothing is staged | `git add` your files first; the wrapper only runs on staged changes |
-| Hook runs but finds no files | `files` pattern excludes your paths | Adjust the `files` regex or remove it for local hooks |
-| Backup snapshot on every failure | Hook failed (expected during setup) | Read the report in `logs/pre-commit/pre-commit-runs/` |
+| "No staged files" — hook skips entirely                     | Nothing is staged                         | `git add` your files first; the wrapper only runs on staged changes             |
+| Hook runs but finds no files                                | `files` pattern excludes your paths       | Adjust the `files` regex or remove it for local hooks                           |
+| Backup snapshot on every failure                            | Hook failed (expected during setup)       | Read the report in `logs/pre-commit/pre-commit-runs/`                           |
 
 See [docs/pre-commit-hook-id-diagnosis.md](docs/pre-commit-hook-id-diagnosis.md)
 for a detailed walkthrough of the most common error.
@@ -210,17 +213,17 @@ python -m src.backup.recover \
 
 ## Documentation
 
-| Doc | What you'll find |
-|-----|-----------------|
-| [IMPLEMENTATION.md](IMPLEMENTATION.md) | Full design of the concurrent wrapper, branch protection, logging, advisory lint, and the backup/recovery pipeline. |
-| [RATCHET.md](RATCHET.md) | Incremental pre-commit ratchet: per-file blocking gate, project-wide trend baselines, and the upgrade plan. |
-| [src/sync_skills/README.md](src/sync_skills/README.md) | Bidirectional `SKILL.md` mirroring across agent directories (`.claude`, `.codex`, `.devin`, etc.) and conflict-resolution rules. |
-| [pyproject.toml](pyproject.toml) | Shared default settings under `[tool.br_pre_commit.*]` (`unknown-hook-policy`, `job-timeout-seconds`, `protected-branches`, ratchet parameters, backup exclusions). |
-| [docs/pre-commit-hook-id-diagnosis.md](docs/pre-commit-hook-id-diagnosis.md) | Troubleshooting guide for the "unregistered pre-commit hook(s)" error — root cause and fix. |
-| [docs/development/cross-environment-installation-design.md](docs/development/cross-environment-installation-design.md) | Linux, WSL, and Windows installation modes, Python/toolchain assumptions, and cross-environment commit policy. |
-| [src/README.md](src/README.md) | Source-tree layout overview. |
-| [src/ratchet/README.md](src/ratchet/README.md) | Ratchet module entry point and launcher reference. |
-| [tests/README.md](tests/README.md) | How to run the test suite. |
+| Doc                                                                                                                    | What you'll find                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [IMPLEMENTATION.md](IMPLEMENTATION.md)                                                                                 | Full design of the concurrent wrapper, branch protection, logging, advisory lint, and the backup/recovery pipeline.                                                 |
+| [RATCHET.md](RATCHET.md)                                                                                               | Incremental pre-commit ratchet: per-file blocking gate, project-wide trend baselines, and the upgrade plan.                                                         |
+| [src/sync_skills/README.md](src/sync_skills/README.md)                                                                 | Bidirectional `SKILL.md` mirroring across agent directories (`.claude`, `.codex`, `.devin`, etc.) and conflict-resolution rules.                                    |
+| [pyproject.toml](pyproject.toml)                                                                                       | Shared default settings under `[tool.br_pre_commit.*]` (`unknown-hook-policy`, `job-timeout-seconds`, `protected-branches`, ratchet parameters, backup exclusions). |
+| [docs/pre-commit-hook-id-diagnosis.md](docs/pre-commit-hook-id-diagnosis.md)                                           | Troubleshooting guide for the "unregistered pre-commit hook(s)" error — root cause and fix.                                                                         |
+| [docs/development/cross-environment-installation-design.md](docs/development/cross-environment-installation-design.md) | Linux, WSL, and Windows installation modes, Python/toolchain assumptions, and cross-environment commit policy.                                                      |
+| [src/README.md](src/README.md)                                                                                         | Source-tree layout overview.                                                                                                                                        |
+| [src/ratchet/README.md](src/ratchet/README.md)                                                                         | Ratchet module entry point and launcher reference.                                                                                                                  |
+| [tests/README.md](tests/README.md)                                                                                     | How to run the test suite.                                                                                                                                          |
 
 ## Development
 

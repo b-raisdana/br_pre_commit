@@ -125,7 +125,7 @@ async def _run_job(
 
 
 def _hook_command(hook_id: str, staged: list[str]) -> list[str]:
-    return ["pre-commit", "run", hook_id, "--hook-stage", "pre-commit", "--color", "always", "--files", *staged]
+    return ["pre-commit", "run", hook_id, "--hook-stage", "pre-commit", "--color", "never", "--files", *staged]
 
 
 async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
