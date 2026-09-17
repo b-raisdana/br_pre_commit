@@ -364,7 +364,7 @@ Integration: add `deptry` to `requirements-dev.txt`. Run as a weekly CI-equivale
 
 Scans installed dependencies for known CVEs. This project installs `tensorflow[and-cuda]` — a high-profile package with frequent advisories. `pip-audit` (PyPA-maintained) is the standard tool.
 
-Integration: add `pip-audit` to `requirements-dev.txt`. Run in the WSL `tf` env on a schedule (weekly or on TensorFlow bumps), not per-commit. Block only on high/critical CVEs; low/info are informational.
+Integration: add `pip-audit` to `requirements-dev.txt`. Run on a schedule (weekly or on TensorFlow bumps), not per-commit. Block only on high/critical CVEs; low/info are informational.
 
 #### Bandit
 

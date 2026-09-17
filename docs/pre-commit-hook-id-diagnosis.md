@@ -6,10 +6,10 @@ Running `./pre-commit` in a freshly cloned project that uses the
 `br_pre_commit` wrapper fails immediately:
 
 ```
-Running pre-commit wrapper in /home/brais/code/XAAUSD-PAction-projectFolder
+Running pre-commit wrapper in <repo-root>
 Unstaged files detected.
-Stashing unstaged files to /home/brais/.cache/pre-commit/patch1789186972-267100.
-Restored changes from /home/brais/.cache/pre-commit/patch1789186972-267100.
+Stashing unstaged files to <cache-dir>/patch<timestamp>-<pid>.
+Restored changes from <cache-dir>/patch<timestamp>-<pid>.
 configuration error: unregistered pre-commit hook(s): ruff-check, pytest
 ```
 
