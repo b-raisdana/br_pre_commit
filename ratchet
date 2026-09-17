@@ -3,4 +3,5 @@ set -eu
 tool_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=${BR_PRE_COMMIT_REPO_ROOT:-$(git rev-parse --show-toplevel)}
 export BR_PRE_COMMIT_REPO_ROOT="$repo_root"
-exec python "$tool_root/src/br_pre_commit/incremental_precommit/ratchet_check.py" "$@"
+export PYTHONPATH="$tool_root/src${PYTHONPATH:+:$PYTHONPATH}"
+exec python -m br_pre_commit.ratchet "$@"

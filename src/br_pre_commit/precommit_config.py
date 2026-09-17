@@ -3,6 +3,7 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypedDict, cast
 
 import yaml
 
@@ -12,22 +13,71 @@ DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "defaults.toml"
 PROJECT_CONFIG_NAME = ".br-pre-commit.toml"
 
 
-def _merged_config(repo_root: Path) -> dict:
-    """Load shared defaults, then recursively overlay project settings."""
-    defaults = tomllib.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
+WrapperConfig = TypedDict(
+    "WrapperConfig", {"unknown-hook-policy": str, "job-timeout-seconds": float, "protected-branches": list[str]}
+)
+RatchetConfig = TypedDict(
+    "RatchetConfig",
+    {
+        "target": str,
+        "max-lines": int,
+        "line-growth-slack": int,
+        "complexity-ranks": str,
+        "xenon-max-absolute": str,
+        "exclude-dir": str,
+    },
+    total=False,
+)
+
+
+class AppConfig(TypedDict, total=False):
+    wrapper: WrapperConfig
+    ratchet: RatchetConfig
+
+
+class PreCommitHook(TypedDict, total=False):
+    id: str
+    stages: list[str]
+
+
+class PreCommitRepo(TypedDict, total=False):
+    hooks: list[PreCommitHook]
+
+
+class PreCommitConfig(TypedDict, total=False):
+    repos: list[PreCommitRepo]
+
+
+def _merge_wrapper(base: WrapperConfig | None, override: WrapperConfig | None) -> WrapperConfig | None:
+    if base is None:
+        return override
+    if override is None:
+        return base
+    return {**base, **override}
+
+
+def _merge_ratchet(base: RatchetConfig | None, override: RatchetConfig | None) -> RatchetConfig | None:
+    if base is None:
+        return override
+    if override is None:
+        return base
+    return {**base, **override}
+
+
+def _merged_config(repo_root: Path) -> AppConfig:
+    """Load shared defaults, then overlay project settings."""
+    defaults = cast(AppConfig, tomllib.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")))
     project_path = repo_root / PROJECT_CONFIG_NAME
-    project = tomllib.loads(project_path.read_text(encoding="utf-8")) if project_path.exists() else {}
+    project = cast(AppConfig, tomllib.loads(project_path.read_text(encoding="utf-8"))) if project_path.exists() else {}
 
-    def merge(base: dict, override: dict) -> dict:
-        result = dict(base)
-        for key, value in override.items():
-            if isinstance(value, dict) and isinstance(result.get(key), dict):
-                result[key] = merge(result[key], value)
-            else:
-                result[key] = value
-        return result
-
-    return merge(defaults, project)
+    result: AppConfig = {}
+    wrapper = _merge_wrapper(defaults.get("wrapper"), project.get("wrapper"))
+    if wrapper is not None:
+        result["wrapper"] = wrapper
+    ratchet = _merge_ratchet(defaults.get("ratchet"), project.get("ratchet"))
+    if ratchet is not None:
+        result["ratchet"] = ratchet
+    return result
 
 
 @dataclass(frozen=True)
@@ -63,13 +113,17 @@ _READ_ONLY_HOOKS = frozenset(
         "integration-tests",
         "check-pandera-decorator",
         "no-commit-to-main",
+        "no-object-annotations",
     }
 )
 
 
 def unknown_hook_policy(repo_root: Path) -> str:
     config = _merged_config(repo_root)
-    policy = config["wrapper"]["unknown-hook-policy"]
+    wrapper = config.get("wrapper")
+    if wrapper is None:
+        raise ValueError("wrapper configuration is missing")
+    policy = wrapper["unknown-hook-policy"]
     if policy not in {"warn", "error"}:
         raise ValueError("wrapper.unknown-hook-policy must be 'warn' or 'error'")
     return policy
@@ -77,31 +131,45 @@ def unknown_hook_policy(repo_root: Path) -> str:
 
 def job_timeout_seconds(repo_root: Path) -> float:
     config = _merged_config(repo_root)
-    timeout = float(config["wrapper"]["job-timeout-seconds"])
+    wrapper = config.get("wrapper")
+    if wrapper is None:
+        raise ValueError("wrapper configuration is missing")
+    timeout = float(wrapper["job-timeout-seconds"])
     if timeout <= 0:
         raise ValueError("wrapper.job-timeout-seconds must be positive")
     return timeout
 
 
 def protected_branches(repo_root: Path) -> tuple[str, ...]:
-    branches = _merged_config(repo_root)["wrapper"]["protected-branches"]
+    config = _merged_config(repo_root)
+    wrapper = config.get("wrapper")
+    if wrapper is None:
+        raise ValueError("wrapper configuration is missing")
+    branches = wrapper.get("protected-branches", [])
     if not isinstance(branches, list) or any(not isinstance(branch, str) or not branch for branch in branches):
         raise ValueError("wrapper.protected-branches must be a list of non-empty strings")
     return tuple(branches)
 
 
-def ratchet_settings(repo_root: Path) -> dict:
-    return _merged_config(repo_root)["ratchet"]
+def ratchet_settings(repo_root: Path) -> RatchetConfig:
+    config = _merged_config(repo_root)
+    settings = config.get("ratchet")
+    if settings is None:
+        raise ValueError("ratchet configuration is missing")
+    return settings
 
 
 def enabled_pre_commit_hook_ids(config_path: Path) -> list[str]:
-    config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    config = cast(PreCommitConfig, yaml.safe_load(config_path.read_text(encoding="utf-8")) or {})
     enabled: list[str] = []
     for repo in config.get("repos", []):
         for hook in repo.get("hooks", []):
+            hook_id = hook.get("id")
+            if not isinstance(hook_id, str) or not hook_id:
+                continue
             stages = hook.get("stages")
             if stages is None or PRE_COMMIT_STAGE in stages:
-                enabled.append(str(hook["id"]))
+                enabled.append(hook_id)
     return enabled
 
 

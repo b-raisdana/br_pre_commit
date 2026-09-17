@@ -6,12 +6,15 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import shutil
 import sys
+import tomllib
 import zlib
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
+from typing import TypedDict
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 log = logging.getLogger("backup")
@@ -23,6 +26,26 @@ from models import Manifest  # noqa: E402
 STAGED_PREFIX = "staged"
 UNSTAGED_PREFIX = "unstaged"
 UNTRACKED_PREFIX = "untracked"
+FULL_BACKUP_DIR = "full_backup"
+
+_DEFAULTS_PATH = Path(__file__).resolve().parents[2] / "defaults.toml"
+
+
+class BackupSettings(TypedDict, total=False):
+    exclude_dir: str
+
+
+def _backup_settings(repo_root: Path) -> BackupSettings:
+    """Load backup settings: defaults overlaid by project .br-pre-commit.toml."""
+    settings: BackupSettings = {"exclude_dir": "archive_not_used_trash"}
+    project_path = repo_root / ".br-pre-commit.toml"
+    if not project_path.exists():
+        return settings
+    data = tomllib.loads(project_path.read_text(encoding="utf-8"))
+    section = data.get("backup")
+    if isinstance(section, dict) and "exclude-dir" in section:
+        settings["exclude_dir"] = str(section["exclude-dir"])
+    return settings
 
 
 def _flatten_path(path: str) -> str:
@@ -58,10 +81,11 @@ def _write_patch(snapshot_dir: Path, prefix: str, path: str, patch: bytes) -> di
     entry = {"original_path": path}
     try:
         content = patch + b"\n"
-        patch_path = Path(path).with_suffix(".patch")
-        stored_path = Path(prefix) / patch_path.with_name(
-            f"{patch_path.stem}.{_content_hash(content)}{patch_path.suffix}"
-        )
+        source_path = Path(path)
+        ext = source_path.suffix.lstrip(".") or "bin"
+        # Stored name: <prefix>/<dir>/<stem>.<ext>.<hash>.patch
+        # e.g. src/foo/__init__.py.d30c167.patch
+        stored_path = Path(prefix) / source_path.with_name(f"{source_path.stem}.{ext}.{_content_hash(content)}.patch")
         destination = snapshot_dir / stored_path
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(content)
@@ -70,6 +94,34 @@ def _write_patch(snapshot_dir: Path, prefix: str, path: str, patch: bytes) -> di
         log.exception("Failed to backup %s %s: %s", prefix, path, exc)
         entry.update(type="failed", error=str(exc))
     return entry
+
+
+def _copy_full_file(full_backup_dir: Path, repo_root: Path, path: str) -> dict[str, str] | None:
+    """Copy an excluded-path file verbatim into the content-addressed full-backup store.
+
+    The stored name is ``<relpath-flattened>.<ext>.<7-digit-content-hash>`` so that
+    different versions of the same file keep distinct copies and identical versions
+    overwrite each other. e.g. ``src_archive_not_used_trash_legacy.py.abc1234``.
+    """
+    source = repo_root / path
+    if not source.is_file():
+        return None
+    try:
+        content = source.read_bytes()
+    except Exception as exc:
+        log.exception("Failed to read %s for full backup: %s", path, exc)
+        return {"original_path": path, "type": "failed", "error": str(exc)}
+    try:
+        flat = _flatten_path(path)
+        ext = source.suffix.lstrip(".") or "bin"
+        stored_path = f"{flat}.{ext}.{_content_hash(content)}"
+        destination = full_backup_dir / stored_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(content)
+        return {"original_path": path, "type": "full", "stored_path": stored_path}
+    except Exception as exc:
+        log.exception("Failed to backup full file %s: %s", path, exc)
+        return {"original_path": path, "type": "failed", "error": str(exc)}
 
 
 async def _backup_diff(snapshot_dir: Path, repo_root: Path, prefix: str, path: str) -> dict[str, str]:
@@ -119,6 +171,28 @@ def _snapshot_size(snapshot_dir: Path) -> int:
     return sum(path.stat().st_size for path in snapshot_dir.rglob("*") if path.is_file())
 
 
+def _is_excluded(path: str, exclude_dir: str) -> bool:
+    """Return True when ``path`` is under the configured exclude directory.
+
+    ``exclude_dir`` may be either a literal directory name (matched against any
+    path part) or a regex anchored to match a single path part.
+    """
+    if not exclude_dir:
+        return False
+    parts = Path(path).parts
+    try:
+        pattern = re.compile(exclude_dir)
+    except re.error:
+        # Literal directory name - match against any path part.
+        return exclude_dir in parts
+    # Regex - each path part is matched in full.
+    return any(pattern.fullmatch(part) for part in parts)
+
+
+def _get_full_backup_dir(repo_root: Path) -> Path:
+    return repo_root / "logs" / "pre-commit" / FULL_BACKUP_DIR
+
+
 async def take_snapshot_async(repo_root: Path) -> Manifest:
     log.debug("Taking snapshot %s...", repo_root)
     branch_raw, commit_raw, staged_raw, unstaged_raw, untracked_raw = await asyncio.gather(
@@ -132,10 +206,40 @@ async def take_snapshot_async(repo_root: Path) -> Manifest:
     commit_hash = commit_raw.decode().strip()
     snapshot_dir = get_snapshot_dir(branch, commit_hash, repo_root)
 
+    settings = _backup_settings(repo_root)
+    exclude_dir = settings.get("exclude_dir", "archive_not_used_trash")
+
+    staged_paths = _decode_paths(staged_raw)
+    unstaged_paths = _decode_paths(unstaged_raw)
+    untracked_paths = _decode_paths(untracked_raw)
+
+    def _split(paths: list[str]) -> tuple[list[str], list[str]]:
+        keep: list[str] = []
+        full: list[str] = []
+        for path in paths:
+            (full if _is_excluded(path, exclude_dir) else keep).append(path)
+        return keep, full
+
+    staged_keep, staged_full = _split(staged_paths)
+    unstaged_keep, unstaged_full = _split(unstaged_paths)
+    untracked_keep, untracked_full = _split(untracked_paths)
+
+    full_backup_dir = _get_full_backup_dir(repo_root)
+    full_entries = await asyncio.gather(
+        *(
+            asyncio.to_thread(_copy_full_file, full_backup_dir, repo_root, path)
+            for path in staged_full + unstaged_full + untracked_full
+        )
+    )
+    full_backups = sorted(
+        (entry for entry in full_entries if entry is not None),
+        key=lambda entry: entry["original_path"],
+    )
+
     staged, unstaged, untracked = await asyncio.gather(
-        _backup_many_diffs(snapshot_dir, repo_root, STAGED_PREFIX, _decode_paths(staged_raw)),
-        _backup_many_diffs(snapshot_dir, repo_root, UNSTAGED_PREFIX, _decode_paths(unstaged_raw)),
-        _backup_untracked(snapshot_dir, repo_root, _decode_paths(untracked_raw)),
+        _backup_many_diffs(snapshot_dir, repo_root, STAGED_PREFIX, staged_keep),
+        _backup_many_diffs(snapshot_dir, repo_root, UNSTAGED_PREFIX, unstaged_keep),
+        _backup_untracked(snapshot_dir, repo_root, untracked_keep),
     )
     manifest = Manifest(
         branch=branch,
@@ -145,6 +249,7 @@ async def take_snapshot_async(repo_root: Path) -> Manifest:
         staged=staged,
         unstaged=unstaged,
         untracked=untracked,
+        full_backups=full_backups,
     )
     try:
         await asyncio.to_thread(_write_manifest, snapshot_dir / "manifest.json", manifest)
@@ -154,11 +259,12 @@ async def take_snapshot_async(repo_root: Path) -> Manifest:
 
     total_size = await asyncio.to_thread(_snapshot_size, snapshot_dir)
     log.info(
-        "Snapshot saved to %s | %d staged, %d unstaged, %d untracked | %.1f KB",
+        "Snapshot saved to %s | %d staged, %d unstaged, %d untracked, %d full | %.1f KB",
         snapshot_dir,
         sum(entry.get("type") == "patch" for entry in staged),
         sum(entry.get("type") == "patch" for entry in unstaged),
         sum("error" not in entry for entry in untracked),
+        len(full_backups),
         total_size / 1024.0,
     )
     return manifest

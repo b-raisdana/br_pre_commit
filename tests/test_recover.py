@@ -117,7 +117,8 @@ def test_backup_keeps_changed_patches_and_refreshes_identical_patch(tmp_path: Pa
 
     patches = list((snapshot_dir / "staged").glob("target.*.patch"))
     assert len(patches) == 2
-    assert all(len(patch.stem.rsplit(".", 1)[1]) == 7 for patch in patches)
+    # Stored name is target.<ext>.<hash>.patch; the hash is the 3rd dot-separated part.
+    assert all(len(patch.stem.split(".")[2]) == 7 for patch in patches)
 
 
 # ---- (c) untracked round-trip ----

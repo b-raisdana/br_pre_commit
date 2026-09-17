@@ -12,3 +12,12 @@ max-lines = 300
 line-growth-slack = 5
 complexity-ranks = "ABCDEF"
 xenon-max-absolute = "B"
+# Directory excluded from ratchet/ruff/mypy/xenon scans. Unreachable-from-presentation
+# reference code kept for reference, not linted - see <repo>/<exclude-dir>/README.md.
+exclude-dir = "archive_not_used_trash"
+
+[backup]
+# Directory whose files are excluded from patch backups (they are backed up as full
+# file copies under logs/pre-commit/full_backup/ instead). Unreachable-from-presentation
+# reference code kept for reference, not linted - see <repo>/<exclude-dir>/README.md.
+exclude-dir = "^(data|logs|\\.[^/]+)$"

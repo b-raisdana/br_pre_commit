@@ -48,3 +48,9 @@ repos:
         entry: ../br_pre_commit/ratchet
         pass_filenames: false
         files: ^src/.*\.py$
+
+      - id: no-object-annotations
+        name: no object type annotations
+        language: system
+        entry: python scripts/check_no_object_annotations.py
+        types: [python]

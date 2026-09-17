@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -12,3 +12,4 @@ class Manifest:
     staged: list[dict[str, str]]
     unstaged: list[dict[str, str]]
     untracked: list[dict[str, str]]
+    full_backups: list[dict[str, str]] = field(default_factory=list)

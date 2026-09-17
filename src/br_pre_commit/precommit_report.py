@@ -7,7 +7,7 @@ import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 
 if TYPE_CHECKING:
     from precommit_wrapper import JobResult
@@ -18,10 +18,39 @@ class ResultWithOutput(Protocol):
     def stdout(self) -> str: ...
 
 
-def _parse_ruff_warnings(ruff_result: ResultWithOutput, rebase_root: Path) -> list[dict[str, object]]:
-    warnings: list[dict[str, object]] = []
+class RuffLocation(TypedDict):
+    row: int
+
+
+class RuffViolation(TypedDict):
+    filename: str
+    location: RuffLocation
+    code: str
+    message: str
+
+
+class LintWarning(TypedDict):
+    file: str
+    line: int
+    code: str
+    message: str
+
+
+class SummaryEntry(TypedDict, total=False):
+    timestamp: str
+    branch: str
+    staged_files: list[str]
+    result: str
+    jobs: dict[str, int]
+    advisory_lint_warnings: list[LintWarning]
+    report: str
+    snapshot_dir: str
+
+
+def _parse_ruff_warnings(ruff_result: ResultWithOutput, rebase_root: Path) -> list[LintWarning]:
+    warnings: list[LintWarning] = []
     try:
-        violations = json.loads(ruff_result.stdout or "[]")
+        violations = cast(list[RuffViolation], json.loads(ruff_result.stdout or "[]"))
     except (AttributeError, json.JSONDecodeError):
         return warnings
     for violation in violations:
@@ -36,8 +65,8 @@ def _parse_ruff_warnings(ruff_result: ResultWithOutput, rebase_root: Path) -> li
     return warnings
 
 
-def _parse_radon_warnings(radon_result: ResultWithOutput | None) -> list[dict[str, object]]:
-    warnings: list[dict[str, object]] = []
+def _parse_radon_warnings(radon_result: ResultWithOutput | None) -> list[LintWarning]:
+    warnings: list[LintWarning] = []
     if radon_result is None or not radon_result.stdout:
         return warnings
     for line in radon_result.stdout.splitlines():
@@ -48,25 +77,27 @@ def _parse_radon_warnings(radon_result: ResultWithOutput | None) -> list[dict[st
             file_part, score_part = line.split(" - ", 1)
             rank, score = score_part.split()
             warnings.append(
-                {
-                    "file": file_part.strip(),
-                    "line": 0,
-                    "code": f"radon-mi-{rank}",
-                    "message": f"Maintainability Index: {score.strip('()')} ({rank})",
-                }
+                LintWarning(
+                    **{
+                        "file": file_part.strip(),
+                        "line": 0,
+                        "code": f"radon-mi-{rank}",
+                        "message": f"Maintainability Index: {score.strip('()')} ({rank})",
+                    }
+                )
             )
         except (IndexError, ValueError):
             continue
     return warnings
 
 
-def _advisory_warnings(results: list[JobResult]) -> list[dict[str, object]]:
+def _advisory_warnings(results: list[JobResult]) -> list[LintWarning]:
     from precommit_wrapper import REPO_ROOT  # noqa: F402,E402
 
-    warnings: list[dict[str, object]] = []
+    warnings: list[LintWarning] = []
     ruff_result = next((item for item in results if getattr(item, "job_id", None) == "advisory-ruff"), None)
     if ruff_result is not None:
-        warnings.extend(_parse_ruff_warnings(ruff_result, REPO_ROOT))
+        warnings.extend(_parse_ruff_warnings(ruff_result, cast(Path, REPO_ROOT)))
 
     radon_result = next((item for item in results if getattr(item, "job_id", None) == "advisory-radon"), None)
     warnings.extend(_parse_radon_warnings(radon_result))
@@ -76,7 +107,7 @@ def _advisory_warnings(results: list[JobResult]) -> list[dict[str, object]]:
 def _write_report(human_ts: str, results: list[JobResult]) -> Path:
     from precommit_wrapper import LOG_DIR  # noqa: F402,E402
 
-    report_dir = LOG_DIR / "pre-commit-runs"
+    report_dir = cast(Path, LOG_DIR) / "pre-commit-runs"
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / f"{human_ts}.log"
     sections = [
@@ -91,11 +122,13 @@ def _write_report(human_ts: str, results: list[JobResult]) -> Path:
     return report_path
 
 
-def _append_summary(entry: dict[str, object]) -> None:
+def _append_summary(entry: SummaryEntry) -> None:
     from precommit_wrapper import LOG_DIR, LOG_FILE  # noqa: F402,E402
 
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    with LOG_FILE.open("a", encoding="utf-8") as output:
+    log_dir = cast(Path, LOG_DIR)
+    log_file = cast(Path, LOG_FILE)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    with log_file.open("a", encoding="utf-8") as output:
         output.write(json.dumps(entry) + "\n")
 
 
@@ -103,7 +136,7 @@ def _run_branch_protection(branch: str) -> list[JobResult]:
     from precommit_wrapper import JobResult, _branch_protection_result  # noqa: F402,E402
 
     try:
-        result = _branch_protection_result(branch)
+        result = cast(JobResult | None, _branch_protection_result(branch))
     except ValueError as exc:
         message = f"configuration error: {exc}"
         sys.stdout.write(message + "\n")
@@ -121,18 +154,18 @@ async def _run_pipeline(staged: list[str]) -> list[JobResult]:
         sys.stdout.write("No staged files; running the standard pre-commit pipeline.\n")
         return [await _run_job("pre-commit", ["pre-commit", "run", "--hook-stage", "pre-commit"], asyncio.Lock())]
     try:
-        from pre_commit.staged_files_only import staged_files_only  # type: ignore[import-untyped]
-        from pre_commit.store import Store  # type: ignore[import-untyped]
+        from pre_commit.staged_files_only import staged_files_only
+        from pre_commit.store import Store
 
         with staged_files_only(Store().directory):
-            return await _run_hooks(staged)
+            return cast(list[JobResult], await _run_hooks(staged))
     except ValueError as exc:
         message = f"configuration error: {exc}"
         sys.stdout.write(message + "\n")
         return [JobResult("configuration", (), 2, 0.0, "", message)]
 
 
-def _write_summary(human_ts: str, results: list[JobResult]) -> tuple[Path, list[dict[str, object]]]:
+def _write_summary(human_ts: str, results: list[JobResult]) -> tuple[Path, list[LintWarning]]:
     report_path = _write_report(human_ts, results)
     warnings = _advisory_warnings(results)
     for hit in warnings:
@@ -158,7 +191,7 @@ async def _main_async() -> int:
         results.append(backup_result)
 
     report_path, warnings = _write_summary(human_ts, results)
-    entry: dict[str, object] = {
+    entry: SummaryEntry = {
         "timestamp": timestamp,
         "branch": branch,
         "staged_files": staged,
@@ -196,7 +229,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    from precommit_wrapper import REPO_ROOT, log  # noqa: F402,E402  # type: ignore[has-type]
+    from precommit_wrapper import REPO_ROOT, log  # noqa: F402,E402
 
-    log.info("Running pre-commit wrapper in %s", REPO_ROOT)  # type: ignore[has-type]
+    log.info("Running pre-commit wrapper in %s", REPO_ROOT)
     sys.exit(main())

@@ -58,4 +58,7 @@
     "${workspaceFolder}/scripts",
     "${workspaceFolder}/integrations"
   ],
+  "workbench.colorCustomizations": {
+    "titleBar.activeBackground": "#aa0000"
+  }
 }

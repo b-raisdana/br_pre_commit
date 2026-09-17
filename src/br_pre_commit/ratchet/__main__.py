@@ -1,14 +1,45 @@
-"""Main entry point for the incremental pre-commit ratchet."""
+"""Main entry point for the incremental pre-commit ratchet.
+
+Orchestrates the full ratchet run: loads baselines, runs analyzers (current + before),
+evaluates per-file gate, computes new baseline, prints trends. This is the only
+module with side effects (stdout, git staging, file writes).
+"""
 
 from __future__ import annotations
 
+import json
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from ratchet_check import TouchedFile
+from .gate import TouchedFile
+from .tools import RuffViolation, XenonData
+
+AnalyzerResult = tuple[list[RuffViolation], list[tuple[str, str]], XenonData, dict[str, int]]
+AnalyzerResultWithBefore = tuple[
+    list[RuffViolation],
+    list[tuple[str, str]],
+    XenonData,
+    dict[str, int],
+    dict[str, dict[str, int]],
+]
+
+
+def get_enabled_ruff_codes() -> set[str]:
+    """Get all ruff rule codes enabled by the current config."""
+    try:
+        result = subprocess.run(
+            ["ruff", "rule", "--all", "--output-format=json"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        rules = json.loads(result.stdout)
+        selected = ["E", "F", "I", "UP", "B", "C4", "SIM", "W"]
+        return {r["code"] for r in rules if any(r["code"].startswith(s) for s in selected)}
+    except Exception:
+        return set()
 
 
 def _analyze_trend(
@@ -32,11 +63,9 @@ def _collect_analyzer_results(
     touched: list[TouchedFile],
     head_worktree: Callable[[], Path | None],
     remove_worktree: Callable[[Path], None],
-    current_analyzers: Callable[[], tuple[list[dict], list[tuple[str, str]], dict, dict[str, int]]],
-    current_and_before_analyzers: Callable[
-        [Path], tuple[list[dict], list[tuple[str, str]], dict, dict[str, int], dict[str, dict[str, int]]]
-    ],
-) -> tuple[list[dict], list[tuple[str, str]], dict, dict[str, int], dict[str, dict[str, int]]]:
+    current_analyzers: Callable[[], AnalyzerResult],
+    current_and_before_analyzers: Callable[[Path], AnalyzerResultWithBefore],
+) -> AnalyzerResultWithBefore:
     before_by_file: dict[str, dict[str, int]] = {"mypy": {}, "ruff": {}, "xenon": {}}
     worktree = head_worktree() if touched else None
     try:
@@ -50,13 +79,17 @@ def _collect_analyzer_results(
 
 
 def _current_counts(
-    ruff_violations: list[dict],
+    ruff_violations: list[RuffViolation],
     mypy_records: list[tuple[str, str]],
-    xenon_data: dict,
+    xenon_data: XenonData,
     loc_counts: dict[str, int],
 ) -> dict[str, int]:
-    from ratchet_check import _group_mypy_by_rule, _group_ruff_by_rule, _xenon_total  # noqa: F402,E402
-    from ratchet_check_tools import loc_excess_total  # noqa: F402,E402
+    from .tools import (  # noqa: F402,E402
+        _group_mypy_by_rule,
+        _group_ruff_by_rule,
+        _xenon_total,
+        loc_excess_total,
+    )
 
     return {
         **_group_ruff_by_rule(ruff_violations),
@@ -68,18 +101,18 @@ def _current_counts(
 
 def _file_gate_blocked(
     touched: list[TouchedFile],
-    ruff_violations: list[dict],
+    ruff_violations: list[RuffViolation],
     mypy_records: list[tuple[str, str]],
-    xenon_data: dict,
+    xenon_data: XenonData,
     before_by_file: dict[str, dict[str, int]],
 ) -> list[tuple[str, Path, int, int]]:
     if not touched:
         return []
-    from ratchet_check import (  # noqa: F402,E402
+    from .gate import evaluate_file_gate  # noqa: F402,E402
+    from .tools import (  # noqa: F402,E402
         _group_mypy_by_file,
         _group_ruff_by_file,
         _group_xenon_by_file,
-        evaluate_file_gate,
     )
 
     after_by_file = {
@@ -117,7 +150,7 @@ def _print_blocked(blocked: list[tuple[str, Path, int, int]], max_lines: int, sl
 def _write_new_baseline(old_baseline: dict[str, int], new_baseline: dict[str, int]) -> None:
     if new_baseline == old_baseline:
         return
-    from ratchet_check import write_baseline_file  # noqa: F402,E402
+    from .baseline import write_baseline_file  # noqa: F402,E402
 
     write_baseline_file(new_baseline)
 
@@ -161,19 +194,21 @@ def _tool_totals(
 
 
 def main() -> int:
-    from ratchet_check import (  # noqa: F402,E402
+    from .baseline import (  # noqa: F402,E402
         LOC_MAX_LINES,
         LOC_SLACK,
-        _head_worktree,
-        _remove_worktree,
         _tool_of,
-        _validate_configured_hooks,
-        characterization_test_touched,
         compute_new_baseline,
         load_and_consolidate_baselines,
+    )
+    from .gate import (  # noqa: F402,E402
+        _head_worktree,
+        _remove_worktree,
+        _validate_configured_hooks,
+        characterization_test_touched,
         touched_app_python_files,
     )
-    from ratchet_check_tools import _run_current_analyzers, _run_current_and_before_analyzers  # noqa: F402,E402
+    from .tools import _run_current_analyzers, _run_current_and_before_analyzers  # noqa: F402,E402
 
     unknown = _validate_configured_hooks()
     if unknown:
@@ -189,6 +224,14 @@ def main() -> int:
     )
     ruff_violations, mypy_records, xenon_data, loc_counts, before_by_file = results
     current_counts = _current_counts(ruff_violations, mypy_records, xenon_data, loc_counts)
+
+    # Ensure all enabled ruff rule codes have a baseline entry (zero if no violations)
+    enabled_ruff_codes = get_enabled_ruff_codes()
+    for code in enabled_ruff_codes:
+        key = f"ruff:{code}"
+        if key not in old_baseline:
+            old_baseline[key] = 0
+
     regressed, improved = _analyze_trend(old_baseline, current_counts)
     blocked = _file_gate_blocked(touched, ruff_violations, mypy_records, xenon_data, before_by_file)
     if blocked:
@@ -206,61 +249,27 @@ def main() -> int:
 
 
 def print_ruff_details(paths: list[Path]) -> None:
-    from ratchet_check import run_output  # noqa: F402,E402
+    from .details import print_ruff_details as _print  # noqa: F402,E402
 
-    if not paths:
-        print("    no files to inspect")
-        return
-    output = run_output("ruff", "check", *(path.as_posix() for path in paths))
-    print(output.rstrip() or "    ruff reported no errors on these files")
+    _print(paths)
 
 
 def print_mypy_details(paths: list[Path]) -> None:
-    from ratchet_check import ROOT, TARGET, run_output  # noqa: F402,E402
+    from .details import print_mypy_details as _print  # noqa: F402,E402
 
-    app_paths = [path.relative_to(TARGET).as_posix() for path in paths]
-    if not app_paths:
-        print("    no files to inspect")
-        return
-    output = run_output("mypy", "--config-file", str(ROOT / "pyproject.toml"), *app_paths, cwd=ROOT / TARGET)
-    print(output.rstrip() or "    mypy reported no errors on these files")
+    _print(paths)
 
 
 def print_xenon_details(paths: list[Path], max_absolute: str = "B") -> None:
-    from ratchet_check import (  # noqa: F402,E402
-        COMPLEXITY_RANKS,
-        ROOT,
-        TARGET,
-        XENON_MAX_ABSOLUTE,
-        _exclude_tests,
-        _parse_xenon_json,
-        run,
-    )
+    from .details import print_xenon_details as _print  # noqa: F402,E402
 
-    paths = _exclude_tests(paths)
-    if not paths:
-        print("    no files to inspect")
-        return
-    stdout = run("radon", "cc", TARGET, "-j", "-i", "tests,archive_not_used_trash", "--show-closures", cwd=ROOT)
-    data = _parse_xenon_json(stdout)
-    threshold = COMPLEXITY_RANKS.index(XENON_MAX_ABSOLUTE)
-    printed = False
-    for file_path, blocks in sorted(data.items()):
-        for block in blocks:
-            rank = block.get("rank", "A")
-            if COMPLEXITY_RANKS.index(rank) <= threshold:
-                continue
-            print(f"    {file_path}:{block.get('lineno')} {block.get('type')} {block.get('name')} rank {rank}")
-            printed = True
-    if not printed:
-        print(f"    xenon/radon reported no rank > {XENON_MAX_ABSOLUTE} blocks on these files")
+    _print(paths, max_absolute=max_absolute)
 
 
 def print_loc_details(paths: list[Path], max_lines: int = 300) -> None:
-    from ratchet_check import LOC_SLACK, ROOT, _line_count  # noqa: F402,E402
+    from .details import print_loc_details as _print  # noqa: F402,E402
 
-    for path in paths:
-        print(f"    {path.as_posix()}: {_line_count(ROOT / path)} lines (cap {max_lines}, slack {LOC_SLACK})")
+    _print(paths, max_lines=max_lines)
 
 
 DETAIL_PRINTERS: dict[str, Callable[[list[Path]], None]] = {

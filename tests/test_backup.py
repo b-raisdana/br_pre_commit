@@ -39,3 +39,72 @@ def test_backup_many_diffs_starts_all_files_concurrently(tmp_path, monkeypatch):
 
 def test_decode_paths_preserves_spaces_and_non_ascii():
     assert backup._decode_paths("a file.txt\0δ.py\0".encode()) == ["a file.txt", "δ.py"]
+
+
+def test_write_patch_preserves_source_extension(tmp_path):
+    entry = backup._write_patch(tmp_path, backup.STAGED_PREFIX, "src/foo/__init__.py", b"diff --git a b\n")
+    assert entry["type"] == "patch"
+    stored = tmp_path / entry["stored_path"]
+    assert stored.exists()
+    assert stored.name.startswith("__init__.py.")
+    assert stored.name.endswith(".patch")
+    # Format: __init__.py.<7-hex-hash>.patch
+    stem = stored.name[: -len(".patch")]
+    assert stem.startswith("__init__.py.")
+    assert len(stem.split(".")[-1]) == 7
+
+
+def test_write_patch_handles_extensionless_path(tmp_path):
+    entry = backup._write_patch(tmp_path, backup.STAGED_PREFIX, "Makefile", b"diff\n")
+    assert entry["type"] == "patch"
+    stored = tmp_path / entry["stored_path"]
+    assert stored.exists()
+    assert stored.name.startswith("Makefile.bin.")
+
+
+def test_write_patch_dots_in_name_preserved(tmp_path):
+    entry = backup._write_patch(tmp_path, backup.STAGED_PREFIX, "src/foo.bar/baz.txt", b"diff\n")
+    assert entry["type"] == "patch"
+    stored = tmp_path / entry["stored_path"]
+    assert stored.exists()
+    assert stored.name.startswith("baz.txt.")
+
+
+def test_copy_full_file_content_addressed_overwrites_same_version(tmp_path):
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "archive_not_used_trash").mkdir(parents=True)
+    full_backup_dir = tmp_path / "full"
+    full_backup_dir.mkdir()
+
+    source = repo_root / "src" / "archive_not_used_trash" / "legacy.py"
+    source.write_text("v1\n", encoding="utf-8")
+
+    e1 = backup._copy_full_file(full_backup_dir, repo_root, "src/archive_not_used_trash/legacy.py")
+    e2 = backup._copy_full_file(full_backup_dir, repo_root, "src/archive_not_used_trash/legacy.py")
+    assert e1 is not None and e2 is not None
+    assert e1["stored_path"] == e2["stored_path"]
+    assert (full_backup_dir / e1["stored_path"]).read_text() == "v1\n"
+
+    source.write_text("v2-changed\n", encoding="utf-8")
+    e3 = backup._copy_full_file(full_backup_dir, repo_root, "src/archive_not_used_trash/legacy.py")
+    assert e3 is not None
+    assert e3["stored_path"] != e1["stored_path"]
+    assert (full_backup_dir / e3["stored_path"]).read_text() == "v2-changed\n"
+
+
+def test_is_excluded_literal_and_regex():
+    assert backup._is_excluded("src/archive_not_used_trash/foo.py", "archive_not_used_trash")
+    assert not backup._is_excluded("src/foo.py", "archive_not_used_trash")
+    assert backup._is_excluded("data/file.txt", "^(data|logs|\\.[^/]+)$")
+    assert backup._is_excluded("logs/file.txt", "^(data|logs|\\.[^/]+)$")
+    assert backup._is_excluded(".git/config", "^(data|logs|\\.[^/]+)$")
+    assert not backup._is_excluded("src/foo.py", "^(data|logs|\\.[^/]+)$")
+
+
+def test_backup_settings_defaults_and_override(tmp_path):
+    defaults = backup._backup_settings(tmp_path)
+    assert defaults.get("exclude_dir") == "archive_not_used_trash"
+
+    (tmp_path / ".br-pre-commit.toml").write_text('[backup]\nexclude-dir = "custom_excluded"\n', encoding="utf-8")
+    overridden = backup._backup_settings(tmp_path)
+    assert overridden.get("exclude_dir") == "custom_excluded"
