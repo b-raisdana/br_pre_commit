@@ -7,12 +7,13 @@ git status parsing, skill discovery, and cleanup.
 
 from __future__ import annotations
 
-import io
 import os
 from pathlib import Path
 
-from git import Repo
-from git.exc import GitCommandError
+from git_helper import (
+    show_index_blob,
+    stage,
+)
 
 AGENTS = [
     "claude",
@@ -45,17 +46,12 @@ def _rel(path: Path, repo_root: Path) -> str:
     return path.relative_to(repo_root).as_posix()
 
 
-def _index_bytes(repo: Repo, rel: str) -> bytes | None:
-    buf = io.BytesIO()
-    try:
-        repo.git.show(f":{rel}", output_stream=buf)
-    except GitCommandError:
-        return None
-    return buf.getvalue()
+def _index_bytes(repo_root: Path, rel: str) -> bytes | None:
+    return show_index_blob(repo_root, rel)
 
 
-def _stage(repo: Repo, rel: str) -> None:
-    repo.git.add(rel)
+def _stage(repo_root: Path, rel: str) -> None:
+    stage(repo_root, rel)
 
 
 def classify_skill_path(path_str: str) -> tuple[str, str] | None:

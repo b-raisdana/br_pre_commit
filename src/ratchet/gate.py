@@ -137,7 +137,7 @@ def _validate_configured_hooks() -> list[str]:
     from precommit_wrapper.config import classify_hooks, enabled_pre_commit_hook_ids, unknown_hook_policy  # noqa: E402
 
     hook_ids = enabled_pre_commit_hook_ids(ROOT / ".pre-commit-config.yaml")
-    result = classify_hooks(hook_ids, policy=unknown_hook_policy(ROOT))
+    result = classify_hooks(hook_ids, policy=unknown_hook_policy())
     unknown: list[str] = result[1]
     return unknown
 

@@ -9,8 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from git import Repo
-
+from git_helper import diff_cached_name_status
 from sync_skills.core import (
     _index_bytes,
     _rel,
@@ -23,7 +22,7 @@ from sync_skills.core import (
 )
 
 
-def get_staged_skill_changes(repo: Repo) -> dict[str, list[tuple[str, str, bytes | None]]]:
+def get_staged_skill_changes(repo_root: Path) -> dict[str, list[tuple[str, str, bytes | None]]]:
     """Detect staged skill changes from git (the source of truth for add/modify/delete).
 
     Returns ``skill_name -> [(slot_key, status, staged_blob)]`` where ``status`` is
@@ -32,7 +31,7 @@ def get_staged_skill_changes(repo: Repo) -> dict[str, list[tuple[str, str, bytes
     """
     status_map = {"A": "add", "M": "modify", "R": "rename", "C": "rename"}
     by_skill: dict[str, list[tuple[str, str, bytes | None]]] = {}
-    for path, code in parse_staged_name_status(repo.git.diff("--cached", "--name-status")):
+    for path, code in parse_staged_name_status(diff_cached_name_status(repo_root)):
         classified = classify_skill_path(path)
         if classified is None:
             continue
@@ -40,7 +39,7 @@ def get_staged_skill_changes(repo: Repo) -> dict[str, list[tuple[str, str, bytes
         if code == "D":
             status, blob = "delete", None
         else:
-            status, blob = status_map.get(code, "modify"), _index_bytes(repo, path)
+            status, blob = status_map.get(code, "modify"), _index_bytes(repo_root, path)
         by_skill.setdefault(skill_name, []).append((slot_key, status, blob))
     return by_skill
 
@@ -86,11 +85,10 @@ def compute_intent(
 
 
 def remove_mirror(
-    repo: Repo,
+    repo_root: Path,
     skill_name: str,
     slot: str,
     path: Path,
-    repo_root: Path,
     problems: list[str],
 ) -> bool:
     """Stage the deletion of one mirror if it is safe to do so.
@@ -99,14 +97,14 @@ def remove_mirror(
     when it was already gone or could not be safely removed.
     """
     rel = _rel(path, repo_root)
-    idx = _index_bytes(repo, rel)
+    idx = _index_bytes(repo_root, rel)
     work = path.read_bytes() if path.exists() else None
     if work is None and idx is None:
         return False  # already gone
     if idx is not None and (work is None or work == idx):
         # Clean tracked mirror (or staged-deleted already reflected in worktree) -> stage deletion.
         path.unlink(missing_ok=True)
-        _stage(repo, rel)
+        _stage(repo_root, rel)
         return True
     problems.append(
         f"mirror '{skill_name}' in {slot} ({rel}) has uncommitted/untracked content that a staged "
@@ -116,27 +114,25 @@ def remove_mirror(
 
 
 def remove_skill_from_all_agents(
-    repo: Repo,
+    repo_root: Path,
     skill_name: str,
     skill_parents: dict[str, Path],
-    repo_root: Path,
     problems: list[str],
 ) -> bool:
     changed = False
     for slot, path in mirror_slots(repo_root, skill_parents, skill_name):
         if is_excluded(skill_name):
             continue
-        if remove_mirror(repo, skill_name, slot, path, repo_root, problems):
+        if remove_mirror(repo_root, skill_name, slot, path, problems):
             changed = True
     return changed
 
 
 def apply_modification(
-    repo: Repo,
+    repo_root: Path,
     skill_name: str,
     canonical: bytes,
     skill_parents: dict[str, Path],
-    repo_root: Path,
     problems: list[str],
 ) -> None:
     """Propagate ``canonical`` to every mirror of ``skill_name``, staging safe writes.
@@ -148,17 +144,17 @@ def apply_modification(
         if is_excluded(skill_name):
             continue
         rel = _rel(path, repo_root)
-        idx = _index_bytes(repo, rel)
+        idx = _index_bytes(repo_root, rel)
         work = path.read_bytes() if path.exists() else None
         if work is None:
             # Missing mirror -> safe to create (nothing to clobber).
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(canonical)
-            _stage(repo, rel)
+            _stage(repo_root, rel)
         elif work == canonical:
             # Worktree already canonical; just make sure the index agrees (idempotent).
             if idx != canonical:
-                _stage(repo, rel)
+                _stage(repo_root, rel)
         elif idx is None:
             # Untracked file carrying different content -> clobbering would lose work.
             problems.append(
@@ -168,7 +164,7 @@ def apply_modification(
         elif idx == work:
             # Clean (staged-or-HEAD) mirror that lags the canonical version -> safe to update.
             path.write_bytes(canonical)
-            _stage(repo, rel)
+            _stage(repo_root, rel)
         else:
             # index != worktree -> uncommitted edits at risk of being overwritten.
             problems.append(
@@ -178,7 +174,6 @@ def apply_modification(
 
 
 def _create_missing_mirrors(
-    repo: Repo,
     repo_root: Path,
     skill_name: str,
     canonical: bytes,
@@ -188,7 +183,7 @@ def _create_missing_mirrors(
         if not path.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(canonical)
-            _stage(repo, _rel(path, repo_root))
+            _stage(repo_root, _rel(path, repo_root))
 
 
 def _report_divergence(skill_name: str, present: list[tuple[str, Path]], repo_root: Path, problems: list[str]) -> None:
@@ -201,7 +196,6 @@ def _report_divergence(skill_name: str, present: list[tuple[str, Path]], repo_ro
 
 
 def _check_skill_sync(
-    repo: Repo,
     repo_root: Path,
     skill_name: str,
     skill_parents: dict[str, Path],
@@ -213,13 +207,12 @@ def _check_skill_sync(
         return
     contents = {p.read_bytes() for _, p in present}
     if len(contents) == 1:
-        _create_missing_mirrors(repo, repo_root, skill_name, contents.pop(), skill_parents)
+        _create_missing_mirrors(repo_root, skill_name, contents.pop(), skill_parents)
         return
     _report_divergence(skill_name, present, repo_root, problems)
 
 
 def verify_sync(
-    repo: Repo,
     repo_root: Path,
     skill_parents: dict[str, Path],
     problems: list[str],
@@ -236,4 +229,4 @@ def verify_sync(
     for skill_name in discover_skills(skill_parents, repo_root):
         if is_excluded(skill_name) or skill_name in skip:
             continue
-        _check_skill_sync(repo, repo_root, skill_name, skill_parents, problems)
+        _check_skill_sync(repo_root, skill_name, skill_parents, problems)

@@ -104,6 +104,22 @@ The wrapper classifies each ID against two fixed sets in
 | `integration-tests`          | Read-only | Runs integration tests                       |
 | `check-pandera-decorator`    | Read-only | Validates pandera decorators                 |
 | `no-commit-to-main`          | Read-only | Blocks direct commits to protected branches  |
+| `no-object-annotations`      | Read-only | Blocks explicit `object` type annotations    |
+
+## Ignore tags
+
+Some hooks support selective suppression via inline `# ignore:` comment tags.
+
+### `no-object-annotations`
+
+The `no-object-annotations` hook blocks explicit `object` type annotations (e.g., `def foo(x: object) -> None:`). To allow a specific annotation, add the ignore tag on the same line:
+
+```python
+def foo(x: object) -> None:  # ignore: no-object-annotations
+    ...
+```
+
+The tag must use the exact format `# ignore: no-object-annotations` and must be on a line within the annotated element.
 
 ## Integrate into a new project
 

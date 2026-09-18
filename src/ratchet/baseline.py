@@ -24,7 +24,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 from precommit_wrapper.config import ratchet_settings  # noqa: E402
 
-_SETTINGS = ratchet_settings(ROOT)
+_SETTINGS = ratchet_settings()
 BASELINE_DIR = ROOT / ".br-pre-commit" / "ratchet"
 BASELINE_GLOB = "baseline*.json"
 TARGET = str(_SETTINGS["target"])

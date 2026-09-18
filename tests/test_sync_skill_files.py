@@ -1,12 +1,22 @@
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
 
 # The hook entry point is src/sync_skills/__main__.py; load it by path instead.
-_hook_path = Path(__file__).resolve().parents[1] / "src" / "sync_skills" / "__main__.py"
-_spec = importlib.util.spec_from_file_location("sync_skills", _hook_path)
+# __main__.py uses relative imports (.core, .sync), so the package and its
+# submodules must be registered in sys.modules first.
+_hook_path = Path(__file__).resolve().parents[1] / "src" / "sync_skills"
+_src_root = _hook_path.parent
+if str(_src_root) not in sys.path:
+    sys.path.insert(0, str(_src_root))
+
+
+_main_path = _hook_path / "__main__.py"
+_spec = importlib.util.spec_from_file_location("sync_skills.__main__", _main_path)
 m = importlib.util.module_from_spec(_spec)
+sys.modules["sync_skills.__main__"] = m
 _spec.loader.exec_module(m)
 
 pytestmark = pytest.mark.unit
