@@ -111,7 +111,7 @@ def install(repo_path: str | None, force: bool, dry_run: bool) -> int:
 
 
 def get_active_venv() -> Path | None:
-    venv_ = os.environ.get("VIRTUAL_ENV")
+    venv_ = os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX")
 
     if not venv_:
         return None
@@ -119,7 +119,7 @@ def get_active_venv() -> Path | None:
     venv_path = Path(venv_)
 
     if os.name == "nt":
-        return venv_path / "Scripts" / "python.exe"
+        return venv_path / "python.exe" if "CONDA_PREFIX" in os.environ else venv_path / "Scripts" / "python.exe"
 
     return venv_path / "bin" / "python"
 
