@@ -204,7 +204,7 @@ async def _run_backup(terminal_lock: asyncio.Lock) -> tuple[JobResult, str | Non
             "backup",
             "--repo",
             str(USER_REPO_ROOT),
-            "--print-manifest-json",
+            # "--print-manifest-json",
         ],
         terminal_lock,
         timeout_seconds=job_timeout_seconds(),
@@ -217,9 +217,6 @@ async def _run_backup(terminal_lock: asyncio.Lock) -> tuple[JobResult, str | Non
 
 
 from .report import (  # noqa: E402, F401
-    _advisory_warnings,
-    _main_async,
-    _write_report,
     main,
 )
 
