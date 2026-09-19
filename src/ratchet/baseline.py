@@ -25,7 +25,7 @@ sys.path.insert(0, str(HERE.parent))
 from precommit_wrapper.config import ratchet_settings  # noqa: E402
 
 _SETTINGS = ratchet_settings()
-BASELINE_DIR = ROOT / ".br-pre-commit" / "ratchet"
+BASELINE_DIR = ROOT / str(_SETTINGS.get("baseline-dir", ".br-pre-commit/ratchet"))
 BASELINE_GLOB = "baseline*.json"
 TARGET = str(_SETTINGS["target"])
 COMPLEXITY_RANKS = str(_SETTINGS["complexity-ranks"])
@@ -86,13 +86,18 @@ def merge_baselines(baselines: list[dict[str, int]]) -> dict[str, int]:
 
 
 def compute_new_baseline(old_baseline: dict[str, int], current_counts: dict[str, int]) -> dict[str, int]:
-    """Compute ratcheted baseline: for each key, keep the minimum of old and current."""
+    """Compute ratcheted baseline: for each key, keep the minimum of old and current.
+
+    Controls with a minimum of zero are omitted — the baseline only tracks controls
+    that have at least one violation, so a rule that was fixed to zero disappears
+    and will be re-bootstrapped if it ever violates again.
+    """
     result: dict[str, int] = {}
     for key in set(old_baseline) | set(current_counts):
         old_val = old_baseline.get(key, float("inf"))
         current_val = current_counts.get(key, 0)
         result[key] = int(min(old_val, current_val))
-    return dict(sorted(result.items()))
+    return dict(sorted((k, v) for k, v in result.items() if v > 0))
 
 
 def baseline_content_hash(baseline: dict[str, int]) -> str:
@@ -118,7 +123,7 @@ def load_and_consolidate_baselines() -> dict[str, int]:
     if not files:
         return {}
     baselines = [load_json(f) for f in files]
-    merged = merge_baselines(baselines)
+    merged = {k: v for k, v in merge_baselines(baselines).items() if v > 0}
     if len(files) > 1:
         for f in files:
             f.unlink()

@@ -68,26 +68,26 @@ def is_wsl() -> bool:
     return "WSL_DISTRO_NAME" in os.environ
 
 
-def generate_posix_hook(br_pre_commit_repo_root: Path) -> str:
+def generate_posix_hook(user_repo_root: Path, br_pre_commit_repo_root: Path) -> str:
     active_venv = get_active_venv()
     assert isinstance(active_venv, Path)
 
     return (
         "#!/usr/bin/env sh\n"
-        f"export BR_PRE_COMMIT_REPO_ROOT='{br_pre_commit_repo_root}'\n"
+        f"export BR_PRE_COMMIT_REPO_ROOT='{user_repo_root}'\n"
         f"export PYTHONPATH='{br_pre_commit_repo_root / 'src'}'\n\n"
         f"export PATH='{active_venv.parent}':\"$PATH\"\n\n"
         f'exec "{active_venv}" -m precommit_wrapper "$@"\n'
     )
 
 
-def generate_powershell_hook(br_pre_commit_repo_root: Path) -> str:
+def generate_powershell_hook(user_repo_root: Path, br_pre_commit_repo_root: Path) -> str:
     active_venv = get_active_venv()
     assert isinstance(active_venv, Path)
 
     return (
         "#!/bin/sh\n"
-        f"export BR_PRE_COMMIT_REPO_ROOT='{br_pre_commit_repo_root}'\n"
+        f"export BR_PRE_COMMIT_REPO_ROOT='{user_repo_root}'\n"
         f"export PYTHONPATH='{br_pre_commit_repo_root / 'src'}'\n"
         f"export PATH='{active_venv.parent}':\"$PATH\"\n\n"
         "if command -v pwsh > /dev/null 2>&1; then\n"
@@ -129,9 +129,9 @@ def install(repo_path: str | None, force: bool, dry_run: bool) -> int:
     hook_path = git_dir / "hooks" / "pre-commit"
 
     if is_wsl():
-        hook_content = generate_posix_hook(br_pre_commit_repo_root)
+        hook_content = generate_posix_hook(user_repo_root, br_pre_commit_repo_root)
     elif sys.platform == "win32":
-        hook_content = generate_powershell_hook(br_pre_commit_repo_root)
+        hook_content = generate_powershell_hook(user_repo_root, br_pre_commit_repo_root)
     else:
         hook_content = generate_posix_hook(user_repo_root, br_pre_commit_repo_root)
 

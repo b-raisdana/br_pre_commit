@@ -9,7 +9,16 @@ import yaml
 
 PRE_COMMIT_STAGE = "pre-commit"
 RATCHET_HOOK_ID = "incremental-ratchet"
-PYPROJECT_PATH = Path(__file__).resolve().parents[2] / "pyproject.toml"
+TOOL_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _get_pyproject_path() -> Path:
+    """Get pyproject.toml path from BR_PRE_COMMIT_REPO_ROOT or fall back to tool root."""
+    import os
+    repo_root = os.environ.get("BR_PRE_COMMIT_REPO_ROOT")
+    if repo_root:
+        return Path(repo_root) / "pyproject.toml"
+    return TOOL_ROOT / "pyproject.toml"
 
 
 def _read_toml_section(path: Path, section: str) -> dict[str, object]:  # ignore: no-object-annotations
@@ -26,7 +35,7 @@ def _read_toml_section(path: Path, section: str) -> dict[str, object]:  # ignore
 
 def _shared_defaults() -> dict[str, dict[str, object]]:  # ignore: no-object-annotations
     """Read shared defaults from [tool.br_pre_commit.*] in pyproject.toml."""
-    tool = _read_toml_section(PYPROJECT_PATH, "tool")
+    tool = _read_toml_section(_get_pyproject_path(), "tool")
     return cast("dict[str, dict[str, object]]", tool.get("br_pre_commit", {}))  # ignore: no-object-annotations
 
 
@@ -47,6 +56,7 @@ RatchetConfig = TypedDict(
         "complexity-ranks": str,
         "xenon-max-absolute": str,
         "exclude-dir": str,
+        "baseline-dir": str,
     },
     total=False,
 )

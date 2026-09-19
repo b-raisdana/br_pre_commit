@@ -7,8 +7,6 @@ module with side effects (stdout, git staging, file writes).
 
 from __future__ import annotations
 
-import json
-import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -24,22 +22,6 @@ AnalyzerResultWithBefore = tuple[
     dict[str, int],
     dict[str, dict[str, int]],
 ]
-
-
-def get_enabled_ruff_codes() -> set[str]:
-    """Get all ruff rule codes enabled by the current config."""
-    try:
-        result = subprocess.run(
-            ["ruff", "rule", "--all", "--output-format=json"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        rules = json.loads(result.stdout)
-        selected = ["E", "F", "I", "UP", "B", "C4", "SIM", "W"]
-        return {r["code"] for r in rules if any(r["code"].startswith(s) for s in selected)}
-    except Exception:
-        return set()
 
 
 def _analyze_trend(
@@ -224,13 +206,7 @@ def main() -> int:
     )
     ruff_violations, mypy_records, xenon_data, loc_counts, before_by_file = results
     current_counts = _current_counts(ruff_violations, mypy_records, xenon_data, loc_counts)
-
-    # Ensure all enabled ruff rule codes have a baseline entry (zero if no violations)
-    enabled_ruff_codes = get_enabled_ruff_codes()
-    for code in enabled_ruff_codes:
-        key = f"ruff:{code}"
-        if key not in old_baseline:
-            old_baseline[key] = 0
+    current_counts = {k: v for k, v in current_counts.items() if v > 0}
 
     regressed, improved = _analyze_trend(old_baseline, current_counts)
     blocked = _file_gate_blocked(touched, ruff_violations, mypy_records, xenon_data, before_by_file)

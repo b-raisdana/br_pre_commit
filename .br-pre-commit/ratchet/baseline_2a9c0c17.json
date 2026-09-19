@@ -1,6 +1,8 @@
 {
   "loc": 0,
+  "mypy:arg-type": 2,
   "mypy:attr-defined": 8,
+  "mypy:call-arg": 2,
   "mypy:import-untyped": 1,
   "mypy:name-defined": 1,
   "mypy:no-any-return": 1,

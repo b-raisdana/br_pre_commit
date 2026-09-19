@@ -123,7 +123,7 @@ def test_touched_file_with_no_regression_passes_and_resyncs_baseline(hermetic, m
 
     assert exit_code == 0
     assert json.loads((hermetic / "baseline.json").read_text()) == {"ruff:OLD": 2}
-    assert {"loc": 0, "ruff:OLD": 0, "xenon": 0} in _baseline_contents(hermetic)
+    assert {} in _baseline_contents(hermetic)
 
 
 # ---- analyzer concurrency tests ----
@@ -187,32 +187,32 @@ def test_merge_baselines_single_dict_is_identity():
     assert merge_baselines([data]) == {"loc": 0, "ruff:E501": 3}
 
 
-def test_compute_new_baseline_never_loses_vector_when_count_drops_to_zero():
+def test_compute_new_baseline_drops_key_when_count_reaches_zero():
     old = {"ruff:E501": 3, "loc": 0}
     current = {"loc": 0, "xenon": 2}
     result = compute_new_baseline(old, current)
-    assert result == {"loc": 0, "ruff:E501": 0, "xenon": 2}
+    assert result == {"xenon": 2}
 
 
 def test_compute_new_baseline_keeps_best_value_when_count_regresses():
     old = {"ruff:E501": 3}
     current = {"ruff:E501": 5, "loc": 0, "xenon": 0}
     result = compute_new_baseline(old, current)
-    assert result == {"loc": 0, "ruff:E501": 3, "xenon": 0}
+    assert result == {"ruff:E501": 3}
 
 
 def test_compute_new_baseline_locks_in_improvement():
     old = {"ruff:E501": 3}
     current = {"ruff:E501": 1, "loc": 0, "xenon": 0}
     result = compute_new_baseline(old, current)
-    assert result == {"loc": 0, "ruff:E501": 1, "xenon": 0}
+    assert result == {"ruff:E501": 1}
 
 
 def test_compute_new_baseline_bootsraps_new_key():
     old = {}
     current = {"loc": 0, "xenon": 2}
     result = compute_new_baseline(old, current)
-    assert result == {"loc": 0, "xenon": 2}
+    assert result == {"xenon": 2}
 
 
 def test_baseline_filename_is_deterministic_hash_of_content():
@@ -231,10 +231,10 @@ def test_load_and_consolidate_merges_multiple_files_and_removes_old(hermetic):
 
     result = load_and_consolidate_baselines()
 
-    assert result == {"loc": 0, "mypy:arg-type": 2, "ruff:E501": 3}
+    assert result == {"mypy:arg-type": 2, "ruff:E501": 3}
     files = find_baseline_files()
     assert len(files) == 1
-    assert json.loads(files[0].read_text()) == {"loc": 0, "mypy:arg-type": 2, "ruff:E501": 3}
+    assert json.loads(files[0].read_text()) == {"mypy:arg-type": 2, "ruff:E501": 3}
     assert not (hermetic / "baseline.json").exists()
     assert not other.exists()
 
