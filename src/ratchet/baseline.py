@@ -19,7 +19,7 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-ROOT = Path(os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd())).resolve()
+ROOT = Path(os.environ.get("USER_REPO_ROOT", os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd()))).resolve()
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 from precommit_wrapper.config import ratchet_settings  # noqa: E402

@@ -10,6 +10,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
+from precommit_wrapper.config import RATCHET_HOOK
+
 # Import names of the third-party packages br_pre_commit needs in the active
 # environment. Mirrors requirements.txt (pip names -> import names):
 #   pyyaml -> yaml, pre-commit -> pre_commit, radon -> radon, ruff -> ruff,
@@ -68,13 +72,13 @@ def is_wsl() -> bool:
     return "WSL_DISTRO_NAME" in os.environ
 
 
-def generate_posix_hook(user_repo_root: Path, br_pre_commit_repo_root: Path) -> str:
+def generate_posix_hook(br_pre_commit_repo_root: Path) -> str:
     active_venv = get_active_venv()
     assert isinstance(active_venv, Path)
 
     return (
         "#!/usr/bin/env sh\n"
-        f"export BR_PRE_COMMIT_REPO_ROOT='{user_repo_root}'\n"
+        f"export BR_PRE_COMMIT_REPO_ROOT='{br_pre_commit_repo_root}'\n"
         f"export PYTHONPATH='{br_pre_commit_repo_root / 'src'}'\n\n"
         f"export PATH='{active_venv.parent}':\"$PATH\"\n\n"
         f'exec "{active_venv}" -m precommit_wrapper "$@"\n'
@@ -87,7 +91,7 @@ def generate_powershell_hook(user_repo_root: Path, br_pre_commit_repo_root: Path
 
     return (
         "#!/bin/sh\n"
-        f"export BR_PRE_COMMIT_REPO_ROOT='{user_repo_root}'\n"
+        f"export BR_PRE_COMMIT_REPO_ROOT='{br_pre_commit_repo_root}'\n"
         f"export PYTHONPATH='{br_pre_commit_repo_root / 'src'}'\n"
         f"export PATH='{active_venv.parent}':\"$PATH\"\n\n"
         "if command -v pwsh > /dev/null 2>&1; then\n"
@@ -111,6 +115,57 @@ def verify_requirements() -> list[str]:
         if importlib.util.find_spec(package) is None:
             missing.append(package)
     return missing
+
+
+def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) -> list[str]:
+    """Merge recognized br_pre_commit hooks into the project's .pre-commit-config.yaml.
+
+    Adds the ``incremental-ratchet`` hook (LOC / complexity gate) if it is not
+    already present.  Hook *ids* must match the recognized sets in
+    ``src/precommit_wrapper/config.py``; unrecognized ids are rejected at
+    commit time under the default ``unknown-hook-policy = "error"``.
+
+    Returns a list of human-readable messages describing what was added.
+    """
+    config_path = user_repo_root / ".pre-commit-config.yaml"
+    messages: list[str] = []
+
+    if not config_path.exists():
+        config_path.write_text("repos:\n", encoding="utf-8")
+        messages.append(f"Created {config_path.relative_to(user_repo_root)}")
+
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {"repos": []}
+    if not isinstance(config, dict):
+        config = {"repos": []}
+    repos = config.setdefault("repos", [])
+    if not isinstance(repos, list):
+        repos = []
+        config["repos"] = repos
+
+    local_repo = None
+    for repo in repos:
+        if isinstance(repo, dict) and repo.get("repo") == "local":
+            local_repo = repo
+            break
+    if local_repo is None:
+        local_repo = {"repo": "local", "hooks": []}
+        repos.append(local_repo)
+
+    hooks = local_repo.setdefault("hooks", [])
+    if not isinstance(hooks, list):
+        hooks = []
+        local_repo["hooks"] = hooks
+
+    existing_ids = {h.get("id") for h in hooks if isinstance(h, dict)}
+    if "incremental-ratchet" not in existing_ids:
+        hooks.append(RATCHET_HOOK)
+        messages.append(f"Added 'incremental-ratchet' hook to {config_path.name}")
+
+    config_path.write_text(
+        yaml.dump(config, default_flow_style=False, sort_keys=False),
+        encoding="utf-8",
+    )
+    return messages
 
 
 def install(repo_path: str | None, force: bool, dry_run: bool) -> int:
@@ -147,6 +202,10 @@ def install(repo_path: str | None, force: bool, dry_run: bool) -> int:
     hook_path.write_text(hook_content, encoding="utf-8")
     hook_path.chmod(hook_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     print(f"Installed {hook_path}")
+
+    if not dry_run:
+        for msg in merge_project_config(user_repo_root, br_pre_commit_repo_root):
+            print(msg)
     return 0
 
 

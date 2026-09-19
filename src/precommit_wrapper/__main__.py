@@ -189,7 +189,7 @@ async def _run_hooks(staged: list[str]) -> list[JobResult]:
         )
 
     jobs = _reader_jobs(specs, staged, terminal_lock, timeout)
-    py_files = [f for f in staged if f.startswith("app/") and f.endswith(".py") and (REPO_ROOT / f).exists()]
+    py_files = [f for f in staged if f.startswith("src/") and f.endswith(".py") and (USER_REPO_ROOT / f).exists()]
     jobs.extend(_advisory_jobs(py_files, terminal_lock, timeout))
     results.extend(await asyncio.gather(*jobs))
     return results
