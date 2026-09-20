@@ -111,6 +111,7 @@ def baseline_filename(baseline: dict[str, int]) -> str:
 
 
 def write_baseline_file(baseline: dict[str, int]) -> Path:
+    BASELINE_DIR.mkdir(parents=True, exist_ok=True)
     path = BASELINE_DIR / baseline_filename(baseline)
     path.write_text(json.dumps(baseline, indent=2, sort_keys=True) + "\n")
     subprocess.run(["git", "add", str(path)], cwd=ROOT, check=False)
