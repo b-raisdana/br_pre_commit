@@ -41,6 +41,7 @@
     "multitimeframe",
     "ohlcv",
     "ohlcva",
+    "pandera",
     "softmax"
   ],
   "python-envs.defaultEnvManager": "ms-python.python:venv",

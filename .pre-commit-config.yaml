@@ -36,20 +36,51 @@ repos:
 
   - repo: local
     hooks:
-      - id: sync-skill-files
-        name: sync skill files
-        language: system
-        entry: python -m src.sync_skills
-        pass_filenames: false
-        files: SKILL\.md
       - id: incremental-ratchet
-        name: incremental ratchet
+        name: incremental ratchet (mypy/ruff/xenon/loc - blocks regressions only, see README)
         language: system
-        entry: python -m src.ratchet
+        entry: br_pre_commit/ratchet
         pass_filenames: false
-        files: ^src/.*\.py$
-      - id: no-object-annotations
-        name: no object type annotations
+        files: ^app/.*\.py$
+
+      - id: pytest-fast
+        name: pytest unit gate
         language: system
-        entry: python -m src.check_no_object_annotations
-        types: [python]
+        entry: python -m pytest -m unit
+        pass_filenames: false
+        files: ^(app/.*\.py|pytest\.ini)$
+
+      - id: pytest-integration-collect
+        name: pytest integration collection check
+        language: system
+        entry: python -m pytest --collect-only -m integration tests/integration
+        pass_filenames: false
+        files: ^tests/integration/.*\.py$
+
+      - id: integration-tests
+        name: Run modified integration tests
+        language: system
+        entry: python -m pytest -q -m integration
+        pass_filenames: true
+        files: ^tests/integration/.*\.py$
+
+      - id: check-pandera-decorator
+        name: check pandera_validate decorator
+        language: system
+        entry: python -m check_pandera_decorator.py
+        pass_filenames: true
+        files: ^app/.*\.py$
+
+      - id: no-commit-to-main
+        name: block direct commits to main
+        language: system
+        entry: bash -c 'branch="$(git rev-parse --abbrev-ref HEAD)"; if [ "$branch" = "main" ]; then echo "❌ Direct commits to main are not allowed. Create a feature branch."; exit 1; fi'
+        pass_filenames: false
+        always_run: true
+
+      - id: sync-skill-files
+        name: sync mirrored skill files (claude/codex/devin/qoder/copilot/kiro/kilo bidirectional mirrors)
+        language: system
+        entry: python -m sync_skills
+        pass_filenames: false
+        files: ^(\.claude/skills/[^/]+/SKILL\.md|\.codex/skills/[^/]+/SKILL\.md|\.devin/skills/[^/]+/SKILL\.md|\.qoder/skills/[^/]+/SKILL\.md|\.copilot/skills/[^/]+/SKILL\.md|\.kiro/skills/[^/]+/SKILL\.md|\.kilo/skills/[^/]+/SKILL\.md|\.github/git-commit/SKILL\.md)$

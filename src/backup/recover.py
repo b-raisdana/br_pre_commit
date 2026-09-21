@@ -21,7 +21,7 @@ from typing import TextIO
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # noqa: E402
 
-from models import Manifest  # noqa: E402
+from backup.models import Manifest  # noqa: E402
 
 from .common import (  # noqa: E402
     _get_full_backup_dir,

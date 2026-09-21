@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from git import Repo  # noqa: E402
 from git.exc import InvalidGitRepositoryError  # noqa: E402
 
-from .core import (  # noqa: E402
+from sync_skills.core import (  # noqa: E402
     _GITHUB_PATH,
     _REPO_ROOT,
     _SKILL_FILENAME,
@@ -45,7 +45,7 @@ from .core import (  # noqa: E402
     mirror_slots,
     parse_staged_name_status,
 )
-from .sync import (  # noqa: E402
+from sync_skills.sync import (  # noqa: E402
     apply_modification,
     compute_intent,
     get_staged_skill_changes,
@@ -157,4 +157,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

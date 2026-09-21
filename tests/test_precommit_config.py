@@ -55,12 +55,12 @@ def test_ratchet_hook_is_registered_without_recursion():
 
 
 def test_main_is_protected_by_default(tmp_path):
-    assert config.protected_branches(tmp_path) == ("main",)
+    assert config.protected_branches() == ("main",)
 
 
 @pytest.mark.parametrize("value", ['"main"', '["main", ""]', "[1]"])
 def test_protected_branches_rejects_invalid_values(tmp_path, monkeypatch, value):
-    monkeypatch.setattr(config, "_merged_config", lambda _: {"wrapper": {"protected-branches": eval(value)}})
+    monkeypatch.setattr(config, "_merged_config", lambda: {"wrapper": {"protected-branches": eval(value)}})
 
     with pytest.raises(ValueError, match="protected-branches"):
-        config.protected_branches(tmp_path)
+        config.protected_branches()
