@@ -7,27 +7,19 @@ import json
 import logging
 import os
 import signal
-import subprocess
 import sys
 from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass
-from pathlib import Path
+
+from helper.paths import get_user_repo_path_from_env
+from precommit_wrapper.hooks import enabled_pre_commit_hook_ids
 
 from .config import (
     HookSpec,
     classify_hooks,
-    enabled_pre_commit_hook_ids,
-    job_timeout_seconds,
-    protected_branches,
-    unknown_hook_policy,
+    wrapper_config,
 )
 
-BR_PRE_COMMIT_REPO_ROOT = Path(os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd())).resolve()
-USER_REPO_ROOT = Path(os.environ.get("USER_REPO_ROOT", Path.cwd())).resolve()
-TOOL_ROOT = Path(__file__).resolve().parents[1]
-LOG_DIR = USER_REPO_ROOT / "logs" / "pre-commit"
-LOG_FILE = LOG_DIR / "pre-commit.log"
-CONFIG_PATH = USER_REPO_ROOT / ".pre-commit-config.yaml"
 ADVISORY_RUFF_RULES = "Q,RUF,T10,T20,ERA"
 
 logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
@@ -44,30 +36,20 @@ class JobResult:
     stderr: str
 
 
-def _git(*args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=USER_REPO_ROOT, capture_output=True, text=True, check=True).stdout.strip()
-
-
-def _staged_files() -> list[str]:
-    output = _git("diff", "--cached", "--name-only")
-    return output.splitlines() if output else []
-
-
 def _branch_protection_result(branch: str) -> JobResult | None:
-    if branch not in protected_branches():
+    if branch not in wrapper_config.protected_branches:
         return None
     message = f"Direct commits to protected branch '{branch}' are not allowed. Create a feature branch."
     return JobResult("branch-protection", (), 1, 0.0, "", message)
 
 
 async def _run_job(
-        job_id: str,
-        command: list[str],
-        terminal_lock: asyncio.Lock,
-        *,
-        stream_output: bool = True,
-        timeout_seconds: float | None = None,
+    job_id: str,
+    command: list[str],
+    terminal_lock: asyncio.Lock,
+    *,
+    stream_output: bool = True,
+    timeout_seconds: float | None = None,
 ) -> JobResult:
     loop = asyncio.get_running_loop()
     started = loop.time()
@@ -77,7 +59,7 @@ async def _run_job(
     try:
         proc = await asyncio.create_subprocess_exec(
             *command,
-            cwd=USER_REPO_ROOT,
+            cwd=get_user_repo_path_from_env(),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             start_new_session=True,
@@ -108,11 +90,11 @@ async def _run_job(
         stdout_task = asyncio.create_task(drain(proc.stdout, stdout_parts, "stdout"))
         stderr_task = asyncio.create_task(drain(proc.stderr, stderr_parts, "stderr"))
         try:
-            returncode = await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
+            return_code = await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
         except TimeoutError:
             await _terminate_process_group(proc)
             stderr_parts.append(f"timed out after {timeout_seconds:g}s\n")
-            returncode = 124
+            return_code = 124
         finally:
             await asyncio.gather(stdout_task, stderr_task)
     except asyncio.CancelledError:
@@ -121,9 +103,9 @@ async def _run_job(
         raise
     duration = loop.time() - started
     async with terminal_lock:
-        sys.stdout.write(f"[{job_id}] finished ({returncode}) in {duration:.2f}s\n")
+        sys.stdout.write(f"[{job_id}] finished ({return_code}) in {duration:.2f}s\n")
         sys.stdout.flush()
-    return JobResult(job_id, tuple(command), returncode, duration, "".join(stdout_parts), "".join(stderr_parts))
+    return JobResult(job_id, tuple(command), return_code, duration, "".join(stdout_parts), "".join(stderr_parts))
 
 
 def _hook_command(hook_id: str, staged: list[str]) -> list[str]:
@@ -144,7 +126,7 @@ async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
 
 
 def _reader_jobs(
-        specs: Sequence[HookSpec], staged: list[str], terminal_lock: asyncio.Lock, timeout: float
+    specs: Sequence[HookSpec], staged: list[str], terminal_lock: asyncio.Lock, timeout: float
 ) -> list[Awaitable[JobResult]]:
     return [
         _run_job(spec.hook_id, _hook_command(spec.hook_id, staged), terminal_lock, timeout_seconds=timeout)
@@ -175,9 +157,9 @@ def _advisory_jobs(py_files: list[str], terminal_lock: asyncio.Lock, timeout: fl
 
 
 async def _run_hooks(staged: list[str]) -> list[JobResult]:
-    policy = unknown_hook_policy()
-    timeout = job_timeout_seconds()
-    specs, unknown = classify_hooks(enabled_pre_commit_hook_ids(CONFIG_PATH), policy=policy)
+    policy = wrapper_config.unknown_hook_policy
+    timeout = wrapper_config.job_timeout_seconds
+    specs, unknown = classify_hooks(enabled_pre_commit_hook_ids(), policy=policy)
     if unknown:
         sys.stdout.write(f"warning: unregistered hooks run serially: {', '.join(unknown)}\n")
 
@@ -189,7 +171,11 @@ async def _run_hooks(staged: list[str]) -> list[JobResult]:
         )
 
     jobs = _reader_jobs(specs, staged, terminal_lock, timeout)
-    py_files = [f for f in staged if f.startswith("app/") and f.endswith(".py") and (REPO_ROOT / f).exists()]
+    py_files = [
+        f
+        for f in staged
+        if (f.startswith("src/") and f.endswith(".py") and (get_user_repo_path_from_env() / f).exists())
+    ]
     jobs.extend(_advisory_jobs(py_files, terminal_lock, timeout))
     results.extend(await asyncio.gather(*jobs))
     return results
@@ -203,11 +189,11 @@ async def _run_backup(terminal_lock: asyncio.Lock) -> tuple[JobResult, str | Non
             "-m",
             "backup",
             "--repo",
-            str(USER_REPO_ROOT),
+            str(get_user_repo_path_from_env()),
             # "--print-manifest-json",
         ],
         terminal_lock,
-        timeout_seconds=job_timeout_seconds(),
+        timeout_seconds=wrapper_config.job_timeout_seconds,
     )
     try:
         snapshot_dir = json.loads(result.stdout.splitlines()[-1])["snapshot_dir"] if result.returncode == 0 else None

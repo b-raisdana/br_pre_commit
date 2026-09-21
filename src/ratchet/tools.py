@@ -8,21 +8,26 @@ This module is stateless — it only runs tools and returns structured data.
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TypedDict, cast
 
+from helper.paths import get_user_repo_path_from_env
+
+from . import path_matches_with_regex
 from .baseline import (  # noqa: F401,E402
-    COMPLEXITY_RANKS,
-    EXCLUDE_DIR,
-    ROOT,
-    TARGET,
-    XENON_MAX_ABSOLUTE,
+    # COMPLEXITY_RANKS,
+    # EXCLUDE_DIR,
+    # ROOT,
+    # TARGET,
+    # XENON_MAX_ABSOLUTE,
     _line_count,
     run,
     run_output,
 )
+from .config import ratchet_config
 
 
 class RuffViolation(TypedDict):
@@ -52,8 +57,8 @@ def _parse_ruff_json(stdout: str) -> list[RuffViolation]:
 
 
 def ruff_run(root: Path | None = None) -> list[RuffViolation]:
-    root = ROOT if root is None else root
-    stdout = run("ruff", "check", TARGET, "--output-format=json", cwd=root)
+    root = root or get_user_repo_path_from_env()  # ROOT if root is None else root
+    stdout = run("ruff", "check", str(ratchet_config.target_dir_rel_path), "--output-format=json", cwd=root)
     return _parse_ruff_json(stdout)
 
 
@@ -62,7 +67,7 @@ def _group_ruff_by_rule(violations: list[RuffViolation]) -> dict[str, int]:
 
 
 def _group_ruff_by_file(violations: list[RuffViolation], root: Path | None = None) -> dict[str, int]:
-    root = ROOT if root is None else root
+    root = root or get_user_repo_path_from_env()  # if root is None else root
     return dict(
         Counter(
             Path(violation["filename"]).relative_to(root).as_posix()
@@ -73,21 +78,24 @@ def _group_ruff_by_file(violations: list[RuffViolation], root: Path | None = Non
 
 
 def _parse_mypy_records(output: str) -> list[tuple[str, str]]:
-    from .baseline import MYPY_CODED_ERROR_RE, MYPY_UNCODED_ERROR_RE  # noqa: F402,E402
+    # from .baseline import MYPY_CODED_ERROR_RE, MYPY_UNCODED_ERROR_RE  # noqa: F402,E402
 
     records: list[tuple[str, str]] = []
     for line in output.splitlines():
-        coded = MYPY_CODED_ERROR_RE.search(line)
+        coded = re.compile(ratchet_config.mypy_coded_error_re).search(line)
         if coded:
             records.append((line.split(":", 1)[0], coded.group(1)))
-        elif MYPY_UNCODED_ERROR_RE.search(line):
+        # elif MYPY_UNCODED_ERROR_RE.search(line):
+        elif re.compile(ratchet_config.mypy_uncoded_error_re).search(line):
             records.append((line.split(":", 1)[0], "uncoded"))
     return records
 
 
 def mypy_run(root: Path | None = None) -> list[tuple[str, str]]:
-    root = ROOT if root is None else root
-    output = run_output("mypy", "--config-file", str(root / "pyproject.toml"), ".", cwd=root / TARGET)
+    root = root or get_user_repo_path_from_env()
+    output = run_output(
+        "mypy", "--config-file", str(root / "pyproject.toml"), ".", cwd=root / ratchet_config.target_dir_rel_path
+    )
     return _parse_mypy_records(output)
 
 
@@ -96,7 +104,7 @@ def _group_mypy_by_rule(records: list[tuple[str, str]]) -> dict[str, int]:
 
 
 def _group_mypy_by_file(records: list[tuple[str, str]]) -> dict[str, int]:
-    return dict(Counter(f"{TARGET}/{file}" for file, _code in records))
+    return dict(Counter(f"{ratchet_config.target_dir_rel_path}/{file}" for file, _code in records))
 
 
 def _parse_xenon_json(stdout: str) -> XenonData:
@@ -107,38 +115,56 @@ def _parse_xenon_json(stdout: str) -> XenonData:
 
 
 def xenon_run(root: Path | None = None) -> XenonData:
-    root = ROOT if root is None else root
-    stdout = run("radon", "cc", TARGET, "-j", "-i", f"tests,{EXCLUDE_DIR}", "--show-closures", cwd=root)
+    root = root or get_user_repo_path_from_env()
+    exclude_dirs = ",".join(ratchet_config.exclude_dirs)
+    stdout = run(
+        "radon",
+        "cc",
+        str(ratchet_config.target_dir_rel_path),
+        "-j",
+        "-i",
+        f"tests,{exclude_dirs}",
+        "--show-closures",
+        cwd=root,
+    )
     return _parse_xenon_json(stdout)
 
 
 def _xenon_total(data: XenonData, max_absolute: str | None = None) -> int:
-    max_absolute = XENON_MAX_ABSOLUTE if max_absolute is None else max_absolute
-    threshold = COMPLEXITY_RANKS.index(max_absolute)
+    max_absolute = ratchet_config.xenon_max_absolute if max_absolute is None else max_absolute
+    threshold = ratchet_config.xenon_complexity_ranks.index(max_absolute)
     return sum(
         1
         for blocks in data.values()
         for block in blocks
-        if COMPLEXITY_RANKS.index(block.get("rank") or "A") > threshold
+        if ratchet_config.xenon_complexity_ranks.index(block.get("rank") or "A") > threshold
     )
 
 
 def _group_xenon_by_file(data: XenonData, max_absolute: str | None = None) -> dict[str, int]:
-    max_absolute = XENON_MAX_ABSOLUTE if max_absolute is None else max_absolute
-    threshold = COMPLEXITY_RANKS.index(max_absolute)
+    max_absolute = ratchet_config.xenon_max_absolute if max_absolute is None else max_absolute
+    threshold = ratchet_config.xenon_complexity_ranks.index(max_absolute)
     result: dict[str, int] = {}
     for file_path, blocks in data.items():
-        count = sum(1 for block in blocks if COMPLEXITY_RANKS.index(block.get("rank") or "A") > threshold)
+        count = sum(
+            1 for block in blocks if ratchet_config.xenon_complexity_ranks.index(block.get("rank") or "A") > threshold
+        )
         if count:
             result[file_path] = count
     return result
 
 
 def loc_line_counts(root: Path | None = None) -> dict[str, int]:
-    root = ROOT if root is None else root
+    root = root or get_user_repo_path_from_env()
     counts: dict[str, int] = {}
-    for path in (root / TARGET).rglob("*.py"):
-        if "__pycache__" in path.parts or EXCLUDE_DIR in path.parts:
+    for path in (root / ratchet_config.target_dir_rel_path).rglob("*.py"):
+        # if "__pycache__" in path.parts or bool(
+        #         re.search(
+        #             rf"(?:^|[/\\]){re.escape(ratchet_config.exclude_dir_regex)}(?:[/\\]|$)",
+        #             str(path),
+        #         )
+        # ):
+        if "__pycache__" in path.parts or path_matches_with_regex(path, ratchet_config.exclude_dir_regex):
             continue
         counts[path.relative_to(root).as_posix()] = _line_count(path)
     return counts

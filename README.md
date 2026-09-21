@@ -4,7 +4,7 @@ Shared pre-commit infrastructure for python repositories. It owns the concurrent
 
 ## Table of Contents
 
-- [br_pre_commit](#br_pre_commit)
+- [br\_pre\_commit](#br_pre_commit)
   - [Table of Contents](#table-of-contents)
   - [Quick start](#quick-start)
   - [Recognized hook IDs](#recognized-hook-ids)
@@ -12,7 +12,7 @@ Shared pre-commit infrastructure for python repositories. It owns the concurrent
   - [Specialized hooks](#specialized-hooks)
   - [Other kind if integration](#other-kind-if-integration)
     - [After cloning a consuming project...](#after-cloning-a-consuming-project)
-    - [To upgrade deliberately the 'br_pre_commit' to a new version](#to-upgrade-deliberately-the-br_pre_commit-to-a-new-version)
+    - [To upgrade deliberately the 'br\_pre\_commit' to a new version](#to-upgrade-deliberately-the-br_pre_commit-to-a-new-version)
     - [Complete integration checklist](#complete-integration-checklist)
   - [Troubleshooting](#troubleshooting)
   - [Recovery](#recovery)

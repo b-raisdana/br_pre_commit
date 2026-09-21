@@ -9,7 +9,7 @@ pytestmark = pytest.mark.unit
 
 
 def test_branch_protection_blocks_main_by_default(monkeypatch):
-    monkeypatch.setattr(precommit_wrapper, "protected_branches", lambda: ("main",))
+    monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches", ["main"])
 
     result = precommit_wrapper._branch_protection_result("main")
 
@@ -19,7 +19,7 @@ def test_branch_protection_blocks_main_by_default(monkeypatch):
 
 
 def test_branch_protection_allows_feature_branch(monkeypatch):
-    monkeypatch.setattr(precommit_wrapper, "protected_branches", lambda: ("main",))
+    monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches", ["main"])
 
     assert precommit_wrapper._branch_protection_result("feature/test") is None
 
@@ -108,11 +108,9 @@ def test_run_hooks_finishes_mutators_before_starting_read_only_jobs(monkeypatch)
     both_readers_started = asyncio.Event()
     readers = 0
 
-    monkeypatch.setattr(precommit_wrapper, "unknown_hook_policy", lambda: "error")
-    monkeypatch.setattr(precommit_wrapper, "job_timeout_seconds", lambda: 10)
-    monkeypatch.setattr(
-        precommit_wrapper, "enabled_pre_commit_hook_ids", lambda _path: ["ruff", "pytest-fast", "check-yaml"]
-    )
+    monkeypatch.setattr(precommit_wrapper.wrapper_config, "unknown_hook_policy", "error")
+    monkeypatch.setattr(precommit_wrapper.wrapper_config, "job_timeout_seconds", 10)
+    monkeypatch.setattr(precommit_wrapper, "enabled_pre_commit_hook_ids", lambda: ["ruff", "pytest-fast", "check-yaml"])
 
     async def fake_run(job_id, command, lock, *, stream_output=True, timeout_seconds=None):
         nonlocal readers

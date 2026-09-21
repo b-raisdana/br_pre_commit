@@ -12,22 +12,26 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
+from backup.config import backup_config
+from helper.git import git_cmd
+from helper.paths import get_full_backup_dir
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # noqa: E402
 
 from backup.models import Manifest  # noqa: E402
 
 from .common import (  # noqa: E402
-    _DEFAULT_FULL_BACKUP_EXCLUDE_DIR_REGEX,
-    STAGED_PREFIX,
-    UNSTAGED_PREFIX,
-    UNTRACKED_PREFIX,
-    _backup_settings,
-    _content_hash,
-    _decode_paths,
-    _flatten_path,
-    _get_full_backup_dir,
-    _git,
-    _is_excluded,
+    # _DEFAULT_FULL_BACKUP_EXCLUDE_DIR_REGEX,
+    # STAGED_PREFIX,
+    # UNSTAGED_PREFIX,
+    # UNTRACKED_PREFIX,
+    # _backup_settings,
+    content_hash,
+    # decode_paths,
+    flatten_path,
+    # _get_full_backup_dir,
+    # _git,
+    is_excluded,
 )
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
@@ -44,7 +48,7 @@ def _write_patch(snapshot_dir: Path, prefix: str, path: str, patch: bytes) -> di
         content = patch + b"\n"
         source_path = Path(path)
         ext = source_path.suffix.lstrip(".") or "bin"
-        stored_path = Path(prefix) / source_path.with_name(f"{source_path.stem}.{ext}.{_content_hash(content)}.patch")
+        stored_path = Path(prefix) / source_path.with_name(f"{source_path.stem}.{ext}.{content_hash(content)}.patch")
         destination = snapshot_dir / stored_path
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(content)
@@ -83,7 +87,7 @@ def _copy_full_file(
         path_obj = Path(path)
         stem = path_obj.stem
         ext = path_obj.suffix.lstrip(".") or "bin"
-        hash_suffix = _content_hash(content)
+        hash_suffix = content_hash(content)
         stored_name = f"{stem}.{hash_suffix}.{ext}"
         stored_path = path_obj.with_name(stored_name)
         destination = full_backup_dir / stored_path
@@ -100,8 +104,9 @@ def _snapshot_size(snapshot_dir: Path) -> int:
 
 
 async def _backup_diff(snapshot_dir: Path, repo_root: Path, prefix: str, path: str) -> dict[str, str]:
-    cached = ("--cached",) if prefix == STAGED_PREFIX else ()
-    patch = await _git(repo_root, "diff", "--binary", *cached, "--", path)
+    cached = ("--cached",) if prefix == backup_config.staged_prefix else ()
+    patch = await git_cmd("diff", "--binary", *cached, "--", path, repo_root=repo_root, return_bytes=True)
+    assert isinstance(patch, bytes)
     return await asyncio.to_thread(_write_patch, snapshot_dir, prefix, path, patch)
 
 
@@ -114,7 +119,7 @@ def _copy_untracked(snapshot_dir: Path, repo_root: Path, path: str) -> dict[str,
     except UnicodeDecodeError:
         return None
 
-    destination = snapshot_dir / UNTRACKED_PREFIX / path
+    destination = snapshot_dir / backup_config.untracked_prefix / path
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
@@ -140,14 +145,16 @@ async def _backup_untracked(snapshot_dir: Path, repo_root: Path, paths: list[str
 
 async def _get_all_tracked_files(repo_root: Path) -> list[str]:
     """Get all files tracked by git in the repository."""
-    output = await _git(repo_root, "ls-files", "-z")
-    return _decode_paths(output)
+    # output = await git_cmd(repo_root, "ls-files", "-z")
+    # return decode_paths(output)
+    output = await git_cmd("ls-files", repo_root=repo_root)
+    return output.splitlines()
 
 
 async def _backup_all_tracked_files(full_backup_dir: Path, repo_root: Path, exclude_regex: str) -> list[dict[str, str]]:
     """Copy all tracked text files (except those matching exclude_regex) to full backup store."""
     all_tracked = await _get_all_tracked_files(repo_root)
-    filtered = [p for p in all_tracked if not _is_excluded(p, exclude_regex)]
+    filtered = [p for p in all_tracked if not is_excluded(p, exclude_regex)]
     entries = await asyncio.gather(
         *(asyncio.to_thread(_copy_full_file, full_backup_dir, repo_root, path, text_only=True) for path in filtered)
     )
@@ -158,21 +165,29 @@ def _split_by_exclude(paths: list[str], exclude_regex: str) -> tuple[list[str], 
     keep: list[str] = []
     full: list[str] = []
     for path in paths:
-        (full if _is_excluded(path, exclude_regex) else keep).append(path)
+        (full if is_excluded(path, exclude_regex) else keep).append(path)
     return keep, full
 
 
 async def _gather_git_info(repo_root: Path) -> tuple[str, str, list[str], list[str], list[str]]:
+    # branch_raw, commit_raw, staged_raw, unstaged_raw, untracked_raw = await asyncio.gather(
+    #     git_cmd("rev-parse", "--abbrev-ref", "HEAD", repo_root=repo_root),
+    #     git_cmd("rev-parse", "HEAD", repo_root=repo_root),
+    #     git_cmd("diff", "--cached", "--name-only", "-z", repo_root=repo_root),
+    #     git_cmd("diff", "--name-only", "-z", repo_root=repo_root),
+    #     git_cmd("ls-files", "--others", "--exclude-standard", "-z", repo_root=repo_root),
+    # )
     branch_raw, commit_raw, staged_raw, unstaged_raw, untracked_raw = await asyncio.gather(
-        _git(repo_root, "rev-parse", "--abbrev-ref", "HEAD"),
-        _git(repo_root, "rev-parse", "HEAD"),
-        _git(repo_root, "diff", "--cached", "--name-only", "-z"),
-        _git(repo_root, "diff", "--name-only", "-z"),
-        _git(repo_root, "ls-files", "--others", "--exclude-standard", "-z"),
+        git_cmd("rev-parse", "--abbrev-ref", "HEAD", repo_root=repo_root),
+        git_cmd("rev-parse", "HEAD", repo_root=repo_root),
+        git_cmd("diff", "--cached", "--name-only", repo_root=repo_root),
+        git_cmd("diff", "--name-only", repo_root=repo_root),
+        git_cmd("ls-files", "--others", "--exclude-standard", repo_root=repo_root),
     )
-    branch = branch_raw.decode().strip()
-    commit_hash = commit_raw.decode().strip()
-    return branch, commit_hash, _decode_paths(staged_raw), _decode_paths(unstaged_raw), _decode_paths(untracked_raw)
+    branch = branch_raw.strip()
+    commit_hash = commit_raw.strip()
+    # return branch, commit_hash, decode_paths(staged_raw), decode_paths(unstaged_raw), decode_paths(untracked_raw)
+    return branch, commit_hash, staged_raw.splitlines(), unstaged_raw.splitlines(), untracked_raw.splitlines()
 
 
 async def _build_full_backups(
@@ -207,21 +222,21 @@ async def take_snapshot_async(repo_root: Path) -> Manifest:
     branch, commit_hash, staged_paths, unstaged_paths, untracked_paths = await _gather_git_info(repo_root)
     snapshot_dir = get_snapshot_dir(branch, commit_hash, repo_root)
 
-    settings = _backup_settings(repo_root)
-    exclude_regex = settings.get("full_backup_exclude_dir_regex", _DEFAULT_FULL_BACKUP_EXCLUDE_DIR_REGEX)
+    # settings = _backup_settings(repo_root)
+    exclude_regex = backup_config.full_backup_exclude_dir_regex
 
     staged_keep, staged_full = _split_by_exclude(staged_paths, exclude_regex)
     unstaged_keep, unstaged_full = _split_by_exclude(unstaged_paths, exclude_regex)
     untracked_keep, untracked_full = _split_by_exclude(untracked_paths, exclude_regex)
 
-    full_backup_dir = _get_full_backup_dir(repo_root)
+    full_backup_dir = get_full_backup_dir(repo_root)
     full_backups = await _build_full_backups(
         full_backup_dir, repo_root, exclude_regex, staged_full, unstaged_full, untracked_full
     )
 
     staged, unstaged, untracked = await asyncio.gather(
-        _backup_many_diffs(snapshot_dir, repo_root, STAGED_PREFIX, staged_keep),
-        _backup_many_diffs(snapshot_dir, repo_root, UNSTAGED_PREFIX, unstaged_keep),
+        _backup_many_diffs(snapshot_dir, repo_root, backup_config.staged_prefix, staged_keep),
+        _backup_many_diffs(snapshot_dir, repo_root, backup_config.unstaged_prefix, unstaged_keep),
         _backup_untracked(snapshot_dir, repo_root, untracked_keep),
     )
     manifest = Manifest(
@@ -258,7 +273,7 @@ def take_snapshot(repo_root: Path) -> Manifest:
 
 
 def get_snapshot_dir(branch: str, commit_hash: str, repo_root: Path) -> Path:
-    snapshot_dir = repo_root / "logs" / "pre-commit" / "backup-patches" / f"{_flatten_path(branch)}.{commit_hash[:7]}"
+    snapshot_dir = repo_root / "logs" / "pre-commit" / "backup-patches" / f"{flatten_path(branch)}.{commit_hash[:7]}"
     try:
         snapshot_dir.mkdir(parents=True, exist_ok=True)
     except Exception as exc:

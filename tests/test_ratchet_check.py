@@ -38,8 +38,7 @@ def test_ruff_groups_by_file_relativizing_absolute_filenames():
     assert _group_ruff_by_file(violations, root=root) == {"app/a.py": 2, "app/b.py": 1}
 
 
-def test_mypy_records_group_by_rule_and_by_file_ignore_notes_and_summary(monkeypatch):
-    monkeypatch.setattr("ratchet.tools.TARGET", "app")
+def test_mypy_records_group_by_rule_and_by_file_ignore_notes_and_summary():
     output = "\n".join(
         [
             "a.py:1: error: bad type  [type-arg]",
@@ -51,7 +50,7 @@ def test_mypy_records_group_by_rule_and_by_file_ignore_notes_and_summary(monkeyp
     )
     records = _parse_mypy_records(output)
     assert _group_mypy_by_rule(records) == {"mypy:type-arg": 2, "mypy:call-overload": 1}
-    assert _group_mypy_by_file(records) == {"app/a.py": 2, "app/b.py": 1}
+    assert _group_mypy_by_file(records) == {"src/a.py": 2, "src/b.py": 1}
 
 
 def test_mypy_error_without_code_falls_back_to_uncoded_bucket():
@@ -77,7 +76,7 @@ def test_loc_excess_total_sums_only_the_overage():
 
 def test_touched_app_python_files_parses_status_and_renames(monkeypatch, tmp_path):
     # Create the test file structure
-    existing = "app/config/Config.py"
+    existing = "src/config/Config.py"
     (tmp_path / existing).parent.mkdir(parents=True)
     (tmp_path / existing).touch()
 

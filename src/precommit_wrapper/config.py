@@ -1,60 +1,49 @@
 from __future__ import annotations
 
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import Literal, TypedDict, cast
 
 import yaml
+from pydantic import Field, field_validator
 
-PRE_COMMIT_STAGE = "pre-commit"
-RATCHET_HOOK_ID = "incremental-ratchet"
-PYPROJECT_PATH = Path(__file__).resolve().parents[2] / "pyproject.toml"
+from config import br_pre_commit_config
+from helper.config import FromPyProjectTomlConfig
 
-
-def _read_toml_section(path: Path, section: str) -> dict[str, object]:  # ignore: no-object-annotations
-    """Read a top-level section from a TOML file, returning {} on any error."""
-    try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    value = data.get(section)
-    if not isinstance(value, dict):
-        return {}
-    return cast("dict[str, object]", value)  # ignore: no-object-annotations
+# def _flatten_defaults() -> dict[str, dict[str, object]]:  # ignore: no-object-annotations
+#     """Map [tool.br_pre_commit.<name>] sections onto flat [name] sections."""
+#     return _shared_defaults()
 
 
-def _shared_defaults() -> dict[str, dict[str, object]]:  # ignore: no-object-annotations
-    """Read shared defaults from [tool.br_pre_commit.*] in pyproject.toml."""
-    tool = _read_toml_section(PYPROJECT_PATH, "tool")
-    return cast("dict[str, dict[str, object]]", tool.get("br_pre_commit", {}))  # ignore: no-object-annotations
+# WrapperConfig = TypedDict(
+#     "WrapperConfig", {"unknown-hook-policy": str, "job-timeout-seconds": float, "protected-branches": list[str]}
+# )
 
 
-def _flatten_defaults() -> dict[str, dict[str, object]]:  # ignore: no-object-annotations
-    """Map [tool.br_pre_commit.<name>] sections onto flat [name] sections."""
-    return _shared_defaults()
+class WrapperConfig(FromPyProjectTomlConfig):
+    protected_branches: list[str] = Field(default=[], validation_alias="protected-branches")
+    unknown_hook_policy: Literal["warn", "error"] = Field(default="warn", validation_alias="unknown-hook-policy")
+    job_timeout_seconds: int = Field(default=3 * 60, validation_alias="job-timeout-seconds")
+
+    @field_validator("protected_branches", mode="before")
+    @classmethod
+    def _validate_protected_branches(cls, value: list[str]) -> list[str]:
+        if not isinstance(value, list) or any(not isinstance(branch, str) or not branch for branch in value):
+            raise ValueError("wrapper.protected-branches must be a list of non-empty strings")
+        return value
+
+    # PRE_COMMIT_STAGE = "pre-commit"
+    # RATCHET_HOOK_ID = "incremental-ratchet"
+    # TOOL_ROOT = Path(__file__).resolve().parents[1]
+    pre_commit_stage: str = "pre-commit"
 
 
-WrapperConfig = TypedDict(
-    "WrapperConfig", {"unknown-hook-policy": str, "job-timeout-seconds": float, "protected-branches": list[str]}
-)
-RatchetConfig = TypedDict(
-    "RatchetConfig",
-    {
-        "target": str,
-        "max-lines": int,
-        "line-growth-slack": int,
-        "complexity-ranks": str,
-        "xenon-max-absolute": str,
-        "exclude-dir": str,
-    },
-    total=False,
-)
+wrapper_config = WrapperConfig.from_pyproject_toml("wrapper")
 
 
-class AppConfig(TypedDict, total=False):
-    wrapper: WrapperConfig
-    ratchet: RatchetConfig
+# class AppConfig(TypedDict, total=False):
+#     wrapper: WrapperConfig
+#     ratchet: RatchetConfig
 
 
 class PreCommitHook(TypedDict, total=False):
@@ -70,27 +59,33 @@ class PreCommitConfig(TypedDict, total=False):
     repos: list[PreCommitRepo]
 
 
-def _merge_wrapper(base: WrapperConfig | None, override: WrapperConfig | None) -> WrapperConfig | None:
-    if base is None:
-        return override
-    if override is None:
-        return base
-    return WrapperConfig(**base, **override)
+def get_pre_commit_config_from_yaml(config_path: Path | None = None) -> PreCommitConfig:
+    config_path = config_path or br_pre_commit_config.pre_commit_config_yaml_file_name
+    config = cast(PreCommitConfig, yaml.safe_load(config_path.read_text(encoding="utf-8")) or {})
+    return config
 
 
-def _merge_ratchet(base: RatchetConfig | None, override: RatchetConfig | None) -> RatchetConfig | None:
-    if base is None:
-        return override
-    if override is None:
-        return base
-    return RatchetConfig(**base, **override)
+# def _merge_wrapper(base: WrapperConfig | None, override: WrapperConfig | None) -> WrapperConfig | None:
+#     if base is None:
+#         return override
+#     if override is None:
+#         return base
+#     return WrapperConfig(**base, **override)
 
 
-def _merged_config() -> AppConfig:
-    """Load shared defaults from [tool.br_pre_commit.*] in pyproject.toml."""
-    defaults = _flatten_defaults()
-    result = AppConfig(**defaults)
-    return result
+# def _merge_ratchet(base: RatchetConfig | None, override: RatchetConfig | None) -> RatchetConfig | None:
+#     if base is None:
+#         return override
+#     if override is None:
+#         return base
+#     return RatchetConfig(**base, **override)
+
+
+# def _merged_config() -> AppConfig:
+#     """Load shared defaults from [tool.br_pre_commit.*] in pyproject.toml."""
+#     defaults = _flatten_defaults()
+#     result = AppConfig(**defaults)
+#     return result
 
 
 @dataclass(frozen=True)
@@ -120,7 +115,7 @@ _READ_ONLY_HOOKS = frozenset(
         "check-merge-conflict",
         "check-case-conflict",
         "debug-statements",
-        RATCHET_HOOK_ID,
+        br_pre_commit_config.ratchet_hook_id,
         "pytest-fast",
         "pytest-integration-collect",
         "integration-tests",
@@ -131,59 +126,45 @@ _READ_ONLY_HOOKS = frozenset(
 )
 
 
-def unknown_hook_policy() -> str:
-    config = _merged_config()
-    wrapper = config.get("wrapper")
-    if wrapper is None:
-        raise ValueError("wrapper configuration is missing")
-    policy = wrapper["unknown-hook-policy"]
-    if policy not in {"warn", "error"}:
-        raise ValueError("wrapper.unknown-hook-policy must be 'warn' or 'error'")
-    return policy
+# def unknown_hook_policy() -> str:
+#     config = _merged_config()
+#     wrapper = config.get("wrapper")
+#     if wrapper is None:
+#         raise ValueError("wrapper configuration is missing")
+#     policy = wrapper["unknown-hook-policy"]
+#     if policy not in {"warn", "error"}:
+#         raise ValueError("wrapper.unknown-hook-policy must be 'warn' or 'error'")
+#     return policy
 
 
-def job_timeout_seconds() -> float:
-    config = _merged_config()
-    wrapper = config.get("wrapper")
-    if wrapper is None:
-        raise ValueError("wrapper configuration is missing")
-    timeout = float(wrapper["job-timeout-seconds"])
-    if timeout <= 0:
-        raise ValueError("wrapper.job-timeout-seconds must be positive")
-    return timeout
+# def job_timeout_seconds() -> float:
+#     config = _merged_config()
+#     wrapper = config.get("wrapper")
+#     if wrapper is None:
+#         raise ValueError("wrapper configuration is missing")
+#     timeout = float(wrapper["job-timeout-seconds"])
+#     if timeout <= 0:
+#         raise ValueError("wrapper.job-timeout-seconds must be positive")
+#     return timeout
 
 
-def protected_branches() -> tuple[str, ...]:
-    config = _merged_config()
-    wrapper = config.get("wrapper")
-    if wrapper is None:
-        raise ValueError("wrapper configuration is missing")
-    branches = wrapper.get("protected-branches", [])
-    if not isinstance(branches, list) or any(not isinstance(branch, str) or not branch for branch in branches):
-        raise ValueError("wrapper.protected-branches must be a list of non-empty strings")
-    return tuple(branches)
+# def protected_branches() -> tuple[str, ...]:
+#     config = _merged_config()
+#     wrapper = config.get("wrapper")
+#     if wrapper is None:
+#         raise ValueError("wrapper configuration is missing")
+#     branches = wrapper.get("protected-branches", [])
+#     if not isinstance(branches, list) or any(not isinstance(branch, str) or not branch for branch in branches):
+#         raise ValueError("wrapper.protected-branches must be a list of non-empty strings")
+#     return tuple(branches)
 
 
-def ratchet_settings() -> RatchetConfig:
-    config = _merged_config()
-    settings = config.get("ratchet")
-    if settings is None:
-        raise ValueError("ratchet configuration is missing")
-    return settings
-
-
-def enabled_pre_commit_hook_ids(config_path: Path) -> list[str]:
-    config = cast(PreCommitConfig, yaml.safe_load(config_path.read_text(encoding="utf-8")) or {})
-    enabled: list[str] = []
-    for repo in config.get("repos", []):
-        for hook in repo.get("hooks", []):
-            hook_id = hook.get("id")
-            if not isinstance(hook_id, str) or not hook_id:
-                continue
-            stages = hook.get("stages")
-            if stages is None or PRE_COMMIT_STAGE in stages:
-                enabled.append(hook_id)
-    return enabled
+# def ratchet_settings() -> RatchetConfig:
+#     config = _merged_config()
+#     settings = config.get("ratchet")
+#     if settings is None:
+#         raise ValueError("ratchet configuration is missing")
+#     return settings
 
 
 def classify_hooks(hook_ids: list[str], *, policy: str) -> tuple[list[HookSpec], list[str]]:

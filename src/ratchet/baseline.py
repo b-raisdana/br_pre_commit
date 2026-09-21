@@ -11,36 +11,44 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
+from helper.paths import get_user_repo_root_from_git
+from ratchet.config import ratchet_config
+
 log = logging.getLogger(__name__)
 
-ROOT = Path(os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd())).resolve()
+# ROOT = Path(os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd())).resolve()
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-from precommit_wrapper.config import ratchet_settings  # noqa: E402
-
-_SETTINGS = ratchet_settings()
-BASELINE_DIR = ROOT / ".br-pre-commit" / "ratchet"
-BASELINE_GLOB = "baseline*.json"
-TARGET = str(_SETTINGS["target"])
-COMPLEXITY_RANKS = str(_SETTINGS["complexity-ranks"])
-LOC_MAX_LINES = int(_SETTINGS["max-lines"])
-LOC_SLACK = int(_SETTINGS["line-growth-slack"])
-XENON_MAX_ABSOLUTE = str(_SETTINGS["xenon-max-absolute"])
-EXCLUDE_DIR = str(_SETTINGS.get("exclude-dir", "archive_not_used_trash"))
-
-MYPY_CODED_ERROR_RE = re.compile(r": error: .*\[([\w-]+)\]\s*$")
-MYPY_UNCODED_ERROR_RE = re.compile(r": error: ")
 
 
-def _excluded(path: Path) -> bool:
+# _SETTINGS = ratchet_settings()
+# BASELINE_DIR = ROOT / ".br-pre-commit" / "ratchet"
+# BASELINE_GLOB = "baseline*.json"
+# TARGET = str(_SETTINGS["target"])
+# COMPLEXITY_RANKS = str(_SETTINGS["complexity-ranks"])
+# LOC_MAX_LINES = int(_SETTINGS["max-lines"])
+# LOC_SLACK = int(_SETTINGS["line-growth-slack"])
+# XENON_MAX_ABSOLUTE = str(_SETTINGS["xenon-max-absolute"])
+# EXCLUDE_DIR = str(_SETTINGS.get("exclude-dir", "archive_not_used_trash"))
+
+# MYPY_CODED_ERROR_RE = re.compile(r": error: .*\[([\w-]+)\]\s*$")
+# MYPY_UNCODED_ERROR_RE = re.compile(r": error: ")
+
+
+def path_matches_with_regex(path: Path, regex: str) -> bool:
     """Return True when ``path`` lives under the configured exclude directory."""
-    return EXCLUDE_DIR in path.parts
+    # return EXCLUDE_DIR in path.parts
+    return bool(
+        re.search(
+            rf"(?:^|[/\\]){re.escape(regex)}(?:[/\\]|$)",
+            str(path),
+        )
+    )
 
 
 def _tool_of(key: str) -> str:
@@ -70,7 +78,7 @@ def load_json(path: Path) -> dict[str, int]:
 
 
 def find_baseline_files() -> list[Path]:
-    return sorted(BASELINE_DIR.glob(BASELINE_GLOB))
+    return sorted(ratchet_config.baseline_dir.glob(ratchet_config.baseline_glob))
 
 
 def merge_baselines(baselines: list[dict[str, int]]) -> dict[str, int]:
@@ -91,7 +99,9 @@ def compute_new_baseline(old_baseline: dict[str, int], current_counts: dict[str,
     for key in set(old_baseline) | set(current_counts):
         old_val = old_baseline.get(key, float("inf"))
         current_val = current_counts.get(key, 0)
-        result[key] = int(min(old_val, current_val))
+        value = int(min(old_val, current_val))
+        if value > 0:
+            result[key] = value
     return dict(sorted(result.items()))
 
 
@@ -106,9 +116,9 @@ def baseline_filename(baseline: dict[str, int]) -> str:
 
 
 def write_baseline_file(baseline: dict[str, int]) -> Path:
-    path = BASELINE_DIR / baseline_filename(baseline)
+    path = ratchet_config.baseline_dir / baseline_filename(baseline)
     path.write_text(json.dumps(baseline, indent=2, sort_keys=True) + "\n")
-    subprocess.run(["git", "add", str(path)], cwd=ROOT, check=False)
+    subprocess.run(["git", "add", str(path)], cwd=get_user_repo_root_from_git(), check=False)
     return path
 
 
@@ -120,19 +130,22 @@ def load_and_consolidate_baselines() -> dict[str, int]:
     baselines = [load_json(f) for f in files]
     merged = merge_baselines(baselines)
     if len(files) > 1:
+        merged = {key: value for key, value in merged.items() if value > 0}
         for f in files:
             f.unlink()
         write_baseline_file(merged)
         for f in files:
-            subprocess.run(["git", "add", "--", str(f)], cwd=ROOT, check=False)
+            subprocess.run(["git", "add", "--", str(f)], cwd=get_user_repo_root_from_git(), check=False)
     return merged
 
 
-def run(*args: str, cwd: Path = ROOT) -> str:
+def run(*args: str, cwd: Path | None = None) -> str:
+    cwd = cwd or get_user_repo_root_from_git()
     result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False)
     return result.stdout
 
 
-def run_output(*args: str, cwd: Path = ROOT) -> str:
+def run_output(*args: str, cwd: Path | None = None) -> str:
+    cwd = cwd or get_user_repo_root_from_git()
     result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False)
     return result.stdout + result.stderr

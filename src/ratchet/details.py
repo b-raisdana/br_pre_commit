@@ -13,8 +13,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+from helper.paths import get_user_repo_path_from_env
+
 from . import baseline as _baseline
 from . import tools as _tools
+from .config import ratchet_config
 
 
 def print_ruff_details(paths: list[Path]) -> None:
@@ -26,12 +29,12 @@ def print_ruff_details(paths: list[Path]) -> None:
 
 
 def print_mypy_details(paths: list[Path]) -> None:
-    app_paths = [path.relative_to(_baseline.TARGET).as_posix() for path in paths]
+    app_paths = [path.relative_to(ratchet_config.target_dir_rel_path).as_posix() for path in paths]
     if not app_paths:
         print("    no files to inspect")
         return
-    config_path = str(_baseline.ROOT / "pyproject.toml")
-    cwd = _baseline.ROOT / _baseline.TARGET
+    config_path = str(get_user_repo_path_from_env() / "pyproject.toml")
+    cwd = get_user_repo_path_from_env() / ratchet_config.target_dir_rel_path
     output = _baseline.run_output("mypy", "--config-file", config_path, *app_paths, cwd=cwd)
     print(output.rstrip() or "    mypy reported no errors on these files")
 
@@ -41,35 +44,36 @@ def print_xenon_details(paths: list[Path], max_absolute: str = "B") -> None:
     if not paths:
         print("    no files to inspect")
         return
+    exclude_dirs = ",".join(ratchet_config.exclude_dirs)
     stdout = _baseline.run(
         "radon",
         "cc",
-        _baseline.TARGET,
+        str(ratchet_config.target_dir_rel_path),
         "-j",
         "-i",
-        f"tests,{_baseline.EXCLUDE_DIR}",
+        f"tests,{exclude_dirs}",
         "--show-closures",
-        cwd=_baseline.ROOT,
+        cwd=get_user_repo_path_from_env(),
     )
     data = _tools._parse_xenon_json(stdout)
-    threshold = _baseline.COMPLEXITY_RANKS.index(_baseline.XENON_MAX_ABSOLUTE)
+    threshold = ratchet_config.xenon_complexity_ranks.index(ratchet_config.xenon_max_absolute)
     printed = False
     for file_path, blocks in sorted(data.items()):
         for block in blocks:
             rank = block.get("rank", "A")
-            if _baseline.COMPLEXITY_RANKS.index(rank) <= threshold:
+            if ratchet_config.xenon_complexity_ranks.index(rank) <= threshold:
                 continue
             print(f"    {file_path}:{block.get('lineno')} {block.get('type')} {block.get('name')} rank {rank}")
             printed = True
     if not printed:
-        print(f"    xenon/radon reported no rank > {_baseline.XENON_MAX_ABSOLUTE} blocks on these files")
+        print(f"    xenon/radon reported no rank > {ratchet_config.xenon_max_absolute} blocks on these files")
 
 
 def print_loc_details(paths: list[Path], max_lines: int = 300) -> None:
     for path in paths:
         print(
-            f"    {path.as_posix()}: {_baseline._line_count(_baseline.ROOT / path)} lines "
-            f"(cap {max_lines}, slack {_baseline.LOC_SLACK})"
+            f"    {path.as_posix()}: {_baseline._line_count(get_user_repo_path_from_env() / path)} lines "
+            f"(cap {max_lines}, slack {ratchet_config.loc_line_growth_slack})"
         )
 
 

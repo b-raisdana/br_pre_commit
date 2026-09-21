@@ -13,15 +13,19 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from helper.paths import get_user_repo_path_from_env
+
+from . import path_matches_with_regex
 from .baseline import (  # noqa: F401,E402
-    EXCLUDE_DIR,
-    LOC_MAX_LINES,
-    LOC_SLACK,
-    ROOT,
-    TARGET,
+    # EXCLUDE_DIR,
+    # LOC_MAX_LINES,
+    # LOC_SLACK,
+    # ROOT,
+    # TARGET,
     _tool_of,
     run,
 )
+from .config import ratchet_config
 
 
 @dataclass(frozen=True)
@@ -42,11 +46,11 @@ def touched_app_python_files() -> list[TouchedFile]:
         status = parts[0]
         old_raw, new_raw = (parts[1], parts[2]) if status.startswith("R") else (parts[1], parts[1])
         new_path = Path(new_raw)
-        if new_path.parts[:1] != (TARGET,) or new_path.suffix != ".py":
+        if new_path.parts[:1] != (ratchet_config.target_dir_rel_path,) or new_path.suffix != ".py":
             continue
-        if EXCLUDE_DIR in new_path.parts:
+        if path_matches_with_regex(Path(line).resolve(), ratchet_config.exclude_dir_regex):
             continue
-        if not (ROOT / new_path).exists():
+        if not (get_user_repo_path_from_env() / new_path).exists():
             continue
         is_new = status.startswith("A")
         old_path = None if is_new else Path(old_raw)
@@ -61,7 +65,7 @@ def _head_worktree() -> Path | None:
     tmp_dir = Path(tempfile.mkdtemp(prefix="ratchet-head-"))
     result = subprocess.run(
         ["git", "worktree", "add", "--detach", "--quiet", str(tmp_dir), "HEAD"],
-        cwd=ROOT,
+        cwd=get_user_repo_path_from_env(),
         capture_output=True,
         text=True,
         check=False,
@@ -72,7 +76,7 @@ def _head_worktree() -> Path | None:
 def _remove_worktree(worktree: Path) -> None:
     subprocess.run(
         ["git", "worktree", "remove", "--force", str(worktree)],
-        cwd=ROOT,
+        cwd=get_user_repo_path_from_env(),
         capture_output=True,
         text=True,
         check=False,
@@ -98,13 +102,17 @@ def _tool_regressions(
 def _loc_regression(touched_file: TouchedFile, before_key: str) -> tuple[str, Path, int, int] | None:
     from .baseline import _line_count  # noqa: F402,E402
 
-    after_lines = _line_count(ROOT / touched_file.path)
+    after_lines = _line_count(get_user_repo_path_from_env() / touched_file.path)
     if touched_file.is_new:
-        if after_lines > LOC_MAX_LINES:
+        if after_lines > ratchet_config.loc_max_lines:
             return "loc-new-file", touched_file.path, 0, after_lines
         return None
     before_lines = _head_line_count(before_key)
-    if before_lines is not None and before_lines > LOC_MAX_LINES and after_lines > before_lines + LOC_SLACK:
+    if (
+        before_lines is not None
+        and before_lines > ratchet_config.loc_max_lines
+        and after_lines > before_lines + ratchet_config.loc_line_growth_slack
+    ):
         return "loc", touched_file.path, before_lines, after_lines
     return None
 
@@ -127,18 +135,24 @@ def evaluate_file_gate(
 
 
 def _head_line_count(relpath: str) -> int | None:
-    result = subprocess.run(["git", "show", f"HEAD:{relpath}"], cwd=ROOT, capture_output=True, text=True, check=False)
+    result = subprocess.run(
+        ["git", "show", f"HEAD:{relpath}"],
+        cwd=get_user_repo_path_from_env(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     if result.returncode != 0:
         return None
     return len(result.stdout.splitlines())
 
 
 def _validate_configured_hooks() -> list[str]:
-    from precommit_wrapper.config import classify_hooks, enabled_pre_commit_hook_ids, unknown_hook_policy  # noqa: E402
+    from precommit_wrapper.config import classify_hooks, wrapper_config  # noqa: E402
+    from precommit_wrapper.hooks import enabled_pre_commit_hook_ids  # noqa: E402
 
-    hook_ids = enabled_pre_commit_hook_ids(ROOT / ".pre-commit-config.yaml")
-    result = classify_hooks(hook_ids, policy=unknown_hook_policy())
-    unknown: list[str] = result[1]
+    hook_ids = enabled_pre_commit_hook_ids(get_user_repo_path_from_env() / ".pre-commit-config.yaml")
+    _, unknown = classify_hooks(hook_ids, policy=wrapper_config.unknown_hook_policy)
     return unknown
 
 

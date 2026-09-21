@@ -8,8 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from git import Repo  # noqa: E402
-
+from helper.git import GitCommandError, InvalidGitRepositoryError, get_repo  # noqa: E402
 from sync_skills.core import (  # noqa: E402
     _GITHUB_PATH,
     _REPO_ROOT,
@@ -60,5 +59,7 @@ __all__ = [
     "remove_mirror",
     "remove_skill_from_all_agents",
     "verify_sync",
-    "Repo",
+    "GitCommandError",
+    "InvalidGitRepositoryError",
+    "get_repo",
 ]

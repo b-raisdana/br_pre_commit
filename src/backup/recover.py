@@ -22,14 +22,21 @@ from typing import TextIO
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # noqa: E402
 
 from backup.models import Manifest  # noqa: E402
+from helper.paths import get_full_backup_dir
 
-from .common import (  # noqa: E402
-    _get_full_backup_dir,
-    _run_git,
-)
-
-logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("recover")
+
+
+def _run_git(repo_root: Path, *args: str) -> str:
+    result = subprocess.run(["git", *args], cwd=repo_root, capture_output=True, text=True, check=False)
+    if result.returncode:
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            ["git", *args],
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+    return result.stdout.strip()
 
 
 def _load_manifest(snapshot_dir: Path) -> Manifest:
@@ -188,7 +195,7 @@ def _recover_category(
     if category == "untracked":
         return _recover_untracked(repo_root, snapshot_dir, manifest.untracked, dry_run)
     if category == "full":
-        return _recover_full(repo_root, _get_full_backup_dir(repo_root), manifest.full_backups, dry_run)
+        return _recover_full(repo_root, get_full_backup_dir(repo_root), manifest.full_backups, dry_run)
     return [f"unknown recovery category: {category}"]
 
 

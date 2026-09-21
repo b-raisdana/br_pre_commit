@@ -1,0 +1,17 @@
+# br_pre_commit runtime dependencies.
+#
+# Upper bounds are deliberately omitted: br_pre_commit is a shared submodule and
+# its requirements must not conflict with the consuming project's own pins. The
+# code only relies on stable CLI/plugin interfaces (ruff check/format, mypy, radon
+# cc/mi, pre-commit, PyYAML, pytest), and the ratchet baseline is
+# content-addressed, so a newer tool version simply produces a new baseline file
+# rather than breaking the hook. Let the consuming project pin what it needs.
+# Git operations are done via a thin subprocess wrapper (src/git.py); no
+# third-party git library is required.
+pyyaml>=6.0
+pre-commit>=3.8
+radon>=5.0
+ruff>=0.6
+mypy>=1.11
+pytest>=8.2
+pytest-asyncio>=0.23

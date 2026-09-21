@@ -31,6 +31,16 @@ exclude = "(^|/)archive_not_used_trash/"
 # value under [tool.br_pre_commit.wrapper] / [tool.br_pre_commit.ratchet] /
 # [tool.br_pre_commit.backup]. See README.md § "Recognized hook IDs" for the list of
 # hook IDs the wrapper can classify; unrecognized IDs trigger an error under the policy below.
+[tool.br_pre_commit]
+ratchet-hook-id = "incremental-ratchet"
+
+[tool.br_pre_commit.ratchet-hook]
+name = "incremental ratchet"
+language = "system"
+entry = "python -m ratchet"
+pass-filenames = false
+files = "^src/.*\\.py$"
+
 [tool.br_pre_commit.wrapper]
 unknown-hook-policy = "error"
 job-timeout-seconds = 900

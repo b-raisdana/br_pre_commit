@@ -52,7 +52,7 @@ def check_file(path: Path) -> list[str]:
                 if is_object_annotation(child_expr):
                     errors.append(
                         f"{path}:{child_expr.lineno}:{child_expr.col_offset + 1}: "
-                        "explicit 'object' type annotation is forbidden"
+                        "explicit 'object' type annotation is forbidden; replace it with a more specific type hint"
                     )
 
     return errors

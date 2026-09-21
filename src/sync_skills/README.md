@@ -52,4 +52,8 @@ Examples: `kilo-only-todo-discipline`, `claude-only-review`, `codex-only-experim
 
 ## Dependency
 
-`src/sync_skills/__main__.py` uses [GitPython](https://github.com/gitpython-developers/GitPython) via its `repo.git` raw-command interface (declared in `requirements-dev.txt`). The high-level `Repo.index.diff(...)` object API is deliberately **not** used: in gitpython 3.1.x it misreports staged deletions as additions, which would silently break delete detection.
+`src/sync_skills/__main__.py` runs git via a thin subprocess wrapper in
+`../helper/git.py` (no third-party git library). The high-level
+`Repo.index.diff(...)` object API is deliberately **not** used: in gitpython
+3.1.x it misreports staged deletions as additions, which would silently break
+delete detection.

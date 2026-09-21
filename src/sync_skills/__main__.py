@@ -26,9 +26,7 @@ from pathlib import Path
 # Ensure we can import the sync_skills package when loaded as a script by path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from git import Repo  # noqa: E402
-from git.exc import InvalidGitRepositoryError  # noqa: E402
-
+from helper.git import InvalidGitRepositoryError, get_repo  # noqa: E402
 from sync_skills.core import (  # noqa: E402
     _GITHUB_PATH,
     _REPO_ROOT,
@@ -106,7 +104,6 @@ def _report_conflicts(
 
 
 def _apply_safe_changes(
-    repo: Repo,
     repo_root: Path,
     skill_parents: dict[str, Path],
     changes: dict[str, list[tuple[str, str, bytes | None]]],
@@ -117,11 +114,11 @@ def _apply_safe_changes(
     for skill in deletions:
         if skill in conflicts or is_excluded(skill):
             continue
-        remove_skill_from_all_agents(repo, skill, skill_parents, repo_root, problems)
+        remove_skill_from_all_agents(repo_root, skill, skill_parents, repo_root, problems)
     for skill, canonical in modifications.items():
         if skill in conflicts or is_excluded(skill):
             continue
-        apply_modification(repo, skill, canonical, skill_parents, repo_root, problems)
+        apply_modification(repo_root, skill, canonical, skill_parents, repo_root, problems)
 
 
 def _sync_result(problems: list[str]) -> int:
@@ -140,17 +137,16 @@ def _sync_result(problems: list[str]) -> int:
 
 def main() -> int:
     try:
-        repo = Repo(_REPO_ROOT)
+        repo_root = get_repo(_REPO_ROOT)
     except InvalidGitRepositoryError:
         print("sync-skill-files: not a git repository", file=sys.stderr)
         return 0
 
-    repo_root = _REPO_ROOT
     skill_parents = get_skill_parents(repo_root)
     problems: list[str] = []
-    changes = get_staged_skill_changes(repo)
-    _apply_safe_changes(repo, repo_root, skill_parents, changes, problems)
-    verify_sync(repo, repo_root, skill_parents, problems, skip=set(changes))
+    changes = get_staged_skill_changes(repo_root)
+    _apply_safe_changes(repo_root, skill_parents, changes, problems)
+    verify_sync(repo_root, skill_parents, problems, skip=set(changes))
     cleanup_empty_skill_dirs(skill_parents, repo_root)
     return _sync_result(problems)
 

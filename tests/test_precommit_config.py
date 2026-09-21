@@ -4,14 +4,16 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-import precommit_wrapper.config as config  # noqa: E402
+import precommit_wrapper.config as config
+import precommit_wrapper.hooks as hooks
+from config import br_pre_commit_config  # noqa: E402
 
 pytestmark = pytest.mark.unit
 
 
 def test_repository_pre_commit_config_uses_registered_hooks():
     repo_root = Path(__file__).resolve().parents[1]
-    hook_ids = config.enabled_pre_commit_hook_ids(repo_root / ".pre-commit-config.yaml")
+    hook_ids = hooks.enabled_pre_commit_hook_ids(repo_root / ".pre-commit-config.yaml")
 
     specs, unknown = config.classify_hooks(hook_ids, policy="error")
 
@@ -32,7 +34,7 @@ def test_enabled_hooks_reads_only_pre_commit_stage(tmp_path):
         "        stages: [pre-commit]\n"
     )
 
-    assert config.enabled_pre_commit_hook_ids(cfg_file) == ["pytest-fast", "check-yaml"]
+    assert hooks.enabled_pre_commit_hook_ids(cfg_file) == ["pytest-fast", "check-yaml"]
 
 
 def test_unknown_hook_error_policy_fails():
@@ -48,19 +50,20 @@ def test_unknown_hook_warn_policy_reports_and_serializes():
 
 
 def test_ratchet_hook_is_registered_without_recursion():
-    specs, unknown = config.classify_hooks([config.RATCHET_HOOK_ID], policy="error")
+    hook_id = br_pre_commit_config.ratchet_hook_id
+    specs, unknown = config.classify_hooks([hook_id], policy="error")
 
     assert unknown == []
-    assert specs == [config.HookSpec(config.RATCHET_HOOK_ID, mutates_files=False)]
+    assert specs == [config.HookSpec(hook_id, mutates_files=False)]
 
 
 def test_main_is_protected_by_default(tmp_path):
-    assert config.protected_branches() == ("main",)
+    assert config.wrapper_config.protected_branches == ["main"]
 
 
 @pytest.mark.parametrize("value", ['"main"', '["main", ""]', "[1]"])
-def test_protected_branches_rejects_invalid_values(tmp_path, monkeypatch, value):
-    monkeypatch.setattr(config, "_merged_config", lambda: {"wrapper": {"protected-branches": eval(value)}})
+def test_protected_branches_rejects_invalid_values(tmp_path, value):
+    from pydantic import ValidationError
 
-    with pytest.raises(ValueError, match="protected-branches"):
-        config.protected_branches()
+    with pytest.raises(ValidationError, match="protected-branches"):
+        config.WrapperConfig.model_validate({"protected-branches": eval(value)})

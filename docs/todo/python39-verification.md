@@ -18,7 +18,7 @@ python3.9 -m pip install -e .
 python3.9 -m pip install pre-commit pyyaml
 ```
 
-Verify `gitpython` (used by `src/sync_skills/core.py`, `src/sync_skills/sync.py`, etc.) supports 3.9.
+Verify that all third-party packages (pre-commit, pyyaml, ruff, mypy, radon, pytest) support Python 3.9. Git operations are done via a subprocess wrapper (`../../src/helper/git.py`), so no third-party git library is needed.
 
 ### 2. Lint with Python 3.9 target
 
