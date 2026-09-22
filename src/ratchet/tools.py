@@ -12,41 +12,12 @@ import re
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import cast
 
 from helper.paths import get_user_repo_path_from_env
 
-from . import path_matches_with_regex
-from .baseline import (  # noqa: F401,E402
-    # COMPLEXITY_RANKS,
-    # EXCLUDE_DIR,
-    # ROOT,
-    # TARGET,
-    # XENON_MAX_ABSOLUTE,
-    _line_count,
-    run,
-    run_output,
-)
+from .common import path_matches_with_regex, RuffViolation, XenonData, run, output_run, count_lines
 from .config import ratchet_config
-
-
-class RuffViolation(TypedDict):
-    filename: str
-    code: str
-
-
-class RuffRule(TypedDict):
-    code: str
-
-
-class XenonBlock(TypedDict, total=False):
-    rank: str
-    lineno: int
-    type: str
-    name: str
-
-
-XenonData = dict[str, list[XenonBlock]]
 
 
 def _parse_ruff_json(stdout: str) -> list[RuffViolation]:
@@ -93,7 +64,7 @@ def _parse_mypy_records(output: str) -> list[tuple[str, str]]:
 
 def mypy_run(root: Path | None = None) -> list[tuple[str, str]]:
     root = root or get_user_repo_path_from_env()
-    output = run_output(
+    output = output_run(
         "mypy", "--config-file", str(root / "pyproject.toml"), ".", cwd=root / ratchet_config.target_dir_rel_path
     )
     return _parse_mypy_records(output)
@@ -166,7 +137,7 @@ def loc_line_counts(root: Path | None = None) -> dict[str, int]:
         # ):
         if "__pycache__" in path.parts or path_matches_with_regex(path, ratchet_config.exclude_dir_regex):
             continue
-        counts[path.relative_to(root).as_posix()] = _line_count(path)
+        counts[path.relative_to(root).as_posix()] = count_lines(path)
     return counts
 
 
@@ -179,7 +150,7 @@ def loc_excess_total(line_counts: dict[str, int], max_lines: int = 300) -> int:
     return sum(max(0, n - max_lines) for n in line_counts.values())
 
 
-def _run_current_analyzers() -> tuple[list[RuffViolation], list[tuple[str, str]], XenonData, dict[str, int]]:
+def run_current_analyzers() -> tuple[list[RuffViolation], list[tuple[str, str]], XenonData, dict[str, int]]:
     with ThreadPoolExecutor(max_workers=4, thread_name_prefix="ratchet") as executor:
         ruff_future = executor.submit(ruff_run)
         mypy_future = executor.submit(mypy_run)

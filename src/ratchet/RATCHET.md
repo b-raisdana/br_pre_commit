@@ -130,15 +130,15 @@ main()
 
 #### F2 — duplicate project-wide vs. detail-count logic (P1)
 
-**Superseded**: the old `*_count`/`*_detail_count` split this item described no longer exists - the per-file-diff redesign replaced "staged-file detail counters" with by-rule/by-file groupings (`_group_ruff_by_rule`/`_group_ruff_by_file`, etc.) derived from a single parsed result per tool (`ruff_run`/`mypy_run`/`xenon_run`), reused for both the trend layer and the blocking gate. The specific duplication F2 flagged is gone; the `run`/`run_output` split (below) is still untouched and still applies.
+**Superseded**: the old `*_count`/`*_detail_count` split this item described no longer exists - the per-file-diff redesign replaced "staged-file detail counters" with by-rule/by-file groupings (`_group_ruff_by_rule`/`_group_ruff_by_file`, etc.) derived from a single parsed result per tool (`ruff_run`/`mypy_run`/`xenon_run`), reused for both the trend layer and the blocking gate. The specific duplication F2 flagged is gone; the `run`/`output_run` split (below) is still untouched and still applies.
 
 **Location**: `mypy_count` / `mypy_detail_count` (`ratchet_check.py:49-59` vs. `ratchet_check.py:131-137`), `ruff_count` / `ruff_detail_count` (`ratchet_check.py:62-68` vs. `ratchet_check.py:148-156`), `xenon_count` / `xenon_detail_count` (`ratchet_check.py:75-89` vs. `ratchet_check.py:183-195`), `loc_count` / `loc_detail_count` (`ratchet_check.py:92-99` vs. `ratchet_check.py:211-216`).
 
-**Weakness**: Each vector has two near-identical functions that differ only in whether they operate on all project files or a filtered `paths` list. The `run` / `run_output` split and the JSON-parsing / regex-parsing blocks are also duplicated. Four vectors × two variants = eight functions where four would suffice with a shared `count_violations(tool, paths=None)` helper.
+**Weakness**: Each vector has two near-identical functions that differ only in whether they operate on all project files or a filtered `paths` list. The `run` / `output_run` split and the JSON-parsing / regex-parsing blocks are also duplicated. Four vectors × two variants = eight functions where four would suffice with a shared `count_violations(tool, paths=None)` helper.
 
 **Upgrade**:
 - Introduce a `_count_violations(vector_name, paths=None)` helper that accepts an optional file list and delegates to the tool with either the project target or the explicit paths.
-- Collapse `run` and `run_output` into a single `_run(args, cwd, capture_stderr=False)` with a flag, or always capture both and let callers pick.
+- Collapse `run` and `output_run` into a single `_run(args, cwd, capture_stderr=False)` with a flag, or always capture both and let callers pick.
 - Share the JSON-decode / regex-match / rank-filter logic in one place per vector.
 
 **Factor**: duplication/simplification. Hot path: yes — called every commit. Mutation-safety: pending — extract carefully; add regression tests for the helper before collapsing (see F3).
@@ -239,11 +239,11 @@ main()
 
 **Factor**: correctness / policy clarity. Hot path: yes. Mutation-safety: pending (baseline meaning change).
 
-#### F9 — `run` / `run_output` duplication and stderr swallowing (P2)
+#### F9 — `run` / `output_run` duplication and stderr swallowing (P2)
 
 **Location**: `run()` (`ratchet_check.py:39-41`), `run_output()` (`ratchet_check.py:44-46`).
 
-**Weakness**: Two functions that differ only in whether they append `result.stderr`. Every caller that needs stderr uses `run_output`; every caller that doesn't uses `run`. This split means:
+**Weakness**: Two functions that differ only in whether they append `result.stderr`. Every caller that needs stderr uses `output_run`; every caller that doesn't uses `run`. This split means:
 - `run` silently swallows stderr, hiding tool warnings that may indicate a problem.
 - Adding a new caller requires choosing between the two, with no clear rule.
 
@@ -299,11 +299,11 @@ Keep the zero-argument default behavior unchanged so the existing pre-commit hoo
 | id | priority | title | key files |
 |----|----------|-------|-----------|
 | T1 | P0 | Add unit/regression tests for all ratchet branches | new `tests/.../test_ratchet_check.py` |
-| T2 | P0 | Make tool failures loud instead of silent (return-code check, timeouts) | `run`, `run_output`, all count functions |
+| T2 | P0 | Make tool failures loud instead of silent (return-code check, timeouts) | `run`, `output_run`, all count functions |
 | T3 | P1 | Move configurable constants into `config.json` (ratio, loc threshold, xenon rank, target) | `config.json`, `ratchet_check.py` |
 | T4 | P1 | Collapse project-wide / detail-count duplication into a shared helper per vector | `ratchet_check.py` |
 | T5 | P1 | Make `baseline.json` write atomic + stage only on full success + add inter-process lock | `ratchet_check.py`, hook wrapper |
-| T6 | P2 | Unify `run` / `run_output`; always capture stderr | `ratchet_check.py` |
+| T6 | P2 | Unify `run` / `output_run`; always capture stderr | `ratchet_check.py` |
 | T7 | P2 | Harden `mypy` regex and xenon rank parsing; log on parse failure instead of returning 0 | `mypy_count`, `mypy_detail_count`, `xenon_count`, `xenon_detail_count` |
 | T8 | P2 | Fix `_exclude_tests` scope mismatch between `xenon_count` and `xenon_detail_count` | `xenon_count`, `_exclude_tests` |
 | T9 | P2 | Clarify and align `loc_count` / `loc_detail_count` test exclusion policy | `loc_count`, `loc_detail_count` |

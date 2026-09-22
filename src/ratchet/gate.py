@@ -10,12 +10,11 @@ from __future__ import annotations
 
 import subprocess
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
 
 from helper.paths import get_user_repo_path_from_env
 
-from . import path_matches_with_regex
+from .common import TouchedFile, path_matches_with_regex
 from .baseline import (  # noqa: F401,E402
     # EXCLUDE_DIR,
     # LOC_MAX_LINES,
@@ -26,13 +25,6 @@ from .baseline import (  # noqa: F401,E402
     run,
 )
 from .config import ratchet_config
-
-
-@dataclass(frozen=True)
-class TouchedFile:
-    path: Path
-    is_new: bool
-    old_path: Path | None
 
 
 def touched_app_python_files() -> list[TouchedFile]:
