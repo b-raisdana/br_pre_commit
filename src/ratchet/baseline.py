@@ -94,7 +94,12 @@ def merge_baselines(baselines: list[dict[str, int]]) -> dict[str, int]:
 
 
 def compute_new_baseline(old_baseline: dict[str, int], current_counts: dict[str, int]) -> dict[str, int]:
-    """Compute ratcheted baseline: for each key, keep the minimum of old and current."""
+    """Compute ratcheted baseline: for each key, keep the minimum of old and current.
+
+    Controls with a minimum of zero are omitted — the baseline only tracks controls
+    that have at least one violation, so a rule that was fixed to zero disappears
+    and will be re-bootstrapped if it ever violates again.
+    """
     result: dict[str, int] = {}
     for key in set(old_baseline) | set(current_counts):
         old_val = old_baseline.get(key, float("inf"))
@@ -128,7 +133,7 @@ def load_and_consolidate_baselines() -> dict[str, int]:
     if not files:
         return {}
     baselines = [load_json(f) for f in files]
-    merged = merge_baselines(baselines)
+    merged = {k: v for k, v in merge_baselines(baselines).items() if v > 0}
     if len(files) > 1:
         merged = {key: value for key, value in merged.items() if value > 0}
         for f in files:

@@ -1,4 +1,5 @@
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 _hook_path = Path(__file__).resolve().parents[1] / "src" / "sync_skills" / "__main__.py"
 _spec = importlib.util.spec_from_file_location("sync_skills.__main__", _hook_path)
 m = importlib.util.module_from_spec(_spec)
+sys.modules["sync_skills.__main__"] = m
 _spec.loader.exec_module(m)
 
 pytestmark = pytest.mark.unit
