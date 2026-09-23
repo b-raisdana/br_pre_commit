@@ -14,7 +14,7 @@ from pathlib import Path
 
 from helper.paths import get_user_repo_path_from_env
 
-from .common import TouchedFile, path_matches_with_regex, count_lines, run
+from .common import TouchedFile, count_lines, path_matches_with_regex, run
 from .config import ratchet_config
 
 

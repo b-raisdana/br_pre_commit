@@ -12,7 +12,8 @@ import asyncio
 import sys
 
 from .common import (
-    baseline_current_state, find_baseline_files,
+    baseline_current_state,
+    find_baseline_files,
 )
 
 log = __import__("logging").getLogger(__name__)

@@ -11,13 +11,14 @@ import hashlib
 import json
 import logging
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, TypedDict
+from typing import TypedDict
 
 from helper.paths import get_user_repo_path_from_env
 
-from .config import ratchet_config, RatchetConfig
+from .config import RatchetConfig, ratchet_config
 
 
 class RuffViolation(TypedDict):
@@ -56,6 +57,7 @@ class TouchedFile:
 def path_matches_with_regex(path: Path, regex: str) -> bool:
     """Return True when ``path`` lives under the configured exclude directory."""
     import re
+
     return bool(
         re.search(
             rf"(?:^|[/\\]){re.escape(regex)}(?:[/\\]|$)",
@@ -164,6 +166,7 @@ def write_baseline_file(baseline: dict[str, int]) -> None:  # -> Path:
 
 def find_baseline_files() -> list[Path]:
     from .config import ratchet_config
+
     return sorted(ratchet_config.baseline_dir.glob(ratchet_config.baseline_glob))
 
 
@@ -219,15 +222,16 @@ def write_new_baseline(old_baseline: dict[str, int], new_baseline: dict[str, int
     write_baseline_file(new_baseline)
 
 
-async def async_write_new_baseline(old_baseline: dict[str, int], new_baseline: dict[str, int],
-                                   force: bool = False) -> None:
+async def async_write_new_baseline(
+    old_baseline: dict[str, int], new_baseline: dict[str, int], force: bool = False
+) -> None:
     if not force and new_baseline == old_baseline:
         return
     await async_write_baseline_file(new_baseline)
 
 
 def _analyze_trend(
-        old_baseline: dict[str, int], current_counts: dict[str, int]
+    old_baseline: dict[str, int], current_counts: dict[str, int]
 ) -> tuple[list[tuple[str, int, int]], list[tuple[str, int, int]]]:
     regressed: list[tuple[str, int, int]] = []
     improved: list[tuple[str, int, int]] = []
@@ -244,10 +248,10 @@ def _analyze_trend(
 
 
 def get_current_counts(
-        ruff_violations: list[RuffViolation],
-        mypy_records: list[tuple[str, str]],
-        xenon_data: XenonData,
-        loc_counts: dict[str, int],
+    ruff_violations: list[RuffViolation],
+    mypy_records: list[tuple[str, str]],
+    xenon_data: XenonData,
+    loc_counts: dict[str, int],
 ) -> dict[str, int]:
     from .tools import (  # noqa: F402,E402
         _group_mypy_by_rule,
@@ -265,20 +269,20 @@ def get_current_counts(
 
 
 async def async_get_current_counts(
-        ruff_violations: list[RuffViolation],
-        mypy_records: list[tuple[str, str]],
-        xenon_data: XenonData,
-        loc_counts: dict[str, int],
+    ruff_violations: list[RuffViolation],
+    mypy_records: list[tuple[str, str]],
+    xenon_data: XenonData,
+    loc_counts: dict[str, int],
 ) -> dict[str, int]:
     return await asyncio.to_thread(get_current_counts, ruff_violations, mypy_records, xenon_data, loc_counts)
 
 
 def _collect_analyzer_results(
-        touched: list[TouchedFile],
-        head_worktree: Callable[[], Path | None],
-        remove_worktree: Callable[[Path], None],
-        current_analyzers: Callable[[], AnalyzerResult],
-        current_and_before_analyzers: Callable[[Path], AnalyzerResultWithBefore],
+    touched: list[TouchedFile],
+    head_worktree: Callable[[], Path | None],
+    remove_worktree: Callable[[Path], None],
+    current_analyzers: Callable[[], AnalyzerResult],
+    current_and_before_analyzers: Callable[[Path], AnalyzerResultWithBefore],
 ) -> AnalyzerResultWithBefore:
     before_by_file: dict[str, dict[str, int]] = {"mypy": {}, "ruff": {}, "xenon": {}}
     worktree = head_worktree() if touched else None
@@ -293,11 +297,11 @@ def _collect_analyzer_results(
 
 
 async def async_collect_analyzer_results(
-        touched: list[TouchedFile],
-        head_worktree: Callable[[], Path | None],
-        remove_worktree: Callable[[Path], None],
-        current_analyzers: Callable[[], AnalyzerResult],
-        current_and_before_analyzers: Callable[[Path], AnalyzerResultWithBefore],
+    touched: list[TouchedFile],
+    head_worktree: Callable[[], Path | None],
+    remove_worktree: Callable[[Path], None],
+    current_analyzers: Callable[[], AnalyzerResult],
+    current_and_before_analyzers: Callable[[Path], AnalyzerResultWithBefore],
 ) -> AnalyzerResultWithBefore:
     return await asyncio.to_thread(
         _collect_analyzer_results,
@@ -310,11 +314,11 @@ async def async_collect_analyzer_results(
 
 
 def _file_gate_blocked(
-        touched: list[TouchedFile],
-        ruff_violations: list[RuffViolation],
-        mypy_records: list[tuple[str, str]],
-        xenon_data: XenonData,
-        before_by_file: dict[str, dict[str, int]],
+    touched: list[TouchedFile],
+    ruff_violations: list[RuffViolation],
+    mypy_records: list[tuple[str, str]],
+    xenon_data: XenonData,
+    before_by_file: dict[str, dict[str, int]],
 ) -> list[tuple[str, Path, int, int]]:
     if not touched:
         return []
@@ -364,9 +368,9 @@ def _write_new_baseline(old_baseline: dict[str, int], new_baseline: dict[str, in
 
 
 def _print_trends(
-        regressed: list[tuple[str, int, int]],
-        improved: list[tuple[str, int, int]],
-        characterization_test_touched: Callable[[], bool],
+    regressed: list[tuple[str, int, int]],
+    improved: list[tuple[str, int, int]],
+    characterization_test_touched: Callable[[], bool],
 ) -> None:
     if regressed:
         print("Incremental pre-commit ratchet: project-wide count rose (trend only, does not block)\n")
@@ -390,7 +394,7 @@ def _print_trends(
 
 
 def _tool_totals(
-        current_counts: dict[str, int], new_baseline: dict[str, int], tool_of: Callable[[str], str]
+    current_counts: dict[str, int], new_baseline: dict[str, int], tool_of: Callable[[str], str]
 ) -> tuple[dict[str, int], dict[str, int]]:
     tool_totals: dict[str, int] = {"ruff": 0, "mypy": 0, "xenon": 0, "loc": 0}
     tool_baseline_totals: dict[str, int] = {"ruff": 0, "mypy": 0, "xenon": 0, "loc": 0}
@@ -403,21 +407,25 @@ def _tool_totals(
 
 def print_ruff_details(paths: list[Path]) -> None:
     from .details import print_ruff_details as _print  # noqa: F402,E402
+
     _print(paths)
 
 
 def print_mypy_details(paths: list[Path]) -> None:
     from .details import print_mypy_details as _print  # noqa: F402,E402
+
     _print(paths)
 
 
 def print_xenon_details(paths: list[Path], max_absolute: str = "B") -> None:
     from .details import print_xenon_details as _print  # noqa: F402,E402
+
     _print(paths, max_absolute=max_absolute)
 
 
 def print_loc_details(paths: list[Path], max_lines: int = 300) -> None:
     from .details import print_loc_details as _print  # noqa: F402,E402
+
     _print(paths, max_lines=max_lines)
 
 
@@ -460,12 +468,9 @@ class RatchetSettingsOverride:
             ratchet_config.exclude_dirs = self._original_config["exclude_dirs"]
 
 
-async def baseline_current_state(
-        override: RatchetConfigOverride | None = None,
-        force: bool = False
-) -> dict[str, int]:
+async def baseline_current_state(override: RatchetConfigOverride | None = None, force: bool = False) -> dict[str, int]:
     """Allow developers to baseline current state of code with optional config override.
-    
+
     This function can be called directly by developers to generate a baseline
     from the current state of the codebase, with optional configuration overrides.
     """
@@ -474,6 +479,7 @@ async def baseline_current_state(
         from .tools import (  # noqa: F402,E402
             run_current_analyzers,
         )
+
         ruff_violations, mypy_records, xenon_data, loc_counts = run_current_analyzers()
         current_counts = await async_get_current_counts(ruff_violations, mypy_records, xenon_data, loc_counts)
         current_counts = {k: v for k, v in current_counts.items() if v > 0}
@@ -483,7 +489,7 @@ async def baseline_current_state(
 
 
 def baseline_current_state_sync(
-        override: RatchetConfigOverride | None = None,
+    override: RatchetConfigOverride | None = None,
 ) -> dict[str, int]:
     """Synchronous version of baseline_current_state."""
     with RatchetSettingsOverride(override):
@@ -491,6 +497,7 @@ def baseline_current_state_sync(
         from .tools import (  # noqa: F402,E402
             run_current_analyzers,
         )
+
         ruff_violations, mypy_records, xenon_data, loc_counts = run_current_analyzers()
         current_counts = get_current_counts(ruff_violations, mypy_records, xenon_data, loc_counts)
         current_counts = {k: v for k, v in current_counts.items() if v > 0}
