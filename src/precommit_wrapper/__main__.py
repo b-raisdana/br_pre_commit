@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import signal
+import subprocess
 import sys
 from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass
@@ -38,6 +39,13 @@ class JobResult:
 
 def _branch_protection_result(branch: str) -> JobResult | None:
     if branch not in wrapper_config.protected_branches:
+        return None
+    merge_in_progress = subprocess.run(
+        ["git", "-C", str(get_user_repo_path_from_env()), "rev-parse", "--verify", "--quiet", "MERGE_HEAD"],
+        check=False,
+        capture_output=True,
+    )
+    if merge_in_progress.returncode == 0:
         return None
     message = f"Direct commits to protected branch '{branch}' are not allowed. Create a feature branch."
     return JobResult("branch-protection", (), 1, 0.0, "", message)

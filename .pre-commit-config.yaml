@@ -71,13 +71,6 @@ repos:
         pass_filenames: true
         files: ^app/.*\.py$
 
-      - id: no-commit-to-main
-        name: block direct commits to main
-        language: system
-        entry: bash -c 'branch="$(git rev-parse --abbrev-ref HEAD)"; if [ "$branch" = "main" ]; then echo "❌ Direct commits to main are not allowed. Create a feature branch."; exit 1; fi'
-        pass_filenames: false
-        always_run: true
-
       - id: sync-skill-files
         name: sync mirrored skill files (claude/codex/devin/qoder/copilot/kiro/kilo bidirectional mirrors)
         language: system

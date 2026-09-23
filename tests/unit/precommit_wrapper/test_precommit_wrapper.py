@@ -1,5 +1,6 @@
 import asyncio
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,6 +11,11 @@ pytestmark = [pytest.mark.unit, pytest.mark.precommit_wrapper]
 
 def test_branch_protection_blocks_main_by_default(monkeypatch):
     monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches", ["main"])
+    monkeypatch.setattr(
+        precommit_wrapper.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1),
+    )
 
     result = precommit_wrapper._branch_protection_result("main")
 
@@ -22,6 +28,17 @@ def test_branch_protection_allows_feature_branch(monkeypatch):
     monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches", ["main"])
 
     assert precommit_wrapper._branch_protection_result("feature/test") is None
+
+
+def test_branch_protection_allows_merge_into_main(monkeypatch):
+    monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches", ["main"])
+    monkeypatch.setattr(
+        precommit_wrapper.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0),
+    )
+
+    assert precommit_wrapper._branch_protection_result("main") is None
 
 
 def test_hook_command_uses_explicit_files_to_avoid_nested_stash():
