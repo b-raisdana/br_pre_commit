@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from ratchet import (
-    TouchedFile,
+from ratchet.common import TouchedFile
+from ratchet.gate import evaluate_file_gate
+from ratchet.tools import (
     _group_mypy_by_file,
     _group_mypy_by_rule,
     _group_ruff_by_file,
@@ -13,11 +13,13 @@ from ratchet import (
     _group_xenon_by_file,
     _parse_mypy_records,
     _xenon_total,
-    evaluate_file_gate,
     loc_excess_total,
 )
 
-pytestmark = pytest.mark.unit
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+
+pytestmark = [pytest.mark.unit, pytest.mark.ratchet]
 
 
 # ---- pure grouping functions ----
@@ -80,12 +82,6 @@ def test_touched_app_python_files_parses_status_and_renames(monkeypatch, tmp_pat
     (tmp_path / existing).parent.mkdir(parents=True)
     (tmp_path / existing).touch()
 
-    # Mock the run function directly in the baseline module
-    import ratchet.baseline as baseline_module
-
-    monkeypatch.setattr(baseline_module, "TARGET", "app")
-    monkeypatch.setattr(baseline_module, "ROOT", tmp_path)
-
     diff_output = "\n".join(
         [
             f"M\t{existing}",
@@ -94,14 +90,29 @@ def test_touched_app_python_files_parses_status_and_renames(monkeypatch, tmp_pat
             "M\tsome_other_dir/not_app.py",
         ]
     )
-    monkeypatch.setattr(baseline_module, "run", lambda *a, **k: diff_output)
 
-    # Also need to patch the module in gate since it imports from baseline
+    # Mock the run function directly in the gate module
+    import ratchet.common as common_module
     import ratchet.gate as gate_module
 
-    monkeypatch.setattr(gate_module, "ROOT", tmp_path)
-    monkeypatch.setattr(gate_module, "TARGET", "app")
+    monkeypatch.setattr(
+        gate_module,
+        "ratchet_config",
+        type(
+            "MockConfig",
+            (),
+            {
+                "target_dir_rel_path": "src",  # string, not Path, to match new_path.parts comparison
+                "exclude_dir_regex": "archive_not_used_trash",
+                "exclude_dirs": ["archive_not_used_trash"],
+            },
+        )(),
+    )
+    monkeypatch.setattr(common_module, "run", lambda *a, **k: diff_output)
     monkeypatch.setattr(gate_module, "run", lambda *a, **k: diff_output)
+    monkeypatch.setattr(gate_module, "get_user_repo_path_from_env", lambda: tmp_path)
+    # Bypass the exclude_dir check which uses Path(line).resolve() on the raw line
+    monkeypatch.setattr("ratchet.gate.path_matches_with_regex", lambda *a, **k: False)
 
     from ratchet.gate import touched_app_python_files
 
@@ -109,11 +120,15 @@ def test_touched_app_python_files_parses_status_and_renames(monkeypatch, tmp_pat
 
     assert len(touched) == 3
     modified = touched[0]
-    assert modified.path == Path(existing) and not modified.is_new and modified.old_path == Path(existing)
+    assert modified.path == Path(existing)
+    assert not modified.is_new
+    assert modified.old_path == Path(existing)
     added = touched[1]
-    assert added.is_new and added.old_path is None
+    assert added.is_new
+    assert added.old_path is None
     renamed = touched[2]
-    assert not renamed.is_new and renamed.old_path == Path("old/path.py")
+    assert not renamed.is_new
+    assert renamed.old_path == Path("old/path.py")
 
 
 # ---- evaluate_file_gate ----
@@ -124,10 +139,10 @@ def _dicts(mypy=None, ruff=None, xenon=None):
 
 
 def test_zero_tolerance_blocks_any_increase_for_mypy_ruff_xenon(monkeypatch):
-    import ratchet.baseline as baseline_module
+    import ratchet.common as common_module
     import ratchet.gate as gate_module
 
-    monkeypatch.setattr(baseline_module, "_line_count", lambda path: 10)
+    monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)
     touched = [TouchedFile(path=Path("app/a.py"), is_new=False, old_path=Path("app/a.py"))]
     after = _dicts(mypy={"app/a.py": 3})
@@ -139,10 +154,10 @@ def test_zero_tolerance_blocks_any_increase_for_mypy_ruff_xenon(monkeypatch):
 
 
 def test_equal_or_improved_count_does_not_block(monkeypatch):
-    import ratchet.baseline as baseline_module
+    import ratchet.common as common_module
     import ratchet.gate as gate_module
 
-    monkeypatch.setattr(baseline_module, "_line_count", lambda path: 10)
+    monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)
     touched = [TouchedFile(path=Path("app/a.py"), is_new=False, old_path=Path("app/a.py"))]
     after = _dicts(ruff={"app/a.py": 2}, xenon={"app/a.py": 1})
@@ -154,9 +169,9 @@ def test_equal_or_improved_count_does_not_block(monkeypatch):
 
 
 def test_new_file_has_implicit_zero_before_for_mypy_ruff_xenon(monkeypatch):
-    import ratchet.baseline as baseline_module
+    import ratchet.common as common_module
 
-    monkeypatch.setattr(baseline_module, "_line_count", lambda path: 10)
+    monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
     touched = [TouchedFile(path=Path("app/new.py"), is_new=True, old_path=None)]
     after = _dicts(mypy={"app/new.py": 1})
     before = _dicts(mypy={"app/new.py": 5})
@@ -167,45 +182,45 @@ def test_new_file_has_implicit_zero_before_for_mypy_ruff_xenon(monkeypatch):
 
 
 def test_loc_new_file_must_fit_under_cap(monkeypatch):
-    import ratchet.baseline as baseline_module
+    import ratchet.common as common_module
 
     touched = [TouchedFile(path=Path("app/new.py"), is_new=True, old_path=None)]
 
-    monkeypatch.setattr(baseline_module, "_line_count", lambda path: 400)
+    monkeypatch.setattr(common_module, "count_lines", lambda path: 400)
     blocked = evaluate_file_gate(touched, _dicts(), _dicts())
     assert ("loc-new-file", Path("app/new.py"), 0, 400) in blocked
 
-    monkeypatch.setattr(baseline_module, "_line_count", lambda path: 250)
+    monkeypatch.setattr(common_module, "count_lines", lambda path: 250)
     blocked = evaluate_file_gate(touched, _dicts(), _dicts())
     assert not any(b[0].startswith("loc") for b in blocked)
 
 
 def test_loc_slack_only_applies_once_a_file_is_already_over_the_cap(monkeypatch):
-    import ratchet.baseline as baseline_module
+    import ratchet.common as common_module
     import ratchet.gate as gate_module
 
     touched = [TouchedFile(path=Path("app/a.py"), is_new=False, old_path=Path("app/a.py"))]
 
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 320)
-    monkeypatch.setattr(baseline_module, "_line_count", lambda path: 326)
+    monkeypatch.setattr(common_module, "count_lines", lambda path: 326)
     blocked = evaluate_file_gate(touched, _dicts(), _dicts())
     assert ("loc", Path("app/a.py"), 320, 326) in blocked
 
-    monkeypatch.setattr(baseline_module, "_line_count", lambda path: 324)
+    monkeypatch.setattr(common_module, "count_lines", lambda path: 324)
     blocked = evaluate_file_gate(touched, _dicts(), _dicts())
     assert blocked == []
 
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 290)
-    monkeypatch.setattr(baseline_module, "_line_count", lambda path: 700)
+    monkeypatch.setattr(common_module, "count_lines", lambda path: 700)
     blocked = evaluate_file_gate(touched, _dicts(), _dicts())
     assert blocked == []
 
 
 def test_renamed_file_looks_up_before_state_under_the_old_path(monkeypatch):
-    import ratchet.baseline as baseline_module
+    import ratchet.common as common_module
     import ratchet.gate as gate_module
 
-    monkeypatch.setattr(baseline_module, "_line_count", lambda path: 10)
+    monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)
     touched = [TouchedFile(path=Path("app/new_name.py"), is_new=False, old_path=Path("app/old_name.py"))]
     after = _dicts(ruff={"app/new_name.py": 4})

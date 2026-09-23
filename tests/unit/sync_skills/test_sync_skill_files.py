@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 # The hook entry point is src/sync_skills/__main__.py; load it by path instead.
-_hook_path = Path(__file__).resolve().parents[1] / "src" / "sync_skills" / "__main__.py"
+_hook_path = Path(__file__).resolve().parents[3] / "src" / "sync_skills" / "__main__.py"
 _spec = importlib.util.spec_from_file_location("sync_skills.__main__", _hook_path)
 m = importlib.util.module_from_spec(_spec)
 sys.modules["sync_skills.__main__"] = m

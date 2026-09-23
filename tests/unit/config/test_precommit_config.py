@@ -12,7 +12,7 @@ pytestmark = pytest.mark.unit
 
 
 def test_repository_pre_commit_config_uses_registered_hooks():
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[3]
     hook_ids = hooks.enabled_pre_commit_hook_ids(repo_root / ".pre-commit-config.yaml")
 
     specs, unknown = config.classify_hooks(hook_ids, policy="error")

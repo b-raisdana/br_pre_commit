@@ -4,7 +4,7 @@ import pytest
 
 import backup.__main__ as backup  # noqa: E402
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.backup]
 
 
 def test_backup_many_diffs_starts_all_files_concurrently(tmp_path, monkeypatch):

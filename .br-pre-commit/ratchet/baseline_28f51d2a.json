@@ -1,0 +1,20 @@
+{
+  "loc": 215,
+  "mypy:arg-type": 2,
+  "mypy:assignment": 1,
+  "mypy:attr-defined": 8,
+  "mypy:call-arg": 2,
+  "mypy:comparison-overlap": 1,
+  "mypy:explicit-any": 5,
+  "mypy:import-untyped": 1,
+  "mypy:misc": 8,
+  "mypy:name-defined": 1,
+  "mypy:no-any-return": 1,
+  "mypy:no-untyped-call": 1,
+  "mypy:no-untyped-def": 4,
+  "mypy:return-value": 4,
+  "mypy:typeddict-item": 1,
+  "mypy:unused-coroutine": 1,
+  "ruff:I001": 1,
+  "xenon": 2
+}

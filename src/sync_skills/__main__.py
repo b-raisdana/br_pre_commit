@@ -20,6 +20,7 @@ Exit codes: 0 = all mirrors identical (safe fixes staged); 1 = out of sync
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 
@@ -137,7 +138,7 @@ def _sync_result(problems: list[str]) -> int:
 
 def main() -> int:
     try:
-        repo_root = get_repo(_REPO_ROOT)
+        repo_root = asyncio.run(get_repo(_REPO_ROOT))
     except InvalidGitRepositoryError:
         print("sync-skill-files: not a git repository", file=sys.stderr)
         return 0

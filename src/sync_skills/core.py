@@ -7,6 +7,7 @@ git status parsing, skill discovery, and cleanup.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from pathlib import Path
 
@@ -47,11 +48,11 @@ def _rel(path: Path, repo_root: Path) -> str:
 
 
 def _index_bytes(repo_root: Path, rel: str) -> bytes | None:
-    return show_index_blob(repo_root, rel)
+    return asyncio.run(show_index_blob(repo_root, rel))
 
 
 def _stage(repo_root: Path, rel: str) -> None:
-    stage(repo_root, rel)
+    asyncio.run(stage(repo_root, rel))
 
 
 def classify_skill_path(path_str: str) -> tuple[str, str] | None:

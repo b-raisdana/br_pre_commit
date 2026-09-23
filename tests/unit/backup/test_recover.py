@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.integration, pytest.mark.backup]
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BACKUP_MODULE = "src.backup"

@@ -7,6 +7,7 @@ modification application, and verification.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from helper.git import diff_cached_name_status
@@ -31,7 +32,7 @@ def get_staged_skill_changes(repo_root: Path) -> dict[str, list[tuple[str, str, 
     """
     status_map = {"A": "add", "M": "modify", "R": "rename", "C": "rename"}
     by_skill: dict[str, list[tuple[str, str, bytes | None]]] = {}
-    for path, code in parse_staged_name_status(diff_cached_name_status(repo_root)):
+    for path, code in parse_staged_name_status(asyncio.run(diff_cached_name_status(repo_root))):
         classified = classify_skill_path(path)
         if classified is None:
             continue

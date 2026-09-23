@@ -16,7 +16,7 @@ from typing import cast
 
 from helper.paths import get_user_repo_path_from_env
 
-from .common import path_matches_with_regex, RuffViolation, XenonData, run, output_run, count_lines
+from .common import RuffViolation, XenonData, count_lines, output_run, path_matches_with_regex, run
 from .config import ratchet_config
 
 

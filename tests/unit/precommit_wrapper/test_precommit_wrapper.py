@@ -5,7 +5,7 @@ import pytest
 
 import precommit_wrapper.__main__ as precommit_wrapper  # noqa: E402
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.precommit_wrapper]
 
 
 def test_branch_protection_blocks_main_by_default(monkeypatch):

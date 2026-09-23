@@ -25,37 +25,37 @@ repos:
         args: ["--fix"]
       - id: ruff-format
 
-  # - repo: local
-  #   hooks:
-  #     - id: pytest-fast
-  #       name: pytest unit gate
-  #       language: system
-  #       entry: python -m pytest -q -m unit
-  #       pass_filenames: false
-  #       files: ^(src/.*\.py|tests/.*\.py|pyproject\.toml)$
+  - repo: local
+    hooks:
+      - id: pytest-fast
+        name: pytest unit gate
+        language: system
+        entry: python -m pytest -q -m unit
+        pass_filenames: false
+        files: ^(src/.*\.py|tests/.*\.py|pyproject\.toml)$
 
   - repo: local
     hooks:
       - id: incremental-ratchet
         name: incremental ratchet (mypy/ruff/xenon/loc - blocks regressions only, see README)
         language: system
-        entry: br_pre_commit/ratchet
+        entry: python -m ratchet
         pass_filenames: false
         files: ^app/.*\.py$
 
-      # - id: pytest-fast
-      #   name: pytest unit gate
-      #   language: system
-      #   entry: python -m pytest -m unit
-      #   pass_filenames: false
-      #   files: ^(app/.*\.py|pytest\.ini)$
+      - id: pytest-fast
+        name: pytest unit gate
+        language: system
+        entry: python -m pytest -m unit
+        pass_filenames: false
+        files: ^(app/.*\.py|pytest\.ini)$
 
-      # - id: pytest-integration-collect
-      #   name: pytest integration collection check
-      #   language: system
-      #   entry: python -m pytest --collect-only -m integration tests/integration
-      #   pass_filenames: false
-      #   files: ^tests/integration/.*\.py$
+      - id: pytest-integration-collect
+        name: pytest integration collection check
+        language: system
+        entry: python -m pytest --collect-only -m integration tests/integration
+        pass_filenames: false
+        files: ^tests/integration/.*\.py$
 
       - id: integration-tests
         name: Run modified integration tests

@@ -15,6 +15,7 @@ from .common import (
     _file_gate_blocked,
     _print_blocked,
     _print_trends,
+    _tool_of,
     _tool_totals,
     _write_new_baseline,
     async_collect_analyzer_results,
@@ -23,7 +24,7 @@ from .common import (
     async_write_new_baseline,
     compute_new_baseline,
     get_current_counts,
-    load_and_consolidate_baselines, _tool_of,
+    load_and_consolidate_baselines,
 )
 from .config import ratchet_config
 from .gate import (
@@ -33,7 +34,7 @@ from .gate import (
     characterization_test_touched,
     touched_app_python_files,
 )
-from .tools import run_current_analyzers, _run_current_and_before_analyzers
+from .tools import _run_current_and_before_analyzers, run_current_analyzers
 
 
 def main() -> int:
