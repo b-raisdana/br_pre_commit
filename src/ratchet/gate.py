@@ -14,16 +14,7 @@ from pathlib import Path
 
 from helper.paths import get_user_repo_path_from_env
 
-from .common import TouchedFile, path_matches_with_regex
-from .baseline import (  # noqa: F401,E402
-    # EXCLUDE_DIR,
-    # LOC_MAX_LINES,
-    # LOC_SLACK,
-    # ROOT,
-    # TARGET,
-    _tool_of,
-    run,
-)
+from .common import TouchedFile, path_matches_with_regex, count_lines, run
 from .config import ratchet_config
 
 
@@ -92,9 +83,7 @@ def _tool_regressions(
 
 
 def _loc_regression(touched_file: TouchedFile, before_key: str) -> tuple[str, Path, int, int] | None:
-    from .baseline import _line_count  # noqa: F402,E402
-
-    after_lines = _line_count(get_user_repo_path_from_env() / touched_file.path)
+    after_lines = count_lines(get_user_repo_path_from_env() / touched_file.path)
     if touched_file.is_new:
         if after_lines > ratchet_config.loc_max_lines:
             return "loc-new-file", touched_file.path, 0, after_lines
