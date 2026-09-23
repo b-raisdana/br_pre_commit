@@ -170,12 +170,13 @@ def _write_summary(human_ts: str, results: list[JobResult]) -> tuple[Path, list[
 
 async def _main_async() -> int:
     from .__main__ import _run_backup
+    from .hooks import pre_commit_hook_is_enabled
 
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     human_ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
     branch = await git_cmd("rev-parse", "--abbrev-ref", "HEAD")
     staged = await get_staged_files()
-    results = _run_branch_protection(branch)
+    results = _run_branch_protection(branch) if pre_commit_hook_is_enabled("no-commit-to-main") else []
     if not results:
         results = await _run_pipeline(staged)
 

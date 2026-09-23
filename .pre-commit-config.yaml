@@ -1,3 +1,5 @@
+# Master hook switches: use `stages: [pre-commit]` to enable a hook for commits
+# and `stages: [manual]` to keep its definition while disabling it.
 ci:
   autofix_commits: true
   autoupdate_schedule: monthly
@@ -7,23 +9,34 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        stages: [pre-commit]
       - id: end-of-file-fixer
+        stages: [pre-commit]
       - id: check-yaml
+        stages: [pre-commit]
       - id: check-toml
+        stages: [pre-commit]
       - id: check-added-large-files
         args: ["--maxkb=1024"]
+        stages: [pre-commit]
       - id: check-merge-conflict
+        stages: [pre-commit]
       - id: check-case-conflict
+        stages: [pre-commit]
       - id: debug-statements
+        stages: [pre-commit]
       - id: mixed-line-ending
         args: ["--fix=lf"]
+        stages: [pre-commit]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.2
     hooks:
       - id: ruff
         args: ["--fix"]
+        stages: [pre-commit]
       - id: ruff-format
+        stages: [pre-commit]
 
   - repo: local
     hooks:
@@ -33,22 +46,7 @@ repos:
         entry: python -m pytest -q -m unit
         pass_filenames: false
         files: ^(src/.*\.py|tests/.*\.py|pyproject\.toml)$
-
-  - repo: local
-    hooks:
-      - id: incremental-ratchet
-        name: incremental ratchet (mypy/ruff/xenon/loc - blocks regressions only, see README)
-        language: system
-        entry: python -m ratchet
-        pass_filenames: false
-        files: ^app/.*\.py$
-
-      - id: pytest-fast
-        name: pytest unit gate
-        language: system
-        entry: python -m pytest -m unit
-        pass_filenames: false
-        files: ^(app/.*\.py|pytest\.ini)$
+        stages: [pre-commit]
 
       - id: pytest-integration-collect
         name: pytest integration collection check
@@ -56,24 +54,53 @@ repos:
         entry: python -m pytest --collect-only -m integration tests/integration
         pass_filenames: false
         files: ^tests/integration/.*\.py$
+        stages: [pre-commit]
 
       - id: integration-tests
-        name: Run modified integration tests
+        name: run modified integration tests
         language: system
         entry: python -m pytest -q -m integration
         pass_filenames: true
         files: ^tests/integration/.*\.py$
-
-      - id: check-pandera-decorator
-        name: check pandera_validate decorator
-        language: system
-        entry: python -m check_pandera_decorator.py
-        pass_filenames: true
-        files: ^app/.*\.py$
+        stages: [pre-commit]
 
       - id: sync-skill-files
-        name: sync mirrored skill files (claude/codex/devin/qoder/copilot/kiro/kilo bidirectional mirrors)
+        name: sync mirrored skill files
         language: system
         entry: python -m sync_skills
         pass_filenames: false
         files: ^(\.claude/skills/[^/]+/SKILL\.md|\.codex/skills/[^/]+/SKILL\.md|\.devin/skills/[^/]+/SKILL\.md|\.qoder/skills/[^/]+/SKILL\.md|\.copilot/skills/[^/]+/SKILL\.md|\.kiro/skills/[^/]+/SKILL\.md|\.kilo/skills/[^/]+/SKILL\.md|\.github/git-commit/SKILL\.md)$
+        stages: [pre-commit]
+
+      - id: incremental-ratchet
+        name: incremental ratchet (mypy/ruff/xenon/loc - blocks regressions only, see README)
+        language: system
+        entry: python -m ratchet
+        pass_filenames: false
+        files: ^src/.*\.py$
+        stages: [pre-commit]
+
+      - id: check-pandera-decorator
+        name: check pandera_validate decorator
+        language: system
+        entry: python -m check_pandera_decorator
+        pass_filenames: true
+        files: ^src/.*\.py$
+        stages: [pre-commit]
+
+      - id: no-commit-to-main
+        name: block direct commits to protected branches
+        language: system
+        entry: python -m check_no_commit_to_main
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: no-object-annotations
+        name: block object type annotations
+        language: system
+        entry: python -m check_no_object_annotations
+        pass_filenames: true
+        types: [python]
+        # Disabled until the existing object annotations have been migrated.
+        stages: [manual]

@@ -21,6 +21,11 @@ def enabled_pre_commit_hook_ids(config_path: Path | None = None) -> list[str]:
     return enabled
 
 
+def pre_commit_hook_is_enabled(hook_id: str, config_path: Path | None = None) -> bool:
+    """Return whether a hook's master switch enables it for normal commits."""
+    return hook_id in enabled_pre_commit_hook_ids(config_path)
+
+
 @dataclass(frozen=True)
 class HookSpec:
     hook_id: str

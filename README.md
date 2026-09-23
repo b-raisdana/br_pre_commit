@@ -102,6 +102,8 @@ See [Integrate into a new project](#integrate-into-a-new-project) below for full
 **Every hook ID in your `.pre-commit-config.yaml` must be one of the IDs below.**
 The wrapper classifies each ID against two fixed sets in `src/precommit_wrapper/config.py`. An ID not in either set is "unregistered" and aborts the commit.
 
+The checked-in `.pre-commit-config.yaml` is the master functionality list. Every hook below has an explicit native pre-commit switch: set `stages: [pre-commit]` to enable it for commits or `stages: [manual]` to disable it while retaining its complete configuration. The wrapper, including its early protected-branch check, follows these switches. A manually disabled hook can still be run explicitly with `pre-commit run <hook-id> --hook-stage manual`.
+
 ## Standard hooks
 
 | Hook ID                      | Category  | Description                                  |
