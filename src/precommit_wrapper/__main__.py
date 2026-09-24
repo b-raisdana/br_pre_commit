@@ -123,13 +123,26 @@ def _hook_command(hook_id: str, staged: list[str]) -> list[str]:
 async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
     if proc.returncode is not None:
         return
+
+    if os.name == "nt":
+        proc.terminate()
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=3)
+        except TimeoutError:
+            proc.kill()
+            await proc.wait()
+        return
+
     try:
         os.killpg(proc.pid, signal.SIGTERM)
         await asyncio.wait_for(proc.wait(), timeout=3)
     except ProcessLookupError:
         return
     except TimeoutError:
-        os.killpg(proc.pid, signal.SIGKILL)
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
         await proc.wait()
 
 

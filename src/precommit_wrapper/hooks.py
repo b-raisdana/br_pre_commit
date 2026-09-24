@@ -43,6 +43,7 @@ _MUTATING_HOOKS = frozenset(
         "ruff",
         "ruff-format",
         "sync-skill-files",
+        br_pre_commit_config.ratchet_hook_id,
     }
 )
 _READ_ONLY_HOOKS = frozenset(
@@ -53,7 +54,6 @@ _READ_ONLY_HOOKS = frozenset(
         "check-merge-conflict",
         "check-case-conflict",
         "debug-statements",
-        br_pre_commit_config.ratchet_hook_id,
         "pytest-fast",
         "pytest-integration-collect",
         "integration-tests",

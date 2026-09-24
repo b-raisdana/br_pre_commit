@@ -59,8 +59,8 @@ def test_run_job_keeps_stdout_and_stderr_in_memory():
     result = asyncio.run(run())
 
     assert result.returncode == 0
-    assert result.stdout == "out\n"
-    assert result.stderr == "err\n"
+    assert result.stdout.splitlines() == ["out"]
+    assert result.stderr.splitlines() == ["err"]
 
 
 def test_run_job_terminates_after_timeout():

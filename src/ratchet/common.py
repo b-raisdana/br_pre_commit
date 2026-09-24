@@ -157,7 +157,7 @@ def baseline_filename(baseline: dict[str, int]) -> str:
 def write_baseline_file(baseline: dict[str, int]) -> None:  # -> Path:
     path = ratchet_config.baseline_dir / baseline_filename(baseline)
     content = json.dumps(baseline, indent=2, sort_keys=True)
-    path.write_text(content + "\n")
+    path.write_text(content + "\n", encoding="utf-8", newline="\n")
     subprocess.run(["git", "add", str(path)], cwd=get_user_repo_path_from_env(), check=False)
     print(f"Baseline written to {path}: {content}")
     # return path

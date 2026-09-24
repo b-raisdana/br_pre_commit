@@ -12,8 +12,6 @@ from pathlib import Path
 
 import yaml
 
-from precommit_wrapper.config import wrapper_config
-
 # Import names of the third-party packages br_pre_commit needs in the active
 # environment. Mirrors requirements.txt (pip names -> import names):
 #   pyyaml -> yaml, pre-commit -> pre_commit, radon -> radon, ruff -> ruff,
@@ -78,26 +76,28 @@ def is_wsl() -> bool:
     return "WSL_DISTRO_NAME" in os.environ
 
 
-def generate_posix_hook(br_pre_commit_repo_root: Path) -> str:
+def generate_posix_hook(user_repo_path: Path, br_pre_commit_repo_root: Path) -> str:
     active_venv = get_active_venv()
     assert isinstance(active_venv, Path)
 
     return (
         "#!/usr/bin/env sh\n"
         f"export BR_PRE_COMMIT_REPO_ROOT='{br_pre_commit_repo_root}'\n"
+        f"export USER_REPO_ROOT='{user_repo_path}'\n"
         f"export PYTHONPATH='{br_pre_commit_repo_root / 'src'}'\n\n"
         f"export PATH='{active_venv.parent}':\"$PATH\"\n\n"
         f'exec "{active_venv}" -m precommit_wrapper "$@"\n'
     )
 
 
-def generate_powershell_hook(user_repo_root: Path, br_pre_commit_repo_root: Path) -> str:
+def generate_powershell_hook(user_repo_path: Path, br_pre_commit_repo_root: Path) -> str:
     active_venv = get_active_venv()
     assert isinstance(active_venv, Path)
 
     return (
         "#!/bin/sh\n"
         f"export BR_PRE_COMMIT_REPO_ROOT='{br_pre_commit_repo_root}'\n"
+        f"export USER_REPO_ROOT='{user_repo_path}'\n"
         f"export PYTHONPATH='{br_pre_commit_repo_root / 'src'}'\n"
         f"export PATH='{active_venv.parent}':\"$PATH\"\n\n"
         "if command -v pwsh > /dev/null 2>&1; then\n"
@@ -164,6 +164,8 @@ def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) ->
 
     existing_ids = {h.get("id") for h in hooks if isinstance(h, dict)}
     if "incremental-ratchet" not in existing_ids:
+        from precommit_wrapper.config import wrapper_config
+
         hooks.append(wrapper_config.ratchet_hook_id)
         messages.append(f"Added 'incremental-ratchet' hook to {config_path.name}")
 
@@ -185,16 +187,19 @@ def install(cwd: Path, force: bool, dry_run: bool) -> int:
         return 1
 
     user_repo_root = get_user_repo_root_from_git(cwd)
+    os.environ["USER_REPO_ROOT"] = str(user_repo_root)
     br_pre_commit_repo_root = get_br_pre_commit_root_from_git()
+    os.environ["BR_PRE_COMMIT_REPO_ROOT"] = str(br_pre_commit_repo_root)
+
     git_dir = get_git_dir(user_repo_root)
     hook_path = git_dir / "hooks" / "pre-commit"
 
     if is_wsl():
-        hook_content = generate_posix_hook(br_pre_commit_repo_root)
+        hook_content = generate_posix_hook(user_repo_root, br_pre_commit_repo_root)
     elif sys.platform == "win32":
         hook_content = generate_powershell_hook(user_repo_root, br_pre_commit_repo_root)
     else:
-        hook_content = generate_posix_hook(br_pre_commit_repo_root)
+        hook_content = generate_posix_hook(user_repo_root, br_pre_commit_repo_root)
 
     if dry_run:
         print(f"Would write to {hook_path}")
@@ -239,11 +244,6 @@ def main() -> int:
             args.force,
             dry_run=True,
         )
-
-    answer = input("\nConfirm to continue? [y/N]: ").strip().lower()
-    if answer not in {"y", "yes"}:
-        print("Installation cancelled.")
-        return 0
 
     return install(
         user_repo_root,

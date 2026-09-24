@@ -81,7 +81,7 @@ def test_ratchet_hook_is_registered_without_recursion():
     specs, unknown = config.classify_hooks([hook_id], policy="error")
 
     assert unknown == []
-    assert specs == [config.HookSpec(hook_id, mutates_files=False)]
+    assert specs == [config.HookSpec(hook_id, mutates_files=True)]
 
 
 def test_main_is_protected_by_default(tmp_path):
