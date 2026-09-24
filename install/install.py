@@ -184,11 +184,11 @@ def install(repo_path: str | None, force: bool, dry_run: bool) -> int:
     hook_path = git_dir / "hooks" / "pre-commit"
 
     if is_wsl():
-        hook_content = generate_posix_hook(user_repo_root, br_pre_commit_repo_root)
+        hook_content = generate_posix_hook(br_pre_commit_repo_root)
     elif sys.platform == "win32":
         hook_content = generate_powershell_hook(user_repo_root, br_pre_commit_repo_root)
     else:
-        hook_content = generate_posix_hook(user_repo_root, br_pre_commit_repo_root)
+        hook_content = generate_posix_hook(br_pre_commit_repo_root)
 
     if dry_run:
         print(f"Would write to {hook_path}")
