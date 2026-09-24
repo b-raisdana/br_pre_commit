@@ -11,5 +11,5 @@ This package contains the shared runtime used by installed Git hooks:
 - `sync_skills/` synchronizes project skill mirrors.
 - `ratchet/` contains the quality ratchet implementation.
 
-These modules are invoked through the hook installed by `install/install.sh`
-or `install/install.ps1`; they are not copied into consuming projects.
+These modules are invoked through the hook installed by `../install.sh`
+or `../install.ps1`; they are not copied into consuming projects.

@@ -8,7 +8,7 @@ This guide separates three things that are often confused: where the project fil
 
 ### Linux native
 
-A project and its Git client run in a normal Linux userland on a Linux filesystem. The supported entry point is `install/install.sh`, which installs a POSIX hook that directly executes `precommit_wrapper.py`.
+A project and its Git client run in a normal Linux userland on a Linux filesystem. The supported entry point is `../../install.sh`, which installs a POSIX hook that directly executes `precommit_wrapper.py`.
 
 ### WSL
 
@@ -16,7 +16,7 @@ WSL runs a Linux userland on Windows, so its Python, shell, Git, and POSIX files
 
 ### Windows native
 
-A project and its Git client run in Windows, normally on an NTFS path such as `C:\...`. The intended entry point is `install/install.ps1`, which installs a PowerShell hook that directly executes `precommit_wrapper.py`. Native Windows support still has runtime gaps described below.
+A project and its Git client run in Windows, normally on an NTFS path such as `C:\...`. The intended entry point is `../../install.ps1`, which installs a PowerShell hook that directly executes `precommit_wrapper.py`. Native Windows support still has runtime gaps described below.
 
 ### Execution environment
 
@@ -26,9 +26,9 @@ The execution environment is the process that runs the installed Git hook. It is
 
 | Project location | Commit environment | Installer/path | Runner | Python and tools | Current status |
 |---|---|---|---|---|---|
-| Linux filesystem | Linux Git | `install/install.sh` | `precommit_wrapper.py` (via Python) | Linux/POSIX environment | Supported |
-| WSL distro filesystem | WSL Git | `install/install.sh` from WSL | `precommit_wrapper.py` (via Python) inside the configured distro | WSL Python environment | Supported |
-| Windows filesystem | Windows Git | `install/install.ps1` | `precommit_wrapper.py` (via PowerShell) | Windows Python environment | Entry point exists; runtime gaps remain |
+| Linux filesystem | Linux Git | `../../install.sh` | `precommit_wrapper.py` (via Python) | Linux/POSIX environment | Supported |
+| WSL distro filesystem | WSL Git | `../../install.sh` from WSL | `precommit_wrapper.py` (via Python) inside the configured distro | WSL Python environment | Supported |
+| Windows filesystem | Windows Git | `../../install.ps1` | `precommit_wrapper.py` (via PowerShell) | Windows Python environment | Entry point exists; runtime gaps remain |
 | WSL distro filesystem | Windows Git | Existing WSL hook | Mixed WSL/Windows handoff | Both sides may be required | Unsupported by default |
 | Windows filesystem | WSL Git | Existing Windows hook | Mixed Windows/WSL handoff | Both sides may be required | Unsupported by default |
 | Network, removable, or unusual filesystem | Either Git client | Explicit configuration required | Explicit runner | Explicit toolchain | Unsupported until tested |
@@ -39,7 +39,7 @@ The current scripts can sometimes make a mixed handoff appear to work. That is n
 
 ### Linux-native project
 
-Use `install/install.sh` and commit from Linux. The hook, Python interpreter, Git client, and project files all use the same Linux environment. This is the simplest supported mode.
+Use `../../install.sh` and commit from Linux. The hook, Python interpreter, Git client, and project files all use the same Linux environment. This is the simplest supported mode.
 
 ### WSL-native project edited from Windows
 
@@ -106,7 +106,7 @@ The following behavior should be treated as a design requirement for future inst
 9. Define how Git for Windows executes the generated PowerShell hook, including shebang and execution-policy assumptions.
 10. Define Windows-compatible project hook entries, including the POSIX-only `ratchet` launcher.
 
-The current `install/install.sh` and `install/install.ps1` are not yet at parity. Both contain a WSL branch based on `wsl.exe`, both hardcode the same distro and conda environment, and they generate different hook formats. That divergence should be resolved before documenting mixed-mode behavior as supported.
+The current `../../install.sh` and `../../install.ps1` are not yet at parity. Both contain a WSL branch based on `wsl.exe`, both hardcode the same distro and conda environment, and they generate different hook formats. That divergence should be resolved before documenting mixed-mode behavior as supported.
 
 ## Cross-platform runtime gaps to clarify
 

@@ -36,26 +36,32 @@ def get_active_venv() -> Path | None:
     return venv_path / "bin" / "python"
 
 
-def get_user_repo_root_from_git(repo_path: str | None = None) -> Path:
-    if repo_path:
-        return Path(repo_path).resolve()
-    result = Path(
+def get_user_repo_root_from_git(cwd: Path) -> Path:
+    # if cwd:
+    #     return Path(cwd).resolve()
+    user_repo_root = Path(
         subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"],
+            ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
             text=True,
         ).strip()
-    )
-    return result
+    ).resolve()
+    print(f"\nRoot path of user repository: {user_repo_root}")
+    if input("Do you confirm? [y/N]: ").strip().lower() not in ("y", "yes"):
+        exit(1)
+    return user_repo_root
 
 
-def get_br_pre_commit_root_from_git():
-    result = Path(
+def get_br_pre_commit_root_from_git() -> Path:
+    br_pre_commit_repo_root = Path(
         subprocess.check_output(
             ["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "--show-toplevel"],
             text=True,
         ).strip()
     )
-    return result
+    print(f"\nRoot path of br_pre_commit repository: {br_pre_commit_repo_root}")
+    if input("Do you confirm? [y/N]: ").strip().lower() not in ("y", "yes"):
+        exit(1)
+    return br_pre_commit_repo_root
 
 
 def get_git_dir(repo_root: Path) -> Path:
@@ -168,7 +174,7 @@ def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) ->
     return messages
 
 
-def install(repo_path: str | None, force: bool, dry_run: bool) -> int:
+def install(cwd: Path, force: bool, dry_run: bool) -> int:
     missing = verify_requirements()
     if missing:
         joined = ", ".join(missing)
@@ -178,7 +184,7 @@ def install(repo_path: str | None, force: bool, dry_run: bool) -> int:
         )
         return 1
 
-    user_repo_root = get_user_repo_root_from_git(repo_path)
+    user_repo_root = get_user_repo_root_from_git(cwd)
     br_pre_commit_repo_root = get_br_pre_commit_root_from_git()
     git_dir = get_git_dir(user_repo_root)
     hook_path = git_dir / "hooks" / "pre-commit"
@@ -196,8 +202,9 @@ def install(repo_path: str | None, force: bool, dry_run: bool) -> int:
         return 0
 
     if hook_path.exists() and not force:
-        print(f"Hook already exists at {hook_path} (use --force to overwrite)")
-        return 1
+        print(f"Hook already exists at {hook_path} (use --force to sliently overwrite)")
+        if input("Force install? (y/n) ").lower() not in ["y", "yes"]:
+            return 1
 
     hook_path.write_text(hook_content, encoding="utf-8")
     hook_path.chmod(hook_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
@@ -219,11 +226,30 @@ def main() -> int:
         return -1
 
     parser = argparse.ArgumentParser(prog="br_pre_commit.install")
-    parser.add_argument("repo_path", nargs="?", default=None)
+    parser.add_argument("user_repo_path", metavar="user-repo-path", nargs="?", default=Path.cwd())
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    return install(args.repo_path, args.force, args.dry_run)
+
+    user_repo_root = Path(args.user_repo_path).resolve() if args.user_repo_path else Path.cwd().resolve()
+
+    if args.dry_run:
+        return install(
+            user_repo_root,
+            args.force,
+            dry_run=True,
+        )
+
+    answer = input("\nConfirm to continue? [y/N]: ").strip().lower()
+    if answer not in {"y", "yes"}:
+        print("Installation cancelled.")
+        return 0
+
+    return install(
+        user_repo_root,
+        args.force,
+        dry_run=False,
+    )
 
 
 if __name__ == "__main__":
