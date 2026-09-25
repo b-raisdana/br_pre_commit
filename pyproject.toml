@@ -2,6 +2,7 @@
 pythonpath = ["src"]
 testpaths = ["tests"]
 markers = ["unit: fast isolated unit tests"]
+addopts = "-n auto"
 
 [tool.ruff]
 target-version = "py312"

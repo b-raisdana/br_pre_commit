@@ -63,6 +63,7 @@
     "${workspaceFolder}/integrations"
   ],
   "workbench.colorCustomizations": {
-    "titleBar.activeBackground": "#aa0000"
+    "titleBar.activeBackground": "#aa0000",
+    "titleBar.inactiveBackground": "#aa0000"
   }
 }
