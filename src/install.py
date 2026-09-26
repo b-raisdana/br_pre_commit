@@ -12,6 +12,8 @@ from pathlib import Path
 
 import yaml
 
+from config import br_pre_commit_config
+
 # Import names of the third-party packages br_pre_commit needs in the active
 # environment. Mirrors requirements.txt (pip names -> import names):
 #   pyyaml -> yaml, pre-commit -> pre_commit, radon -> radon, ruff -> ruff,
@@ -164,9 +166,7 @@ def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) ->
 
     existing_ids = {h.get("id") for h in hooks if isinstance(h, dict)}
     if "incremental-ratchet" not in existing_ids:
-        from precommit_wrapper.config import wrapper_config
-
-        hooks.append(wrapper_config.ratchet_hook_id)
+        hooks.append(br_pre_commit_config.ratchet_hook_id)
         messages.append(f"Added 'incremental-ratchet' hook to {config_path.name}")
 
     config_path.write_text(
