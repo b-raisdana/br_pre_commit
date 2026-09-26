@@ -16,7 +16,6 @@ import optree
 import pandas as pd
 import pandera.pandas as pa
 from br_py_log_n_profile import log_d, log_w
-from br_py_log_n_profile.do_log.log_it import NOT_TESTED
 
 from config import app_config
 
@@ -218,7 +217,7 @@ def _resolve_n_return_state(
         n_return_valid = isinstance(n_return_raw, int) and not isinstance(n_return_raw, bool)
 
         if expect_n_return_enforcement:
-            log_w(NOT_TESTED)
+            # log_w(NOT_TESTED)
             if n_return_raw is None:
                 raise TypeError(
                     f"{func_obj.__qualname__}: 'n_return' is required (pass allow_return_nan=True to skip enforcement)."
@@ -341,7 +340,7 @@ def pandera_validate[**P, R](
             if not state.expect_n_return_enforcement:
                 return result
 
-            log_w(NOT_TESTED)
+            # log_w(NOT_TESTED)
             assert state.n_return_valid  # guaranteed by the raise above when enforcement_active
             return _enforce_output(
                 result,
