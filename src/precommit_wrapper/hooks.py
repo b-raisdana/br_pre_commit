@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from config import br_pre_commit_config
-from precommit_wrapper.config import get_pre_commit_config_from_yaml, wrapper_config
+from precommit_wrapper.config import get_mutating_hooks
 
 
 def enabled_pre_commit_hook_ids(config_path: Path | None = None) -> list[str]:
+    from precommit_wrapper.config import get_pre_commit_config_from_yaml, wrapper_config
+
     config = get_pre_commit_config_from_yaml(config_path)
     enabled: list[str] = []
     for repo in config.get("repos", []):
@@ -37,17 +38,17 @@ class HookSpec:
 # Recognized hook IDs the wrapper can classify. Projects must use IDs from
 # these sets; see README.md § "Recognized hook IDs" for the full list and
 # .pre-commit-config.yaml as the authoritative reference config.
-_MUTATING_HOOKS = frozenset(
-    {
-        "trailing-whitespace",
-        "end-of-file-fixer",
-        "mixed-line-ending",
-        "ruff",
-        "ruff-format",
-        "sync-skill-files",
-        br_pre_commit_config.ratchet_hook_id,
-    }
-)
+# _MUTATING_HOOKS = frozenset(
+#     {
+#         "trailing-whitespace",
+#         "end-of-file-fixer",
+#         "mixed-line-ending",
+#         "ruff",
+#         "ruff-format",
+#         "sync-skill-files",
+#         br_pre_commit_config.ratchet_hook_id,
+#     }
+# )
 _READ_ONLY_HOOKS = frozenset(
     {
         "check-yaml",
@@ -75,10 +76,12 @@ def classify_hooks(hook_ids: list[str], *, policy: str) -> tuple[list[HookSpec],
     Projects must use IDs from those sets — see ``.pre-commit-config.yaml``
     as the authoritative reference.
     """
+
     specs: list[HookSpec] = []
     unknown: list[str] = []
     for hook_id in hook_ids:
-        if hook_id in _MUTATING_HOOKS:
+        # if hook_id in _MUTATING_HOOKS:
+        if hook_id in get_mutating_hooks():
             specs.append(HookSpec(hook_id, mutates_files=True))
         elif hook_id in _READ_ONLY_HOOKS:
             specs.append(HookSpec(hook_id, mutates_files=False))

@@ -7,7 +7,6 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import precommit_wrapper.config as config
 import precommit_wrapper.hooks as hooks
-from config import br_pre_commit_config  # noqa: E402
 
 pytestmark = pytest.mark.unit
 
@@ -27,7 +26,7 @@ def test_repository_config_has_one_master_switch_for_every_recognized_hook():
     config_data = yaml.safe_load((repo_root / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
     hooks_in_config = [hook for repo in config_data["repos"] for hook in repo["hooks"]]
     hook_ids = [hook["id"] for hook in hooks_in_config]
-    recognized = config._MUTATING_HOOKS | config._READ_ONLY_HOOKS
+    recognized = config.get_mutating_hooks() | config._READ_ONLY_HOOKS
 
     assert len(hook_ids) == len(set(hook_ids))
     assert set(hook_ids) == recognized
@@ -77,6 +76,8 @@ def test_unknown_hook_warn_policy_reports_and_serializes():
 
 
 def test_ratchet_hook_is_registered_without_recursion():
+    from config import br_pre_commit_config
+
     hook_id = br_pre_commit_config.ratchet_hook_id
     specs, unknown = config.classify_hooks([hook_id], policy="error")
 

@@ -2,20 +2,21 @@ import subprocess
 from functools import lru_cache
 from pathlib import Path
 
-from config import br_pre_commit_config
-
 
 @lru_cache
 def get_user_repo_path_from_env() -> Path:
+    from config import br_pre_commit_config
+
     repo_root = br_pre_commit_config.user_repo_root
     if not repo_root:
         raise ValueError("USER_REPO_ROOT environment variable is required")
-    # repo_root = Path(__file__).resolve().parent.parent
     return Path(repo_root).resolve()
 
 
 @lru_cache
 def get_br_pre_commit_repo_path_from_env() -> Path:
+    from config import br_pre_commit_config
+
     repo_root = br_pre_commit_config.br_pre_commit_repo_root
     if not repo_root:
         raise ValueError("BR_PRE_COMMIT_REPO_ROOT environment variable is required")
@@ -35,12 +36,16 @@ def get_log_file() -> Path:
 
 @lru_cache
 def get_pre_commit_config_yaml_path() -> Path:
+    from config import br_pre_commit_config
+
     return get_user_repo_path_from_env() / br_pre_commit_config.pre_commit_config_yaml_file_name
     # ".pre-commit-config.yaml"
 
 
 @lru_cache
 def get_pyproject_toml_path() -> Path:
+    from config import br_pre_commit_config
+
     return get_user_repo_path_from_env() / br_pre_commit_config.py_project_toml_file_name  # "pyproject.toml"
 
 

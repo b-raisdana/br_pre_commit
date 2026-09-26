@@ -4,7 +4,6 @@ from pathlib import Path
 
 from pydantic import Field
 
-from config import br_pre_commit_config
 from helper.config import FromPyProjectTomlConfig
 from helper.paths import get_user_repo_path_from_env
 
@@ -30,6 +29,8 @@ class RatchetConfig(FromPyProjectTomlConfig):
 
     @property
     def baseline_dir(self):
+        from config import br_pre_commit_config
+
         return (
             get_user_repo_path_from_env()
             / br_pre_commit_config.data_folder_rel_path

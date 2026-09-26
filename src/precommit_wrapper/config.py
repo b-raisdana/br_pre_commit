@@ -7,7 +7,6 @@ from typing import Literal, TypedDict, cast
 import yaml
 from pydantic import Field, field_validator
 
-from config import br_pre_commit_config
 from helper.config import FromPyProjectTomlConfig
 
 # def _flatten_defaults() -> dict[str, dict[str, object]]:  # ignore: no-object-annotations
@@ -60,32 +59,11 @@ class PreCommitConfig(TypedDict, total=False):
 
 
 def get_pre_commit_config_from_yaml(config_path: Path | None = None) -> PreCommitConfig:
+    from config import br_pre_commit_config
+
     config_path = config_path or br_pre_commit_config.pre_commit_config_yaml_file_name
     config = cast(PreCommitConfig, yaml.safe_load(config_path.read_text(encoding="utf-8")) or {})
     return config
-
-
-# def _merge_wrapper(base: WrapperConfig | None, override: WrapperConfig | None) -> WrapperConfig | None:
-#     if base is None:
-#         return override
-#     if override is None:
-#         return base
-#     return WrapperConfig(**base, **override)
-
-
-# def _merge_ratchet(base: RatchetConfig | None, override: RatchetConfig | None) -> RatchetConfig | None:
-#     if base is None:
-#         return override
-#     if override is None:
-#         return base
-#     return RatchetConfig(**base, **override)
-
-
-# def _merged_config() -> AppConfig:
-#     """Load shared defaults from [tool.br_pre_commit.*] in pyproject.toml."""
-#     defaults = _flatten_defaults()
-#     result = AppConfig(**defaults)
-#     return result
 
 
 @dataclass(frozen=True)
@@ -97,17 +75,33 @@ class HookSpec:
 # Recognized hook IDs the wrapper can classify. Projects must use IDs from
 # these sets; see README.md § "Recognized hook IDs" for the full list and
 # .pre-commit-config.yaml as the authoritative reference config.
-_MUTATING_HOOKS = frozenset(
-    {
-        "trailing-whitespace",
-        "end-of-file-fixer",
-        "mixed-line-ending",
-        "ruff",
-        "ruff-format",
-        "sync-skill-files",
-        br_pre_commit_config.ratchet_hook_id,
-    }
-)
+def get_mutating_hooks() -> frozenset[str]:
+    from config import br_pre_commit_config
+
+    return frozenset(
+        {
+            "trailing-whitespace",
+            "end-of-file-fixer",
+            "mixed-line-ending",
+            "ruff",
+            "ruff-format",
+            "sync-skill-files",
+            br_pre_commit_config.ratchet_hook_id,
+        }
+    )
+
+
+# _MUTATING_HOOKS = frozenset(
+#     {
+#         "trailing-whitespace",
+#         "end-of-file-fixer",
+#         "mixed-line-ending",
+#         "ruff",
+#         "ruff-format",
+#         "sync-skill-files",
+#         br_pre_commit_config.ratchet_hook_id,
+#     }
+# )
 _READ_ONLY_HOOKS = frozenset(
     {
         "check-yaml",
@@ -179,7 +173,7 @@ def classify_hooks(hook_ids: list[str], *, policy: str) -> tuple[list[HookSpec],
     specs: list[HookSpec] = []
     unknown: list[str] = []
     for hook_id in hook_ids:
-        if hook_id in _MUTATING_HOOKS:
+        if hook_id in get_mutating_hooks():
             specs.append(HookSpec(hook_id, mutates_files=True))
         elif hook_id in _READ_ONLY_HOOKS:
             specs.append(HookSpec(hook_id, mutates_files=False))
