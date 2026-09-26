@@ -6,16 +6,18 @@ from precommit_wrapper.config import get_pre_commit_config_from_yaml, wrapper_co
 
 
 def enabled_pre_commit_hook_ids(config_path: Path | None = None) -> list[str]:
-    # config = config_path or br_pre_commit_config.pre_commit_config_yaml_file_name
-    # config = cast(PreCommitConfig, yaml.safe_load(config_path.read_text(encoding="utf-8")) or {})
     config = get_pre_commit_config_from_yaml(config_path)
     enabled: list[str] = []
     for repo in config.get("repos", []):
         for hook in repo.get("hooks", []):
-            hook_id = hook.get("id")
+            if isinstance(hook, str):
+                hook_id = hook
+                stages = None
+            else:
+                hook_id = hook.get("id")
+                stages = hook.get("stages")
             if not isinstance(hook_id, str) or not hook_id:
                 continue
-            stages = hook.get("stages")
             if stages is None or wrapper_config.pre_commit_stage in stages:
                 enabled.append(hook_id)
     return enabled
