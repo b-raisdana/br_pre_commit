@@ -12,6 +12,8 @@ from pathlib import Path
 
 import yaml
 
+from helper.paths import get_pre_commit_config_yaml_path
+
 # Import names of the third-party packages br_pre_commit needs in the active
 # environment. Mirrors requirements.txt (pip names -> import names):
 #   pyyaml -> yaml, pre-commit -> pre_commit, radon -> radon, ruff -> ruff,
@@ -133,7 +135,7 @@ def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) ->
 
     Returns a list of human-readable messages describing what was added.
     """
-    config_path = user_repo_root / ".pre-commit-config.yaml"
+    config_path = get_pre_commit_config_yaml_path()  # user_repo_root / ".pre-commit-config.yaml"
     messages: list[str] = []
 
     if not config_path.exists():

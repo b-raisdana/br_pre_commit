@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from helper.paths import get_user_repo_path_from_env
+from helper.paths import get_pre_commit_config_yaml_path, get_user_repo_path_from_env
 
 from .common import TouchedFile, path_matches_with_regex, run
 from .config import ratchet_config
@@ -134,7 +134,9 @@ def _validate_configured_hooks() -> list[str]:
     from precommit_wrapper.config import classify_hooks, wrapper_config  # noqa: E402
     from precommit_wrapper.hooks import enabled_pre_commit_hook_ids  # noqa: E402
 
-    hook_ids = enabled_pre_commit_hook_ids(get_user_repo_path_from_env() / ".pre-commit-config.yaml")
+    hook_ids = enabled_pre_commit_hook_ids(
+        get_pre_commit_config_yaml_path()
+    )  # get_user_repo_path_from_env() / ".pre-commit-config.yaml")
     _, unknown = classify_hooks(hook_ids, policy=wrapper_config.unknown_hook_policy)
     return unknown
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from helper.paths import get_user_repo_path_from_env
+from helper.paths import get_pyproject_toml_path, get_user_repo_path_from_env
 
 from . import baseline as _baseline
 from . import tools as _tools
@@ -33,7 +33,7 @@ def print_mypy_details(paths: list[Path]) -> None:
     if not app_paths:
         print("    no files to inspect")
         return
-    config_path = str(get_user_repo_path_from_env() / "pyproject.toml")
+    config_path = get_pyproject_toml_path()  # str(get_user_repo_path_from_env() / "pyproject.toml")
     cwd = get_user_repo_path_from_env() / ratchet_config.target_dir_rel_path
     output = _baseline.run_output("mypy", "--config-file", config_path, *app_paths, cwd=cwd)
     print(output.rstrip() or "    mypy reported no errors on these files")

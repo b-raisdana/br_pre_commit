@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import cast
 
-from helper.paths import get_user_repo_path_from_env
+from helper.paths import get_pyproject_toml_path, get_user_repo_path_from_env
 
 from .common import RuffViolation, XenonData, count_lines, output_run, path_matches_with_regex, run
 from .config import ratchet_config
@@ -65,7 +65,11 @@ def _parse_mypy_records(output: str) -> list[tuple[str, str]]:
 def mypy_run(root: Path | None = None) -> list[tuple[str, str]]:
     root = root or get_user_repo_path_from_env()
     output = output_run(
-        "mypy", "--config-file", str(root / "pyproject.toml"), ".", cwd=root / ratchet_config.target_dir_rel_path
+        "mypy",
+        "--config-file",
+        str(get_pyproject_toml_path()),  # str(root / "pyproject.toml"),
+        ".",
+        cwd=root / ratchet_config.target_dir_rel_path,
     )
     return _parse_mypy_records(output)
 

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from backup.config import backup_config
 from helper.git import git_cmd
-from helper.paths import get_full_backup_dir
+from helper.paths import get_full_backup_dir, get_log_dir
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # noqa: E402
 
@@ -273,7 +273,8 @@ def take_snapshot(repo_root: Path) -> Manifest:
 
 
 def get_snapshot_dir(branch: str, commit_hash: str, repo_root: Path) -> Path:
-    snapshot_dir = repo_root / "logs" / "pre-commit" / "backup-patches" / f"{flatten_path(branch)}.{commit_hash[:7]}"
+    # snapshot_dir = repo_root / "logs" / "pre-commit" / "backup-patches" / f"{flatten_path(branch)}.{commit_hash[:7]}"
+    snapshot_dir = get_log_dir() / "backup-patches" / f"{flatten_path(branch)}.{commit_hash[:7]}"
     try:
         snapshot_dir.mkdir(parents=True, exist_ok=True)
     except Exception as exc:

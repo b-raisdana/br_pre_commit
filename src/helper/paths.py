@@ -35,17 +35,19 @@ def get_log_file() -> Path:
 
 @lru_cache
 def get_pre_commit_config_yaml_path() -> Path:
-    return get_user_repo_path_from_env() / ".pre-commit-config.yaml"
+    return get_user_repo_path_from_env() / br_pre_commit_config.pre_commit_config_yaml_file_name
+    # ".pre-commit-config.yaml"
 
 
 @lru_cache
 def get_pyproject_toml_path() -> Path:
-    return get_user_repo_path_from_env() / "pyproject.toml"
+    return get_user_repo_path_from_env() / br_pre_commit_config.py_project_toml_file_name  # "pyproject.toml"
 
 
 @lru_cache
 def get_full_backup_dir(repo_root: Path) -> Path:
-    return repo_root / "logs" / "pre-commit" / "full_backup"
+    # return repo_root / "logs" / "pre-commit" / "full_backup"
+    return get_log_dir() / "full_backup"
 
 
 def get_ratchet_baseline_dir(repo_root: Path) -> Path:

@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from helper.paths import get_log_dir
+
 pytestmark = [pytest.mark.integration, pytest.mark.backup]
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -34,7 +36,8 @@ def _run_backup(repo_root: Path) -> Path:
         cwd=repo_root,
         env=_TEST_ENV,
     )
-    snapshot_dirs = list((repo_root / "logs" / "pre-commit" / "backup-patches").iterdir())
+    # snapshot_dirs = list((repo_root / "logs" / "pre-commit" / "backup-patches").iterdir())
+    snapshot_dirs = list((get_log_dir() / "backup-patches").iterdir())
     assert snapshot_dirs, "No snapshot directory created"
     return sorted(snapshot_dirs)[-1]
 
