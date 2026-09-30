@@ -111,7 +111,3 @@ repos:
     language: system
     entry: python -m check_no_object_annotations
     pass_filenames: true
-    types:
-    - python
-    stages:
-    - manual

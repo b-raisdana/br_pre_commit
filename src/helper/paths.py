@@ -56,7 +56,9 @@ def get_full_backup_dir(repo_root: Path) -> Path:
 
 
 def get_ratchet_baseline_dir(repo_root: Path) -> Path:
-    return get_user_repo_path_from_env() / ".br-pre-commit" / "ratchet"
+    dir_ = get_user_repo_path_from_env() / ".br-pre-commit" / "ratchet"
+    dir_.mkdir(exist_ok=True)
+    return dir_
 
 
 def get_user_repo_root_from_git(repo_path: str | None = None) -> Path:

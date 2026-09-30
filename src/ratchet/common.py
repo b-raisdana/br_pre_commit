@@ -154,8 +154,9 @@ def baseline_filename(baseline: dict[str, int]) -> str:
     return f"baseline_{baseline_content_hash(baseline)}.json"
 
 
-def write_baseline_file(baseline: dict[str, int]) -> None:  # -> Path:
+def write_baseline_file(baseline: dict[str, int]) -> None:
     path = ratchet_config.baseline_dir / baseline_filename(baseline)
+    path.parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(baseline, indent=2, sort_keys=True)
     path.write_text(content + "\n", encoding="utf-8", newline="\n")
     subprocess.run(["git", "add", str(path)], cwd=get_user_repo_path_from_env(), check=False)
@@ -166,7 +167,6 @@ def write_baseline_file(baseline: dict[str, int]) -> None:  # -> Path:
 
 def find_baseline_files() -> list[Path]:
     from .config import ratchet_config
-
     return sorted(ratchet_config.baseline_dir.glob(ratchet_config.baseline_glob))
 
 

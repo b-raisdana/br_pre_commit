@@ -35,14 +35,14 @@ pytestmark = [pytest.mark.unit, pytest.mark.ratchet]
 #     return tmp_path
 
 
-def _seed(baseline_dir: Path, data: dict[str, int]) -> Path:
-    path = baseline_dir / "baseline.json"
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
-    return path
+# def _seed(baseline_dir: Path, data: dict[str, int]) -> Path:
+#     path = baseline_dir / "baseline.json"
+#     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+#     return path
 
 
-def _baseline_contents(baseline_dir: Path) -> list[dict[str, int]]:
-    return [json.loads(f.read_text()) for f in sorted(baseline_dir.glob("baseline*.json"))]
+# def _baseline_contents(baseline_dir: Path) -> list[dict[str, int]]:
+#     return [json.loads(f.read_text()) for f in sorted(baseline_dir.glob("baseline*.json"))]
 
 
 # ---- main(): aggregate is trend-only, the file gate is what blocks ----
