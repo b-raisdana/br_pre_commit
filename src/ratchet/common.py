@@ -155,7 +155,7 @@ def baseline_filename(baseline: dict[str, int]) -> str:
 
 
 def write_baseline_file(baseline: dict[str, int]) -> None:
-    path = ratchet_config.baseline_dir / baseline_filename(baseline)
+    path = get_baseline_path() / baseline_filename(baseline)
     path.parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(baseline, indent=2, sort_keys=True)
     path.write_text(content + "\n", encoding="utf-8", newline="\n")
@@ -166,8 +166,8 @@ def write_baseline_file(baseline: dict[str, int]) -> None:
 
 
 def find_baseline_files() -> list[Path]:
-    from .config import ratchet_config
-    return sorted(ratchet_config.baseline_dir.glob(ratchet_config.baseline_glob))
+    from helper.paths import get_ratchet_baseline_dir
+    return sorted(get_ratchet_baseline_dir().glob(ratchet_config.baseline_glob))
 
 
 async def async_write_baseline_file(baseline: dict[str, int]) -> None:

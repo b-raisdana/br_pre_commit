@@ -27,15 +27,18 @@ class RatchetConfig(FromPyProjectTomlConfig):
     ]
     exclude_dir_regex: str = Field(default="archive_not_used_trash", validation_alias="exclude-dir")
 
-    @property
-    def baseline_dir(self) -> Path:
-        from config import br_pre_commit_config
+    # @property
+    # def baseline_dir(self) -> Path:
+    #     from config import br_pre_commit_config
 
-        return (
-            get_user_repo_path_from_env()
-            / br_pre_commit_config.data_folder_rel_path
-            / self.ratchet_data_folder_rel_path
-        )
+    #     dir_: Path = (
+    #         get_user_repo_path_from_env()
+    #         / br_pre_commit_config.data_folder_rel_path
+    #         / self.ratchet_data_folder_rel_path
+    #     )
+    #     dir_.mkdir(parents=True, exist_ok=True)
+
+    #     return dir_
 
 
 ratchet_config: RatchetConfig = RatchetConfig.from_pyproject_toml("ratchet")
