@@ -9,7 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from br_py_log_n_profile import log_d
-from helper.repo_root import find_repo_root
+
+from ..helper.repo_root import find_repo_root
 
 DEFAULT_DUMP_SUBPATH = Path("logs") / "output_dump"
 

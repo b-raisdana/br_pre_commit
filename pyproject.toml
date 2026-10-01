@@ -1,3 +1,13 @@
+[project]
+name = "br_pre_commit"
+version = "0.1.0"
+description = "Pre-commit hooks and utilities"
+readme = "README.md"
+requires-python = ">=3.12"
+
+[tool.setuptools]
+packages = ["br_pre_commit"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]

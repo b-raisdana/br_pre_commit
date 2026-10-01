@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,6 +14,7 @@ class AppConfig(BaseSettings):
     pre_commit_config_yaml_file_name: Path = Path(".pre-commit-config.yaml")
 
     ratchet_hook_id: str = "incremental-ratchet"
+    environment: Literal["production", "development"] = "development"
 
     model_config = SettingsConfigDict(
         env_file=".env",

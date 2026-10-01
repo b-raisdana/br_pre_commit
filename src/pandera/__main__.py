@@ -17,9 +17,9 @@ import optree
 import pandas as pd
 import pandera.pandas as pa
 from br_py_log_n_profile import log_d, log_w
-from helper.output_dump import dump_function_output
 
-from config import app_config
+from ..config import br_pre_commit_config
+from ..helper.output_dump import dump_function_output
 
 Pandera_DFM_Type = TypeVar("Pandera_DFM_Type", bound=pa.DataFrameModel)
 _WARN_INACTIVE_N_RETURN_CHECK_ENFORCEMENT: bool = False
@@ -311,7 +311,7 @@ def pandera_validate[**P, R](
             )
             _report_nan_fills(func_obj, hits, forbid=forbid_nan_fill)
 
-        if app_config.environment == "production":
+        if br_pre_commit_config.environment == "production":
             return func
 
         inner = pa.check_types(lazy=True)(func)

@@ -17,5 +17,6 @@
   "mypy:unused-coroutine": 1,
   "ruff:F401": 1,
   "ruff:I001": 1,
+  "ruff:SIM115": 3,
   "xenon": 2
 }
