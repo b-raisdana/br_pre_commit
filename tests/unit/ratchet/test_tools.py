@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
+import helper.paths as paths_module
+import ratchet.common as common_module
+from ratchet.__main__ import main
 from ratchet.common import (
+    TouchedFile,
+    baseline_filename,
     compute_new_baseline,
     merge_baselines,
 )
@@ -16,113 +21,118 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 pytestmark = [pytest.mark.unit, pytest.mark.ratchet]
 
 
-# @pytest.fixture
-# def hermetic(tmp_path, monkeypatch):
-#     import ratchet.baseline as baseline_module
-#     import ratchet.gate as gate_module
-#     import ratchet.tools as tools_module
+@pytest.fixture
+def hermetic(tmp_path, monkeypatch):
+    """Point ratchet at a throwaway repo root with an empty, writable baseline dir."""
+    import ratchet.__main__ as main_module
+    import ratchet.gate as gate_module
+    import ratchet.tools as tools_module
 
-#     monkeypatch.setattr(baseline_module, "ROOT", tmp_path)
-#     monkeypatch.setattr(baseline_module, "BASELINE_DIR", tmp_path)
-#     monkeypatch.setattr(gate_module, "ROOT", tmp_path)
-#     monkeypatch.setattr(tools_module, "ROOT", tmp_path)
-#     (tmp_path / ".pre-commit-config.yaml").write_text("repos: []\n")
-#     monkeypatch.setattr(gate_module, "characterization_test_touched", lambda: True)
-#     import subprocess
-
-#     monkeypatch.setattr(subprocess, "run", lambda *a, **k: None)
-#     monkeypatch.setattr(tools_module, "loc_line_counts", lambda: {})
-#     return tmp_path
+    monkeypatch.setattr(paths_module, "get_ratchet_baseline_dir", lambda: tmp_path)
+    for module in (common_module, gate_module, tools_module):
+        monkeypatch.setattr(module, "get_user_repo_path_from_env", lambda: tmp_path)
+    monkeypatch.setattr(common_module.subprocess, "run", lambda *a, **k: None)
+    monkeypatch.setattr(main_module, "_validate_configured_hooks", lambda: [])
+    monkeypatch.setattr(main_module, "characterization_test_touched", lambda: False)
+    _block_details_off(monkeypatch)
+    return tmp_path
 
 
-# def _seed(baseline_dir: Path, data: dict[str, int]) -> Path:
-#     path = baseline_dir / "baseline.json"
-#     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
-#     return path
+def _seed(baseline_dir: Path, data: dict[str, int]) -> Path:
+    path = baseline_dir / baseline_filename(data)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
 
 
-# def _baseline_contents(baseline_dir: Path) -> list[dict[str, int]]:
-#     return [json.loads(f.read_text()) for f in sorted(baseline_dir.glob("baseline*.json"))]
+def _baseline_contents(baseline_dir: Path) -> list[dict[str, int]]:
+    return [json.loads(f.read_text()) for f in sorted(baseline_dir.glob("baseline*.json"))]
+
+
+def _block_details_off(monkeypatch):
+    # details.py reaches for helper symbols on the baseline module that no longer exist
+    # there, so the detail printers would raise. They are not under test here.
+    monkeypatch.setattr(
+        common_module,
+        "DETAIL_PRINTERS",
+        {tool: lambda paths: None for tool in ("ruff", "mypy", "xenon", "loc")},
+    )
 
 
 # ---- main(): aggregate is trend-only, the file gate is what blocks ----
 
 
-# def test_aggregate_regression_alone_never_blocks(hermetic, monkeypatch, capsys):
-# _seed(hermetic, {"ruff:E501": 3})
-# import ratchet.gate as gate_module
-# import ratchet.tools as tools_module
+def test_aggregate_regression_alone_never_blocks(hermetic, monkeypatch, capsys):
+    import ratchet.__main__ as main_module
+    import ratchet.tools as tools_module
 
-# monkeypatch.setattr(
-#     tools_module, "ruff_run", lambda root=None: [{"code": "E501", "filename": "/repo/app/a.py"}] * 5
-# )
-# monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: [])
-# monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: {})
-# monkeypatch.setattr(gate_module, "touched_app_python_files", lambda: [])
+    _seed(hermetic, {"ruff:E501": 3})
+    monkeypatch.setattr(
+        tools_module,
+        "ruff_run",
+        lambda root=None: [{"filename": "/repo/src/a.py", "code": "E501"}] * 5,
+    )
+    monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: [])
+    monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: {})
+    monkeypatch.setattr(tools_module, "loc_line_counts", lambda root=None: {})
+    monkeypatch.setattr(main_module, "touched_app_python_files", lambda: [])
 
-# from ratchet.__main__ import main
+    exit_code = main()
 
-# exit_code = main()
-
-# out = capsys.readouterr().out
-# assert exit_code == 0
-# assert "BLOCKED" not in out
-# assert "trend only, does not block" in out
-
-
-# def test_touched_file_regression_blocks_even_with_no_prior_baseline(hermetic, monkeypatch, capsys):
-#     import ratchet.baseline as baseline_module
-#     import ratchet.gate as gate_module
-#     import ratchet.tools as tools_module
-
-#     absolute_path = str(hermetic / "app/a.py")
-#     monkeypatch.setattr(tools_module, "ruff_run", lambda root=None: [{"code": "E501", "filename": absolute_path}])
-#     monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: [])
-#     monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: {})
-#     monkeypatch.setattr(
-#         gate_module,
-#         "touched_app_python_files",
-#         lambda: [TouchedFile(path=Path("app/a.py"), is_new=False, old_path=Path("app/a.py"))],
-#     )
-#     monkeypatch.setattr(gate_module, "_head_worktree", lambda: None)
-#     monkeypatch.setattr(baseline_module, "_line_count", lambda path: 10)
-#     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)
-#     monkeypatch.setattr(baseline_module, "run_output", lambda *a, **k: "")
-
-#     from ratchet.__main__ import main
-
-#     exit_code = main()
-
-#     out = capsys.readouterr().out
-#     assert exit_code == 1
-#     assert "ruff in app/a.py: 0 -> 1" in out
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "BLOCKED" not in out
+    assert "trend only, does not block" in out
 
 
-# def test_touched_file_with_no_regression_passes_and_resyncs_baseline(hermetic, monkeypatch):
-#     _seed(hermetic, {"ruff:OLD": 2})
-#     import ratchet.baseline as baseline_module
-#     import ratchet.gate as gate_module
-#     import ratchet.tools as tools_module
+def test_touched_file_regression_blocks_even_with_no_prior_baseline(hermetic, monkeypatch, capsys):
+    import ratchet.__main__ as main_module
+    import ratchet.tools as tools_module
 
-#     monkeypatch.setattr(tools_module, "ruff_run", lambda root=None: [])
-#     monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: [])
-#     monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: {})
-#     monkeypatch.setattr(
-#         gate_module,
-#         "touched_app_python_files",
-#         lambda: [TouchedFile(path=Path("app/a.py"), is_new=False, old_path=Path("app/a.py"))],
-#     )
-#     monkeypatch.setattr(gate_module, "_head_worktree", lambda: None)
-#     monkeypatch.setattr(baseline_module, "_line_count", lambda path: 10)
-#     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)
+    _block_details_off(monkeypatch)
+    touched = [TouchedFile(path=Path("src/a.py"), is_new=False, old_path=Path("src/a.py"))]
+    monkeypatch.setattr(
+        tools_module,
+        "ruff_run",
+        lambda root=None: [{"filename": str(hermetic / "src/a.py"), "code": "E501"}],
+    )
+    monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: [])
+    monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: {})
+    monkeypatch.setattr(tools_module, "loc_line_counts", lambda root=None: {})
+    monkeypatch.setattr(main_module, "touched_app_python_files", lambda: touched)
+    monkeypatch.setattr(main_module, "_head_worktree", lambda: None)
+    monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
+    monkeypatch.setattr("ratchet.gate._head_line_count", lambda relpath: 10)
 
-#     from ratchet.__main__ import main
+    exit_code = main()
 
-#     exit_code = main()
+    out = capsys.readouterr().out
+    assert exit_code == 1
+    assert "ruff in src/a.py: 0 -> 1" in out
 
-#     assert exit_code == 0
-#     assert json.loads((hermetic / "baseline.json").read_text()) == {"ruff:OLD": 2}
-#     assert {} in _baseline_contents(hermetic)
+
+def test_touched_file_with_no_regression_passes_and_resyncs_baseline(hermetic, monkeypatch):
+    import ratchet.__main__ as main_module
+    import ratchet.tools as tools_module
+
+    _block_details_off(monkeypatch)
+    _seed(hermetic, {"ruff:OLD": 2})
+    touched = [TouchedFile(path=Path("src/a.py"), is_new=False, old_path=Path("src/a.py"))]
+    monkeypatch.setattr(tools_module, "ruff_run", lambda root=None: [])
+    monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: [])
+    monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: {})
+    monkeypatch.setattr(tools_module, "loc_line_counts", lambda root=None: {})
+    monkeypatch.setattr(main_module, "touched_app_python_files", lambda: touched)
+    monkeypatch.setattr(main_module, "_head_worktree", lambda: None)
+    monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
+    monkeypatch.setattr("ratchet.gate._head_line_count", lambda relpath: 10)
+
+    exit_code = main()
+
+    # No touched file regressed, so the run passes. ruff:OLD counted 0 against a baseline of
+    # 2, so the ratcheted baseline drops the key and is written as its own content-addressed
+    # file; the stale file stays until the next load_and_consolidate_baselines() folds it in.
+    assert exit_code == 0
+    assert _baseline_contents(hermetic) == [{"ruff:OLD": 2}, {}]
 
 
 # ---- analyzer concurrency tests ----

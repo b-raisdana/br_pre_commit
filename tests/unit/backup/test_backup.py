@@ -31,10 +31,6 @@ def test_backup_many_diffs_starts_all_files_concurrently(tmp_path, monkeypatch):
     assert [entry["original_path"] for entry in entries] == ["a", "b", "c"]
 
 
-# def test_decode_paths_preserves_spaces_and_non_ascii():
-#     assert backup.decode_paths("a file.txt\0δ.py\0".encode()) == ["a file.txt", "δ.py"]
-
-
 def test_write_patch_preserves_source_extension(tmp_path):
     entry = backup._write_patch(
         tmp_path, backup.backup_config.staged_prefix, "src/foo/__init__.py", b"diff --git a b\n"

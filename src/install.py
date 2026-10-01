@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import os
 import stat
 import subprocess
@@ -13,13 +12,7 @@ from pathlib import Path
 import yaml
 
 from helper.paths import get_pre_commit_config_yaml_path
-
-# Import names of the third-party packages br_pre_commit needs in the active
-# environment. Mirrors requirements.txt (pip names -> import names):
-#   pyyaml -> yaml, pre-commit -> pre_commit, radon -> radon, ruff -> ruff,
-#   mypy -> mypy, pytest -> pytest, pytest-asyncio -> pytest_asyncio.
-# Everything else in src/ is stdlib (git is invoked via subprocess, no library).
-REQUIRED_PACKAGES = ["yaml", "pre_commit", "radon", "ruff", "mypy", "pytest", "pytest_asyncio"]
+from helper.requirements import unsatisfied_requirements
 
 
 def get_active_venv() -> Path | None:
@@ -111,18 +104,6 @@ def generate_powershell_hook(user_repo_path: Path, br_pre_commit_repo_root: Path
     )
 
 
-def verify_requirements() -> list[str]:
-    """Check that every third-party package br_pre_commit needs is importable.
-
-    Returns a list of missing package names (empty when all are satisfied).
-    """
-    missing: list[str] = []
-    for package in REQUIRED_PACKAGES:
-        if importlib.util.find_spec(package) is None:
-            missing.append(package)
-    return missing
-
-
 def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) -> list[str]:
     """Merge recognized br_pre_commit hooks into the project's .pre-commit-config.yaml.
 
@@ -177,12 +158,12 @@ def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) ->
 
 
 def install(cwd: Path, force: bool, dry_run: bool) -> int:
-    missing = verify_requirements()
+    missing = unsatisfied_requirements()
     if missing:
-        joined = ", ".join(missing)
         print(
-            f"ERROR: missing required package(s) for br_pre_commit: {joined}. "
-            f"Install them in the active environment and re-run."
+            "ERROR: the active environment does not satisfy br_pre_commit's requirements.txt:\n"
+            + "\n".join(f"  - {item}" for item in missing)
+            + "\nInstall them in the active environment and re-run."
         )
         return 1
 

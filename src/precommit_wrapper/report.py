@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 
 from helper.git import get_staged_files, git_cmd
 from helper.paths import get_log_dir, get_log_file, get_user_repo_path_from_env
+from helper.requirements import unsatisfied_requirements
 
 if TYPE_CHECKING:
     from .__main__ import JobResult
@@ -212,8 +213,30 @@ def _report_failure(report_path: Path, snapshot_dir: str | None) -> None:
         sys.stdout.write(f"Working state backed up to {snapshot_dir}\n")
 
 
+def _check_environment() -> int:
+    """Stop the run before any hook starts when br_pre_commit's requirements.txt is unsatisfied.
+
+    Returns 0 when the environment is complete, otherwise 3 and the list of
+    offending requirements, so a hook cannot fail deep inside a job with an
+    unrelated-looking error.
+    """
+    unsatisfied = unsatisfied_requirements()
+    if not unsatisfied:
+        return 0
+    sys.stdout.write(
+        "ERROR: the active environment does not satisfy br_pre_commit's requirements.txt:\n"
+        + "\n".join(f"  - {item}" for item in unsatisfied)
+        + "\nInstall them in the active environment and re-run; no hook was executed.\n"
+    )
+    return 3
+
+
 def main() -> int:
     from .__main__ import log  # noqa: F402,E402
+
+    environment_failure = _check_environment()
+    if environment_failure:
+        return environment_failure
 
     try:
         return asyncio.run(_main_async())
