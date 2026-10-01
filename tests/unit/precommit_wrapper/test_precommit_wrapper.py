@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import precommit_wrapper.__main__ as precommit_wrapper  # noqa: E402
-from precommit_wrapper import report  # noqa: E402
+import src.precommit_wrapper.__main__ as precommit_wrapper
+from src.precommit_wrapper import report
 
 pytestmark = [pytest.mark.unit, pytest.mark.precommit_wrapper]
 

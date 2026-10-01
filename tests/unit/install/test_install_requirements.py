@@ -7,8 +7,8 @@ from unittest import mock
 
 import pytest
 
-# src/ is on pythonpath via pyproject.toml, so install is importable by name.
-INSTALL_MODULE = "install"
+# The repository root is on pythonpath via pyproject.toml, so the package is importable by name.
+INSTALL_MODULE = "src.install"
 
 
 @pytest.fixture()

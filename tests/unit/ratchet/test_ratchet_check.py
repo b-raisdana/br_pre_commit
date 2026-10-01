@@ -1,11 +1,10 @@
-import sys
 from pathlib import Path
 
 import pytest
 
-from ratchet.common import TouchedFile
-from ratchet.gate import evaluate_file_gate
-from ratchet.tools import (
+from src.ratchet.common import TouchedFile
+from src.ratchet.gate import evaluate_file_gate
+from src.ratchet.tools import (
     _group_mypy_by_file,
     _group_mypy_by_rule,
     _group_ruff_by_file,
@@ -15,9 +14,6 @@ from ratchet.tools import (
     _xenon_total,
     loc_excess_total,
 )
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
 
 pytestmark = [pytest.mark.unit, pytest.mark.ratchet]
 
@@ -92,8 +88,8 @@ def test_touched_app_python_files_parses_status_and_renames(monkeypatch, tmp_pat
     )
 
     # Mock the run function directly in the gate module
-    import ratchet.common as common_module
-    import ratchet.gate as gate_module
+    import src.ratchet.common as common_module
+    import src.ratchet.gate as gate_module
 
     monkeypatch.setattr(
         gate_module,
@@ -112,9 +108,9 @@ def test_touched_app_python_files_parses_status_and_renames(monkeypatch, tmp_pat
     monkeypatch.setattr(gate_module, "run", lambda *a, **k: diff_output)
     monkeypatch.setattr(gate_module, "get_user_repo_path_from_env", lambda: tmp_path)
     # Bypass the exclude_dir check which uses Path(line).resolve() on the raw line
-    monkeypatch.setattr("ratchet.gate.path_matches_with_regex", lambda *a, **k: False)
+    monkeypatch.setattr("src.ratchet.gate.path_matches_with_regex", lambda *a, **k: False)
 
-    from ratchet.gate import touched_app_python_files
+    from src.ratchet.gate import touched_app_python_files
 
     touched = touched_app_python_files()
 
@@ -139,8 +135,8 @@ def _dicts(mypy=None, ruff=None, xenon=None):
 
 
 def test_zero_tolerance_blocks_any_increase_for_mypy_ruff_xenon(monkeypatch):
-    import ratchet.common as common_module
-    import ratchet.gate as gate_module
+    import src.ratchet.common as common_module
+    import src.ratchet.gate as gate_module
 
     monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)
@@ -154,8 +150,8 @@ def test_zero_tolerance_blocks_any_increase_for_mypy_ruff_xenon(monkeypatch):
 
 
 def test_equal_or_improved_count_does_not_block(monkeypatch):
-    import ratchet.common as common_module
-    import ratchet.gate as gate_module
+    import src.ratchet.common as common_module
+    import src.ratchet.gate as gate_module
 
     monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)
@@ -169,7 +165,7 @@ def test_equal_or_improved_count_does_not_block(monkeypatch):
 
 
 def test_new_file_has_implicit_zero_before_for_mypy_ruff_xenon(monkeypatch):
-    import ratchet.common as common_module
+    import src.ratchet.common as common_module
 
     monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
     touched = [TouchedFile(path=Path("app/new.py"), is_new=True, old_path=None)]
@@ -182,7 +178,7 @@ def test_new_file_has_implicit_zero_before_for_mypy_ruff_xenon(monkeypatch):
 
 
 def test_loc_new_file_must_fit_under_cap(monkeypatch):
-    import ratchet.common as common_module
+    import src.ratchet.common as common_module
 
     touched = [TouchedFile(path=Path("app/new.py"), is_new=True, old_path=None)]
 
@@ -196,8 +192,8 @@ def test_loc_new_file_must_fit_under_cap(monkeypatch):
 
 
 def test_loc_slack_only_applies_once_a_file_is_already_over_the_cap(monkeypatch):
-    import ratchet.common as common_module
-    import ratchet.gate as gate_module
+    import src.ratchet.common as common_module
+    import src.ratchet.gate as gate_module
 
     touched = [TouchedFile(path=Path("app/a.py"), is_new=False, old_path=Path("app/a.py"))]
 
@@ -217,8 +213,8 @@ def test_loc_slack_only_applies_once_a_file_is_already_over_the_cap(monkeypatch)
 
 
 def test_renamed_file_looks_up_before_state_under_the_old_path(monkeypatch):
-    import ratchet.common as common_module
-    import ratchet.gate as gate_module
+    import src.ratchet.common as common_module
+    import src.ratchet.gate as gate_module
 
     monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
     monkeypatch.setattr(gate_module, "_head_line_count", lambda relpath: 10)

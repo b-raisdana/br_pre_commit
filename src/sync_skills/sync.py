@@ -10,8 +10,8 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from helper.git import diff_cached_name_status
-from sync_skills.core import (
+from ..helper.git import diff_cached_name_status
+from .core import (
     _index_bytes,
     _rel,
     _stage,

@@ -13,9 +13,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 
-from helper.git import get_staged_files, git_cmd
-from helper.paths import get_log_dir, get_log_file, get_user_repo_path_from_env
-from helper.requirements import unsatisfied_requirements
+from ..helper.git import get_staged_files, git_cmd
+from ..helper.paths import get_log_dir, get_log_file, get_user_repo_path_from_env
+from ..helper.requirements import unsatisfied_requirements
 
 if TYPE_CHECKING:
     from .__main__ import JobResult

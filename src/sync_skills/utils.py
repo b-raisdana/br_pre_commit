@@ -3,13 +3,8 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from helper.git import GitCommandError, InvalidGitRepositoryError, get_repo  # noqa: E402
-from sync_skills.core import (  # noqa: E402
+from ..helper.git import GitCommandError, InvalidGitRepositoryError, get_repo
+from .core import (
     _GITHUB_PATH,
     _REPO_ROOT,
     _SKILL_FILENAME,
@@ -27,7 +22,7 @@ from sync_skills.core import (  # noqa: E402
     mirror_slots,
     parse_staged_name_status,
 )
-from sync_skills.sync import (  # noqa: E402
+from .sync import (
     apply_modification,
     compute_intent,
     get_staged_skill_changes,

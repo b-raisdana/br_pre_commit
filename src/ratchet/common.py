@@ -16,8 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypedDict
 
-from helper.paths import get_user_repo_path_from_env
-
+from ..helper.paths import get_user_repo_path_from_env
 from .config import RatchetConfig, ratchet_config
 
 
@@ -155,7 +154,7 @@ def baseline_filename(baseline: dict[str, int]) -> str:
 
 
 def write_baseline_file(baseline: dict[str, int]) -> None:
-    from helper.paths import get_ratchet_baseline_dir
+    from ..helper.paths import get_ratchet_baseline_dir
 
     path = get_ratchet_baseline_dir() / baseline_filename(baseline)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -166,7 +165,7 @@ def write_baseline_file(baseline: dict[str, int]) -> None:
 
 
 def find_baseline_files() -> list[Path]:
-    from helper.paths import get_ratchet_baseline_dir
+    from ..helper.paths import get_ratchet_baseline_dir
 
     return sorted(get_ratchet_baseline_dir().glob(ratchet_config.baseline_glob))
 

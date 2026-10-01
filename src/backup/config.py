@@ -1,4 +1,4 @@
-from helper.config import FromPyProjectTomlConfig
+from ..helper.config import FromPyProjectTomlConfig
 
 
 class BackupConfig(FromPyProjectTomlConfig):

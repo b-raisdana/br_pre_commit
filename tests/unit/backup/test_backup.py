@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-import backup.__main__ as backup  # noqa: E402
+import src.backup.__main__ as backup
 
 pytestmark = [pytest.mark.unit, pytest.mark.backup]
 

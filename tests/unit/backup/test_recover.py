@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from helper.paths import get_log_dir
+from src.helper.paths import get_log_dir
 
 pytestmark = [pytest.mark.integration, pytest.mark.backup]
 

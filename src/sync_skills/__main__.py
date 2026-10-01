@@ -24,11 +24,8 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Ensure we can import the sync_skills package when loaded as a script by path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from helper.git import InvalidGitRepositoryError, get_repo  # noqa: E402
-from sync_skills.core import (  # noqa: E402
+from ..helper.git import InvalidGitRepositoryError, get_repo
+from .core import (
     _GITHUB_PATH,
     _REPO_ROOT,
     _SKILL_FILENAME,
@@ -44,7 +41,7 @@ from sync_skills.core import (  # noqa: E402
     mirror_slots,
     parse_staged_name_status,
 )
-from sync_skills.sync import (  # noqa: E402
+from .sync import (
     apply_modification,
     compute_intent,
     get_staged_skill_changes,
@@ -115,11 +112,11 @@ def _apply_safe_changes(
     for skill in deletions:
         if skill in conflicts or is_excluded(skill):
             continue
-        remove_skill_from_all_agents(repo_root, skill, skill_parents, repo_root, problems)
+        remove_skill_from_all_agents(repo_root, skill, skill_parents, problems)
     for skill, canonical in modifications.items():
         if skill in conflicts or is_excluded(skill):
             continue
-        apply_modification(repo_root, skill, canonical, skill_parents, repo_root, problems)
+        apply_modification(repo_root, skill, canonical, skill_parents, problems)
 
 
 def _sync_result(problems: list[str]) -> int:

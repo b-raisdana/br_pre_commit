@@ -1,6 +1,6 @@
 # precommit_wrapper
 
-Concurrent `pre-commit` runner installed as the target project's Git hook. Entry point: `python -m precommit_wrapper` (wired by `../../install.sh` / `../../install.ps1`). It runs the project's own configured hooks — it does not decide which checks exist.
+Concurrent `pre-commit` runner installed as the target project's Git hook. Entry point: `python -m br_pre_commit.src.precommit_wrapper`, run from the target repository's root by the Git hook that `src/install.py` writes (no `PYTHONPATH` is exported). It runs the project's own configured hooks — it does not decide which checks exist.
 
 ## Modules
 
@@ -51,7 +51,7 @@ When `no-commit-to-main` is enabled, `report.py` calls `_branch_protection_resul
 | `124` | hook exceeded `job-timeout-seconds`; its process group is SIGTERM then SIGKILL |
 | `127` | hook could not be started (`OSError`) |
 
-On any blocking failure the wrapper then runs `python -m backup --repo <user repo>` and records the snapshot path in the summary. Timeout handling kills the whole process group (`killpg` on POSIX, `terminate`/`kill` on Windows) so hooks that spawn children cannot outlive the run.
+On any blocking failure the wrapper then runs `python -m br_pre_commit.src.backup --repo <user repo>` and records the snapshot path in the summary. Timeout handling kills the whole process group (`killpg` on POSIX, `terminate`/`kill` on Windows) so hooks that spawn children cannot outlive the run.
 
 ## Outputs
 

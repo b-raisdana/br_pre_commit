@@ -82,14 +82,11 @@ configure_pandera_dump_folder(None)                 # restore the default
 - `configure_pandera_dump_folder` applies to every subsequent dump and must therefore be called at project start-up, before decorated functions run.
 - `resolve_dump_folder(source_file)` computes the path without creating it; `get_dump_folder(source_file)` creates it on first use and logs the location.
 
-## Known limitation: unresolved sibling imports
+## Import surface
 
-This package is vendored from a larger project and its sibling dependencies are **not** present in `br_pre_commit`:
+This package is vendored from a larger project; its public surface is re-exported by the repository root:
 
-- `__main__.py` imports `helper.output_dump`, `helper.repo_root` (via `dump_folder.py`), and `config.app_config`; `../helper/` only contains `config.py`, `git.py`, `importer.py`, `paths.py`, `requirements.py`, and `../config.py` exposes `br_pre_commit_config`, not `app_config`.
-- `dump_folder.py`'s docstring example imports `from helper.pandera import configure_pandera_dump_folder`; the real path here is `pandera.dump_folder`.
+- `from br_pre_commit import pandera_validate` is the supported entry point.
+- The implementation lives in `br_pre_commit/src/br_pandera/`, always under a package-qualified path (`br_pre_commit.src.br_pandera` from a consuming repository, `src.br_pandera` from this repository's own root). The package is deliberately **not** named `pandera`: nothing puts `src/` itself on `sys.path`, and the distinct name keeps it from ever shadowing the third-party `pandera` distribution the decorator validates with (`import pandera.pandas`), even if some future entry point did.
+- Dumping uses `src/helper/output_dump.py` (content-addressed file names) and `src/helper/repo_root.py`; configure the target folder through `configure_pandera_dump_folder` above.
 - `import pandera.pandas` additionally requires a Pandera release that ships the `pandera.pandas` submodule.
-
-Consequently `python -m pandera` is **not importable in this repository**, nothing in `tests/` exercises it, and the `check-pandera-decorator` hook is the only part that is active here. Restore the missing `helper.output_dump`, `helper.repo_root` (with `find_repo_root`) and an `app_config.environment` value before enabling the runtime decorator.
-
-Blast radius: `src/__init__.py` re-exports `pandera_validate` from this package, so importing `src` itself fails while `helper.output_dump` / `helper.repo_root` are missing. That is what breaks `python -m src.backup.recover` and the `tests/unit/backup/test_recover.py` suite — those 14 failures exist at HEAD and are unrelated to any README edit.

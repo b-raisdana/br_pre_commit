@@ -11,8 +11,8 @@ from pathlib import Path
 
 import yaml
 
-from helper.paths import get_pre_commit_config_yaml_path
-from helper.requirements import unsatisfied_requirements
+from .helper.paths import get_br_pre_commit_package_prefix, get_pre_commit_config_yaml_path
+from .helper.requirements import unsatisfied_requirements
 
 
 def get_active_venv() -> Path | None:
@@ -69,34 +69,42 @@ def is_wsl() -> bool:
     return "WSL_DISTRO_NAME" in os.environ
 
 
+def wrapper_module(user_repo_path: Path, br_pre_commit_repo_root: Path) -> str:
+    """Module the generated Git hook runs, as seen from the user repository root."""
+    return f"{get_br_pre_commit_package_prefix(user_repo_path, br_pre_commit_repo_root)}.precommit_wrapper"
+
+
 def generate_posix_hook(user_repo_path: Path, br_pre_commit_repo_root: Path) -> str:
     active_venv = get_active_venv()
     assert isinstance(active_venv, Path)
+    module = wrapper_module(user_repo_path, br_pre_commit_repo_root)
 
     return (
         "#!/usr/bin/env sh\n"
         f"export BR_PRE_COMMIT_REPO_ROOT='{br_pre_commit_repo_root}'\n"
-        f"export USER_REPO_ROOT='{user_repo_path}'\n"
-        f"export PYTHONPATH='{br_pre_commit_repo_root / 'src'}'\n\n"
+        f"export USER_REPO_ROOT='{user_repo_path}'\n\n"
         f"export PATH='{active_venv.parent}':\"$PATH\"\n\n"
-        f'exec "{active_venv}" -m precommit_wrapper "$@"\n'
+        f'exec "{active_venv}" -m {module} "$@"\n'
     )
 
 
 def generate_powershell_hook(user_repo_path: Path, br_pre_commit_repo_root: Path) -> str:
     active_venv = get_active_venv()
     assert isinstance(active_venv, Path)
+    module = wrapper_module(user_repo_path, br_pre_commit_repo_root)
+
+    def command_line(shell_name: str) -> str:
+        return f""" exec {shell_name} -NoProfile -Command '& "{active_venv}" -m {module} $args' -- "$@"\n"""
 
     return (
         "#!/bin/sh\n"
         f"export BR_PRE_COMMIT_REPO_ROOT='{br_pre_commit_repo_root}'\n"
-        f"export USER_REPO_ROOT='{user_repo_path}'\n"
-        f"export PYTHONPATH='{br_pre_commit_repo_root / 'src'}'\n"
+        f"export USER_REPO_ROOT='{user_repo_path}'\n\n"
         f"export PATH='{active_venv.parent}':\"$PATH\"\n\n"
         "if command -v pwsh > /dev/null 2>&1; then\n"
-        f""" exec pwsh -NoProfile -Command '& "{active_venv}" -m precommit_wrapper $args' -- "$@"\n"""
+        f"{command_line('pwsh')}"
         "elif command -v powershell > /dev/null 2>&1; then\n"
-        f""" exec powershell -NoProfile -Command '& "{active_venv}" -m precommit_wrapper $args' -- "$@"\n"""
+        f"{command_line('powershell')}"
         "else\n"
         ' echo "ERROR: PowerShell is required." >&2\n'
         " exit 1\n"
@@ -145,7 +153,7 @@ def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) ->
 
     existing_ids = {h.get("id") for h in hooks if isinstance(h, dict)}
     if "incremental-ratchet" not in existing_ids:
-        from config import br_pre_commit_config
+        from .config import br_pre_commit_config
 
         hooks.append(br_pre_commit_config.ratchet_hook_id)
         messages.append(f"Added 'incremental-ratchet' hook to {config_path.name}")

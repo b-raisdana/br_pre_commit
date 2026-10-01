@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import subprocess
 
-from helper.paths import get_user_repo_path_from_env
-from precommit_wrapper.__main__ import _branch_protection_result
+from .helper.paths import get_user_repo_path_from_env
+from .precommit_wrapper.__main__ import _branch_protection_result
 
 
 def main() -> int:

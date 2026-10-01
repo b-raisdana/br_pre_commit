@@ -3,8 +3,8 @@ from unittest.mock import patch
 
 import pytest
 
-import helper.paths as paths_module
-from ratchet import common
+import src.helper.paths as paths_module
+from src.ratchet import common
 
 pytestmark = pytest.mark.unit
 

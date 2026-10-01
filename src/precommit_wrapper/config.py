@@ -7,7 +7,7 @@ from typing import Literal, TypedDict, cast
 import yaml
 from pydantic import Field, field_validator
 
-from helper.config import FromPyProjectTomlConfig
+from ..helper.config import FromPyProjectTomlConfig
 
 
 class WrapperConfig(FromPyProjectTomlConfig):
@@ -42,7 +42,7 @@ class PreCommitConfig(TypedDict, total=False):
 
 
 def get_pre_commit_config_from_yaml(config_path: Path | None = None) -> PreCommitConfig:
-    from config import br_pre_commit_config
+    from ..config import br_pre_commit_config
 
     config_path = config_path or br_pre_commit_config.pre_commit_config_yaml_file_name
     config = cast(PreCommitConfig, yaml.safe_load(config_path.read_text(encoding="utf-8")) or {})
@@ -59,7 +59,7 @@ class HookSpec:
 # classification" for the full list and .pre-commit-config.yaml as the
 # authoritative reference config.
 def get_mutating_hooks() -> frozenset[str]:
-    from config import br_pre_commit_config
+    from ..config import br_pre_commit_config
 
     return frozenset(
         {

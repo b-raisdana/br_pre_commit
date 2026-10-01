@@ -1,14 +1,13 @@
 import json
-import sys
 import threading
 from pathlib import Path
 
 import pytest
 
-import helper.paths as paths_module
-import ratchet.common as common_module
-from ratchet.__main__ import main
-from ratchet.common import (
+import src.helper.paths as paths_module
+import src.ratchet.common as common_module
+from src.ratchet.__main__ import main
+from src.ratchet.common import (
     TouchedFile,
     baseline_filename,
     compute_new_baseline,
@@ -17,18 +16,15 @@ from ratchet.common import (
     merge_baselines,
 )
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-
 pytestmark = [pytest.mark.unit, pytest.mark.ratchet]
 
 
 @pytest.fixture
 def hermetic(tmp_path, monkeypatch):
     """Point ratchet at a throwaway repo root with an empty, writable baseline dir."""
-    import ratchet.__main__ as main_module
-    import ratchet.gate as gate_module
-    import ratchet.tools as tools_module
+    import src.ratchet.__main__ as main_module
+    import src.ratchet.gate as gate_module
+    import src.ratchet.tools as tools_module
 
     monkeypatch.setattr(paths_module, "get_ratchet_baseline_dir", lambda: tmp_path)
     for module in (common_module, gate_module, tools_module):
@@ -64,8 +60,8 @@ def _block_details_off(monkeypatch):
 
 
 def test_aggregate_regression_alone_never_blocks(hermetic, monkeypatch, capsys):
-    import ratchet.__main__ as main_module
-    import ratchet.tools as tools_module
+    import src.ratchet.__main__ as main_module
+    import src.ratchet.tools as tools_module
 
     _seed(hermetic, {"ruff:E501": 3})
     monkeypatch.setattr(
@@ -87,8 +83,8 @@ def test_aggregate_regression_alone_never_blocks(hermetic, monkeypatch, capsys):
 
 
 def test_touched_file_regression_blocks_even_with_no_prior_baseline(hermetic, monkeypatch, capsys):
-    import ratchet.__main__ as main_module
-    import ratchet.tools as tools_module
+    import src.ratchet.__main__ as main_module
+    import src.ratchet.tools as tools_module
 
     _block_details_off(monkeypatch)
     touched = [TouchedFile(path=Path("src/a.py"), is_new=False, old_path=Path("src/a.py"))]
@@ -103,7 +99,7 @@ def test_touched_file_regression_blocks_even_with_no_prior_baseline(hermetic, mo
     monkeypatch.setattr(main_module, "touched_app_python_files", lambda: touched)
     monkeypatch.setattr(main_module, "_head_worktree", lambda: None)
     monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
-    monkeypatch.setattr("ratchet.gate._head_line_count", lambda relpath: 10)
+    monkeypatch.setattr("src.ratchet.gate._head_line_count", lambda relpath: 10)
 
     exit_code = main()
 
@@ -113,8 +109,8 @@ def test_touched_file_regression_blocks_even_with_no_prior_baseline(hermetic, mo
 
 
 def test_touched_file_with_no_regression_passes_and_resyncs_baseline(hermetic, monkeypatch):
-    import ratchet.__main__ as main_module
-    import ratchet.tools as tools_module
+    import src.ratchet.__main__ as main_module
+    import src.ratchet.tools as tools_module
 
     _block_details_off(monkeypatch)
     _seed(hermetic, {"ruff:OLD": 2})
@@ -126,7 +122,7 @@ def test_touched_file_with_no_regression_passes_and_resyncs_baseline(hermetic, m
     monkeypatch.setattr(main_module, "touched_app_python_files", lambda: touched)
     monkeypatch.setattr(main_module, "_head_worktree", lambda: None)
     monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
-    monkeypatch.setattr("ratchet.gate._head_line_count", lambda relpath: 10)
+    monkeypatch.setattr("src.ratchet.gate._head_line_count", lambda relpath: 10)
 
     exit_code = main()
 
@@ -147,14 +143,14 @@ def test_current_analyzers_start_concurrently(monkeypatch):
         barrier.wait(timeout=1)
         return value
 
-    import ratchet.tools as tools_module
+    import src.ratchet.tools as tools_module
 
     monkeypatch.setattr(tools_module, "ruff_run", lambda: completed([]))
     monkeypatch.setattr(tools_module, "mypy_run", lambda: completed([]))
     monkeypatch.setattr(tools_module, "xenon_run", lambda: completed({}))
     monkeypatch.setattr(tools_module, "loc_line_counts", lambda: completed({}))
 
-    from ratchet.tools import run_current_analyzers
+    from src.ratchet.tools import run_current_analyzers
 
     assert run_current_analyzers() == ([], [], {}, {})
 
@@ -166,14 +162,14 @@ def test_current_and_before_analyzers_start_concurrently(monkeypatch, tmp_path):
         barrier.wait(timeout=1)
         return value
 
-    import ratchet.tools as tools_module
+    import src.ratchet.tools as tools_module
 
     monkeypatch.setattr(tools_module, "ruff_run", lambda root=None: completed([]))
     monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: completed([]))
     monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: completed({}))
     monkeypatch.setattr(tools_module, "loc_line_counts", lambda root=None: completed({}))
 
-    from ratchet.tools import _run_current_and_before_analyzers
+    from src.ratchet.tools import _run_current_and_before_analyzers
 
     assert _run_current_and_before_analyzers(tmp_path) == (
         [],
@@ -227,7 +223,7 @@ def test_compute_new_baseline_bootsraps_new_key():
 
 
 def test_baseline_filename_is_deterministic_hash_of_content():
-    from ratchet.common import baseline_filename
+    from src.ratchet.common import baseline_filename
 
     data = {"loc": 0, "ruff:E501": 3}
     name1 = baseline_filename(data)

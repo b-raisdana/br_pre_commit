@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import Field
 
-from helper.config import FromPyProjectTomlConfig
+from ..helper.config import FromPyProjectTomlConfig
 
 
 class RatchetConfig(FromPyProjectTomlConfig):

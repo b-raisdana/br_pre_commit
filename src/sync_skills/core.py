@@ -11,7 +11,7 @@ import asyncio
 import os
 from pathlib import Path
 
-from helper.git import (
+from ..helper.git import (
     show_index_blob,
     stage,
 )
@@ -48,11 +48,11 @@ def _rel(path: Path, repo_root: Path) -> str:
 
 
 def _index_bytes(repo_root: Path, rel: str) -> bytes | None:
-    return asyncio.run(show_index_blob(repo_root, rel))
+    return asyncio.run(show_index_blob(rel, repo_root))
 
 
 def _stage(repo_root: Path, rel: str) -> None:
-    asyncio.run(stage(repo_root, rel))
+    asyncio.run(stage(rel, repo_root))
 
 
 def classify_skill_path(path_str: str) -> tuple[str, str] | None:

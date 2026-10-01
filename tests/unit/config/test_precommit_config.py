@@ -1,12 +1,9 @@
-import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-import precommit_wrapper.config as config
-import precommit_wrapper.hooks as hooks
+from src.precommit_wrapper import config, hooks
 
 pytestmark = pytest.mark.unit
 
@@ -78,7 +75,7 @@ def test_unknown_hook_warn_policy_reports_and_serializes():
 
 
 def test_ratchet_hook_is_registered_without_recursion():
-    from config import br_pre_commit_config
+    from src.config import br_pre_commit_config
 
     hook_id = br_pre_commit_config.ratchet_hook_id
     specs, unknown = config.classify_hooks([hook_id], policy="error")

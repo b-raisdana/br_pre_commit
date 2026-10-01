@@ -13,8 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from helper.paths import get_pyproject_toml_path, get_user_repo_path_from_env
-
+from ..helper.paths import get_pyproject_toml_path, get_user_repo_path_from_env
 from . import baseline as _baseline
 from . import tools as _tools
 from .config import ratchet_config

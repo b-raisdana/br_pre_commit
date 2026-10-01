@@ -7,10 +7,10 @@ This package contains the shared runtime used by installed Git hooks. They are i
 Each package carries its own README with the details that used to live in module docstrings.
 
 - [`precommit_wrapper/`](precommit_wrapper/README.md) — concurrent hook scheduler, protected-branch guard, log/report writing, backup trigger. See also the root [Recognized hook IDs](../README.md#recognized-hook-ids).
-- [`pandera/`](pandera/README.md) — `pandera_validate` runtime DataFrame validation decorator and its output-dump folder configuration (vendored; its sibling `helper.*` imports are not present here).
+- [`pandera/`](pandera/README.md) — `pandera_validate` runtime DataFrame validation decorator and its content-addressed output dumping.
 - [`backup/`](backup/) — full/patch snapshot creation and restore; the `recover` entry point replays a snapshot. Settings in `[tool.br_pre_commit.backup]`.
-- [`ratchet/`](ratchet/README.md) — incremental quality ratchet (per-file blocking gate plus non-blocking trend baselines); launcher `python -m ratchet`, hook ID `incremental-ratchet`. See also [RATCHET.md](ratchet/RATCHET.md).
-- [`sync_skills/`](sync_skills/README.md) — bidirectional `SKILL.md` mirroring across agent directories, run as `python -m sync_skills` by the `sync-skill-files` hook.
+- [`ratchet/`](ratchet/README.md) — incremental quality ratchet (per-file blocking gate plus non-blocking trend baselines); launcher `python -m src.ratchet` from this repository's root (`python -m br_pre_commit.src.ratchet` from a consuming repository), hook ID `incremental-ratchet`. See also [RATCHET.md](ratchet/RATCHET.md).
+- [`sync_skills/`](sync_skills/README.md) — bidirectional `SKILL.md` mirroring across agent directories, run as `python -m src.sync_skills` by the `sync-skill-files` hook.
 - [`helper/`](helper/) — shared plumbing: `pyproject.toml` config loading, git subprocess wrapper, repo paths and log dirs, requirement satisfaction, dynamic imports.
 
 ## Top-level modules

@@ -14,8 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import cast
 
-from helper.paths import get_pyproject_toml_path, get_user_repo_path_from_env
-
+from ..helper.paths import get_pyproject_toml_path, get_user_repo_path_from_env
 from .common import RuffViolation, XenonData, count_lines, output_run, path_matches_with_regex, run
 from .config import ratchet_config
 

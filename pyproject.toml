@@ -9,7 +9,7 @@ requires-python = ">=3.12"
 packages = ["br_pre_commit"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["."]
 testpaths = ["tests"]
 markers = ["unit: fast isolated unit tests"]
 addopts = "-n auto"
@@ -48,7 +48,7 @@ ratchet-hook-id = "incremental-ratchet"
 [tool.br_pre_commit.ratchet-hook]
 name = "incremental ratchet"
 language = "system"
-entry = "python -m ratchet"
+entry = "python -m src.ratchet"
 pass-filenames = false
 files = "^src/.*\\.py$"
 

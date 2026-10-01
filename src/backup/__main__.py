@@ -12,19 +12,15 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-from backup.config import backup_config
-from helper.git import git_cmd
-from helper.paths import get_full_backup_dir, get_log_dir
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # noqa: E402
-
-from backup.models import Manifest  # noqa: E402
-
-from .common import (  # noqa: E402
+from ..helper.git import git_cmd
+from ..helper.paths import get_full_backup_dir, get_log_dir
+from .common import (
     content_hash,
     flatten_path,
     is_excluded,
 )
+from .config import backup_config
+from .models import Manifest
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 log = logging.getLogger("backup")

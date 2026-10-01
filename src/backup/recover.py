@@ -19,10 +19,8 @@ import time
 from pathlib import Path
 from typing import TextIO
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # noqa: E402
-
-from backup.models import Manifest  # noqa: E402
-from helper.paths import get_full_backup_dir
+from ..helper.paths import get_full_backup_dir
+from .models import Manifest
 
 log = logging.getLogger("recover")
 

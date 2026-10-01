@@ -14,7 +14,7 @@ import asyncio
 import subprocess
 from pathlib import Path
 
-from helper.paths import get_user_repo_path_from_env
+from .paths import get_user_repo_path_from_env
 
 
 class GitCommandError(Exception):

@@ -5,7 +5,7 @@ from typing import Self
 
 from pydantic_settings import BaseSettings
 
-from helper.paths import get_pyproject_toml_path
+from .paths import get_pyproject_toml_path
 
 
 class FromPyProjectTomlConfig(BaseSettings):

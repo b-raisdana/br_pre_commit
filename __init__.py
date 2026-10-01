@@ -4,21 +4,22 @@ Exposed so consuming repositories can write::
 
     from br_pre_commit import pandera_validate
 
-instead of reaching into ``br_pre_commit.src.pandera.__main__``. Requires the
+instead of reaching into ``br_pre_commit.src.br_pandera.__main__``. Requires the
 repository root (the directory containing this package) on ``sys.path``.
 
 The re-export is lazy (PEP 562). Importing ``br_pre_commit`` must not pull in
-pandas/pandera: ``src/`` is on ``sys.path`` for br_pre_commit's own hooks and
-tests, and there the decorator's ``import pandera.pandas`` resolves to
-``src/pandera`` (this repository's own subpackage) instead of the third-party
-package.
+pandas/pandera: the decorator is only imported when the attribute is first
+accessed. Every intra-repository import is package-qualified, so nothing ever
+puts ``src/`` itself on ``sys.path`` and the local ``src/br_pandera`` package can
+never shadow the third-party ``pandera`` distribution that the decorator
+validates with (``import pandera.pandas``).
 """
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING, ParamSpec, Protocol, TypeVar, cast, overload
 
 if TYPE_CHECKING:
-    from .src.pandera.__main__ import pandera_validate
+    from .src.br_pandera.__main__ import pandera_validate
 
 __all__ = ["pandera_validate"]
 
@@ -37,7 +38,7 @@ class PanderaValidate(Protocol):
 
 def __getattr__(name: str) -> PanderaValidate:
     if name == "pandera_validate":
-        from .src.pandera.__main__ import pandera_validate
+        from .src.br_pandera.__main__ import pandera_validate
 
         return cast("PanderaValidate", pandera_validate)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

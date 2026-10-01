@@ -1,7 +1,6 @@
 """Process-wide configuration of the folder receiving pandera output dumps.
 
-See README.md § "Dump folder" for usage, resolution rules, and the unresolved
-``helper.repo_root`` import.
+See README.md § "Dump folder" for usage and resolution rules.
 """
 
 from __future__ import annotations

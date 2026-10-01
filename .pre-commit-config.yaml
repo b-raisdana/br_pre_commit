@@ -76,7 +76,7 @@ repos:
   - id: sync-skill-files
     name: sync mirrored skill files
     language: system
-    entry: python -m sync_skills
+    entry: python -m src.sync_skills
     pass_filenames: false
     files: ^(\.claude/skills/[^/]+/SKILL\.md|\.codex/skills/[^/]+/SKILL\.md|\.devin/skills/[^/]+/SKILL\.md|\.qoder/skills/[^/]+/SKILL\.md|\.copilot/skills/[^/]+/SKILL\.md|\.kiro/skills/[^/]+/SKILL\.md|\.kilo/skills/[^/]+/SKILL\.md|\.github/git-commit/SKILL\.md)$
     stages:
@@ -85,7 +85,7 @@ repos:
     name: incremental ratchet (mypy/ruff/xenon/loc - blocks regressions only, see
       README)
     language: system
-    entry: python -m ratchet
+    entry: python -m src.ratchet
     pass_filenames: false
     files: ^src/.*\.py$
     stages:
@@ -93,7 +93,7 @@ repos:
   - id: check-pandera-decorator
     name: check pandera_validate decorator
     language: system
-    entry: python -m check_pandera_decorator
+    entry: python -m src.check_pandera_decorator
     pass_filenames: true
     files: ^src/.*\.py$
     stages:
@@ -101,7 +101,7 @@ repos:
   - id: no-commit-to-main
     name: block direct commits to protected branches
     language: system
-    entry: python -m check_no_commit_to_main
+    entry: python -m src.check_no_commit_to_main
     pass_filenames: false
     always_run: true
     stages:
@@ -109,5 +109,5 @@ repos:
   - id: no-object-annotations
     name: block object type annotations
     language: system
-    entry: python -m check_no_object_annotations
+    entry: python -m src.check_no_object_annotations
     pass_filenames: true

@@ -15,14 +15,13 @@ import sys
 from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass
 
-from helper.paths import get_user_repo_path_from_env
-from precommit_wrapper.hooks import enabled_pre_commit_hook_ids
-
+from ..helper.paths import get_br_pre_commit_package_prefix_from_env, get_user_repo_path_from_env
 from .config import (
     HookSpec,
     classify_hooks,
     wrapper_config,
 )
+from .hooks import enabled_pre_commit_hook_ids
 
 ADVISORY_RUFF_RULES = "Q,RUF,T10,T20,ERA"
 
@@ -211,7 +210,7 @@ async def _run_backup(terminal_lock: asyncio.Lock) -> tuple[JobResult, str | Non
         [
             sys.executable,
             "-m",
-            "backup",
+            f"{get_br_pre_commit_package_prefix_from_env()}.backup",
             "--repo",
             str(get_user_repo_path_from_env()),
         ],

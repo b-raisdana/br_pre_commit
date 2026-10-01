@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from precommit_wrapper.config import get_mutating_hooks
+from .config import get_mutating_hooks
 
 
 def enabled_pre_commit_hook_ids(config_path: Path | None = None) -> list[str]:
-    from precommit_wrapper.config import get_pre_commit_config_from_yaml, wrapper_config
+    from .config import get_pre_commit_config_from_yaml, wrapper_config
 
     config = get_pre_commit_config_from_yaml(config_path)
     enabled: list[str] = []
