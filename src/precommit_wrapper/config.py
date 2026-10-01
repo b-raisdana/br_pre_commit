@@ -22,9 +22,6 @@ class WrapperConfig(FromPyProjectTomlConfig):
             raise ValueError("wrapper.protected-branches must be a list of non-empty strings")
         return value
 
-    # PRE_COMMIT_STAGE = "pre-commit"
-    # RATCHET_HOOK_ID = "incremental-ratchet"
-    # TOOL_ROOT = Path(__file__).resolve().parents[1]
     pre_commit_stage: str = "pre-commit"
 
 
@@ -58,9 +55,9 @@ class HookSpec:
     mutates_files: bool
 
 
-# Recognized hook IDs the wrapper can classify. Projects must use IDs from
-# these sets; see README.md § "Recognized hook IDs" for the full list and
-# .pre-commit-config.yaml as the authoritative reference config.
+# Recognized hook IDs the wrapper can classify; see README.md § "Hook
+# classification" for the full list and .pre-commit-config.yaml as the
+# authoritative reference config.
 def get_mutating_hooks() -> frozenset[str]:
     from config import br_pre_commit_config
 
@@ -98,11 +95,8 @@ _READ_ONLY_HOOKS = frozenset(
 def classify_hooks(hook_ids: list[str], *, policy: str) -> tuple[list[HookSpec], list[str]]:
     """Classify hook IDs into mutating (serial) and read-only (concurrent) specs.
 
-    Hook IDs not in ``get_mutating_hooks()`` or ``_READ_ONLY_HOOKS`` are "unknown".
-    With ``policy="error"`` they raise ``ValueError``; with ``"warn"`` they
-    run serially. See README.md § "Recognized hook IDs" for the full list.
-    Projects must use IDs from those sets — see ``.pre-commit-config.yaml``
-    as the authoritative reference.
+    Unregistered IDs raise ``ValueError`` under ``policy="error"`` and run serially
+    under ``"warn"``. See README.md § "Hook classification".
     """
     specs: list[HookSpec] = []
     unknown: list[str] = []

@@ -172,8 +172,7 @@ After the quick start, verify these features are configured for your project:
 - [ ] **Docstring coverage**: `interrogate` (weekly, target 80%)
 - [ ] **Skill file sync**: `sync-skill-files` (if using shared skills across agents)
 
-See [IMPLEMENTATION.md](IMPLEMENTATION.md) § "Pre-commit gap analysis" for the full
-priority-ordered roadmap (P0–P3).
+See [src/README.md](src/README.md) for the runtime layout behind these hook IDs, and [docs/change-log](docs/change-log) for the delivery history behind this checklist.
 
 ## Troubleshooting
 
@@ -202,14 +201,15 @@ python -m src.backup.recover \
 
 | Doc                                                                                                                    | What you'll find                                                                                                                                                    |
 | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [IMPLEMENTATION.md](IMPLEMENTATION.md)                                                                                 | Full design of the concurrent wrapper, branch protection, logging, advisory lint, and the backup/recovery pipeline.                                                 |
-| [RATCHET.md](RATCHET.md)                                                                                               | Incremental pre-commit ratchet: per-file blocking gate, project-wide trend baselines, and the upgrade plan.                                                         |
+| [src/README.md](src/README.md)                                                                                         | Source-tree layout overview, with links to every package README.                                                                                                     |
+| [src/precommit_wrapper/README.md](src/precommit_wrapper/README.md)                                                       | Concurrent wrapper internals: module map, hook classification, scheduling, exit codes, log/summary formats, and the deliberate `__main__`/`report.py` circular import. |
+| [src/pandera/README.md](src/pandera/README.md)                                                                           | `pandera_validate` decorator options, call-time kwargs, NaN-fill detection, dump-folder rules, and the unresolved `helper.*` imports.                                 |
+| [src/ratchet/README.md](src/ratchet/README.md)                                                                         | Ratchet module entry point, layering, and module-grouping rationale.                                                                                               |
+| [src/ratchet/RATCHET.md](src/ratchet/RATCHET.md)                                                                       | Incremental ratchet design: per-file blocking gate, project-wide trend baselines, upgrade plan.                                                                   |
 | [src/sync_skills/README.md](src/sync_skills/README.md)                                                                 | Bidirectional `SKILL.md` mirroring across agent directories (`.claude`, `.codex`, `.devin`, etc.) and conflict-resolution rules.                                    |
 | [pyproject.toml](pyproject.toml)                                                                                       | Shared default settings under `[tool.br_pre_commit.*]` (`unknown-hook-policy`, `job-timeout-seconds`, `protected-branches`, ratchet parameters, backup exclusions). |
 | [docs/pre-commit-hook-id-diagnosis.md](docs/pre-commit-hook-id-diagnosis.md)                                           | Troubleshooting guide for the "unregistered pre-commit hook(s)" error — root cause and fix.                                                                         |
 | [docs/development/cross-environment-installation-design.md](docs/development/cross-environment-installation-design.md) | Linux, WSL, and Windows installation modes, Python/toolchain assumptions, and cross-environment commit policy.                                                      |
-| [src/README.md](src/README.md)                                                                                         | Source-tree layout overview.                                                                                                                                        |
-| [src/ratchet/README.md](src/ratchet/README.md)                                                                         | Ratchet module entry point and launcher reference.                                                                                                                  |
 | [tests/README.md](tests/README.md)                                                                                     | How to run the test suite.                                                                                                                                          |
 
 ## Development

@@ -1,4 +1,8 @@
-"""Reporting and main orchestration for the pre-commit wrapper."""
+"""Reporting and main orchestration for the pre-commit wrapper.
+
+See README.md § "Outputs" for the report/summary formats and § "Import boundary"
+for why `__main__` symbols are imported inside function bodies.
+"""
 
 from __future__ import annotations
 
@@ -216,9 +220,8 @@ def _report_failure(report_path: Path, snapshot_dir: str | None) -> None:
 def _check_environment() -> int:
     """Stop the run before any hook starts when br_pre_commit's requirements.txt is unsatisfied.
 
-    Returns 0 when the environment is complete, otherwise 3 and the list of
-    offending requirements, so a hook cannot fail deep inside a job with an
-    unrelated-looking error.
+    Returns 3 and the list of offending requirements, so a hook cannot fail deep
+    inside a job with an unrelated-looking error.
     """
     unsatisfied = unsatisfied_requirements()
     if not unsatisfied:

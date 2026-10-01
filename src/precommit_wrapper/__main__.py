@@ -1,4 +1,7 @@
-"""Run pre-commit hooks concurrently with live and per-hook final logs."""
+"""Run pre-commit hooks concurrently with live and per-hook final logs.
+
+See README.md for the module map, scheduling rules, and exit codes.
+"""
 
 from __future__ import annotations
 

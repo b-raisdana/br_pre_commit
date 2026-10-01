@@ -56,11 +56,7 @@ _READ_ONLY_HOOKS = frozenset(
 def classify_hooks(hook_ids: list[str], *, policy: str) -> tuple[list[HookSpec], list[str]]:
     """Classify hook IDs into mutating (serial) and read-only (concurrent) specs.
 
-    Hook IDs not in ``_MUTATING_HOOKS`` or ``_READ_ONLY_HOOKS`` are "unknown".
-    With ``policy="error"`` they raise ``ValueError``; with ``"warn"`` they
-    run serially. See README.md § "Recognized hook IDs" for the full list.
-    Projects must use IDs from those sets — see ``.pre-commit-config.yaml``
-    as the authoritative reference.
+    Dead duplicate of ``config.classify_hooks``; see README.md § "Known duplication".
     """
 
     specs: list[HookSpec] = []

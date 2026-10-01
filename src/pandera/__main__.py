@@ -1,5 +1,6 @@
-"""Runtime Pandera validation decorator with n_return/NaN enforcement and
-static NaN-fill detection. See app/helper/README.md for full docs."""
+"""Runtime Pandera validation decorator with n_return/NaN enforcement and static
+NaN-fill detection. See README.md for decorator options, call-time kwargs,
+exceptions, production bypass, and known import limitations."""
 
 from __future__ import annotations
 
@@ -281,11 +282,7 @@ def pandera_validate[**P, R](
     extra_nan_fill_names: frozenset[str] = frozenset(),
     dump_output: bool = False,
 ) -> Callable[P, R] | Callable[[Callable[P, R]], Callable[P, R]]:
-    """
-    Runtime Pandera validation decorator. See app/helper/README.md for full docs
-    (decorator options, call-time kwargs, production bypass, exceptions, and the
-    `dump_output` option backed by helper/output_dump.py).
-    """
+    """Runtime Pandera validation decorator. See README.md for full docs."""
 
     def decorator(func: Callable[P, R]) -> Callable[P, R]:
         # `func` is typed as Callable[_P, _R] for correct call-site checking,

@@ -1,18 +1,7 @@
-"""Centralized configuration of the folder that receives pandera output dumps.
+"""Process-wide configuration of the folder receiving pandera output dumps.
 
-One process-wide switch, set once by the importing project, rather than a
-folder argument on every ``pandera_validate`` call:
-
-    from helper.pandera import configure_pandera_dump_folder
-
-    configure_pandera_dump_folder("logs/debug_frames")  # relative -> <git root>/logs/debug_frames
-    configure_pandera_dump_folder("/var/tmp/frames")    # absolute -> used as-is
-    configure_pandera_dump_folder(None)                 # back to the default
-
-The default is ``<git repo owning the decorated function>/logs/output_dump/``.
-A relative override is resolved against that same repository root, so the
-layout belongs to the importing project regardless of where the process runs.
-The folder is created on first use.
+See README.md § "Dump folder" for usage, resolution rules, and the unresolved
+``helper.repo_root`` import.
 """
 
 from __future__ import annotations
