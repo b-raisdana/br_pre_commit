@@ -12,6 +12,8 @@ from ratchet.common import (
     TouchedFile,
     baseline_filename,
     compute_new_baseline,
+    find_baseline_files,
+    load_and_consolidate_baselines,
     merge_baselines,
 )
 
@@ -233,34 +235,32 @@ def test_baseline_filename_is_deterministic_hash_of_content():
     assert name1 == name2
 
 
-# def test_load_and_consolidate_merges_multiple_files_and_removes_old(hermetic):
-#     _seed(hermetic, {"ruff:E501": 3, "loc": 0})
-#     other = hermetic / "baseline_abcdef12.json"
-#     other.write_text(json.dumps({"ruff:E501": 5, "mypy:arg-type": 2}))
+def test_load_and_consolidate_merges_multiple_files_and_removes_old(hermetic):
+    first = _seed(hermetic, {"ruff:E501": 3})
+    second = _seed(hermetic, {"mypy:arg-type": 2, "ruff:E501": 5})
 
-#     result = load_and_consolidate_baselines()
+    result = load_and_consolidate_baselines()
 
-#     assert result == {"mypy:arg-type": 2, "ruff:E501": 3}
-#     files = find_baseline_files()
-#     assert len(files) == 1
-#     assert json.loads(files[0].read_text()) == {"mypy:arg-type": 2, "ruff:E501": 3}
-#     assert not (hermetic / "baseline.json").exists()
-#     assert not other.exists()
-
-
-# def test_load_and_consolidate_single_file_is_untouched(hermetic):
-#     _seed(hermetic, {"ruff:OLD": 2})
-#     original = (hermetic / "baseline.json").read_text()
-
-#     result = load_and_consolidate_baselines()
-
-#     assert result == {"ruff:OLD": 2}
-#     assert (hermetic / "baseline.json").read_text() == original
-#     assert len(find_baseline_files()) == 1
+    # Merge takes the minimum per key and drops zero-valued keys.
+    assert result == {"mypy:arg-type": 2, "ruff:E501": 3}
+    remaining = find_baseline_files()
+    assert len(remaining) == 1
+    assert remaining[0].name == baseline_filename(result)
+    assert json.loads(remaining[0].read_text(encoding="utf-8")) == result
+    assert not first.exists()
+    assert not second.exists()
 
 
-# def test_load_and_consolidate_no_files_returns_empty(tmp_path, monkeypatch):
-#     import ratchet.baseline as baseline_module
-#
-#     monkeypatch.setattr(baseline_module, "BASELINE_DIR", tmp_path)
-#     assert load_and_consolidate_baselines() == {}
+def test_load_and_consolidate_single_file_is_untouched(hermetic):
+    seeded = _seed(hermetic, {"ruff:OLD": 2})
+    original = seeded.read_text(encoding="utf-8")
+
+    result = load_and_consolidate_baselines()
+
+    assert result == {"ruff:OLD": 2}
+    assert seeded.read_text(encoding="utf-8") == original
+    assert len(find_baseline_files()) == 1
+
+
+def test_load_and_consolidate_no_files_returns_empty(hermetic):
+    assert load_and_consolidate_baselines() == {}
