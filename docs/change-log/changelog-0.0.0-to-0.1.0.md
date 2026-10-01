@@ -7,7 +7,7 @@
   - Refactored `src/backup` to use proper package-relative imports.
   - Moved `Manifest` to a dedicated `models.py` file.
   - Updated `README.md` with new installation instructions and hook documentation.
-  - Updated `.vscode/settings.json` to include `pandera` in recognized languages.
+  - Updated `.vscode/settings.json` to include `__main__.py` in recognized languages.
 
 ## Refactors
 

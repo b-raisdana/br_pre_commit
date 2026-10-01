@@ -39,7 +39,6 @@ def get_pre_commit_config_yaml_path() -> Path:
     from config import br_pre_commit_config
 
     return get_user_repo_path_from_env() / br_pre_commit_config.pre_commit_config_yaml_file_name
-    # ".pre-commit-config.yaml"
 
 
 @lru_cache
@@ -50,12 +49,11 @@ def get_pyproject_toml_path() -> Path:
 
 
 @lru_cache
-def get_full_backup_dir(repo_root: Path) -> Path:
-    # return repo_root / "logs" / "pre-commit" / "full_backup"
+def get_full_backup_dir() -> Path:
     return get_log_dir() / "full_backup"
 
 
-def get_ratchet_baseline_dir(repo_root: Path) -> Path:
+def get_ratchet_baseline_dir() -> Path:
     dir_ = get_user_repo_path_from_env() / ".br-pre-commit" / "ratchet"
     dir_.mkdir(exist_ok=True)
     return dir_

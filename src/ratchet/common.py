@@ -155,18 +155,19 @@ def baseline_filename(baseline: dict[str, int]) -> str:
 
 
 def write_baseline_file(baseline: dict[str, int]) -> None:
-    path = get_baseline_path() / baseline_filename(baseline)
+    from helper.paths import get_ratchet_baseline_dir
+
+    path = get_ratchet_baseline_dir() / baseline_filename(baseline)
     path.parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(baseline, indent=2, sort_keys=True)
     path.write_text(content + "\n", encoding="utf-8", newline="\n")
     subprocess.run(["git", "add", str(path)], cwd=get_user_repo_path_from_env(), check=False)
     print(f"Baseline written to {path}: {content}")
-    # return path
-    # return f"Baseline written to {path}: {content}"
 
 
 def find_baseline_files() -> list[Path]:
     from helper.paths import get_ratchet_baseline_dir
+
     return sorted(get_ratchet_baseline_dir().glob(ratchet_config.baseline_glob))
 
 

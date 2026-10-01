@@ -49,14 +49,11 @@ def _group_ruff_by_file(violations: list[RuffViolation], root: Path | None = Non
 
 
 def _parse_mypy_records(output: str) -> list[tuple[str, str]]:
-    # from .baseline import MYPY_CODED_ERROR_RE, MYPY_UNCODED_ERROR_RE  # noqa: F402,E402
-
     records: list[tuple[str, str]] = []
     for line in output.splitlines():
         coded = re.compile(ratchet_config.mypy_coded_error_re).search(line)
         if coded:
             records.append((line.split(":", 1)[0], coded.group(1)))
-        # elif MYPY_UNCODED_ERROR_RE.search(line):
         elif re.compile(ratchet_config.mypy_uncoded_error_re).search(line):
             records.append((line.split(":", 1)[0], "uncoded"))
     return records
@@ -133,12 +130,6 @@ def loc_line_counts(root: Path | None = None) -> dict[str, int]:
     root = root or get_user_repo_path_from_env()
     counts: dict[str, int] = {}
     for path in (root / ratchet_config.target_dir_rel_path).rglob("*.py"):
-        # if "__pycache__" in path.parts or bool(
-        #         re.search(
-        #             rf"(?:^|[/\\]){re.escape(ratchet_config.exclude_dir_regex)}(?:[/\\]|$)",
-        #             str(path),
-        #         )
-        # ):
         if "__pycache__" in path.parts or path_matches_with_regex(path, ratchet_config.exclude_dir_regex):
             continue
         counts[path.relative_to(root).as_posix()] = count_lines(path)

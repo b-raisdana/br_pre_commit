@@ -21,16 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # noqa: E402
 from backup.models import Manifest  # noqa: E402
 
 from .common import (  # noqa: E402
-    # _DEFAULT_FULL_BACKUP_EXCLUDE_DIR_REGEX,
-    # STAGED_PREFIX,
-    # UNSTAGED_PREFIX,
-    # UNTRACKED_PREFIX,
-    # _backup_settings,
     content_hash,
-    # decode_paths,
     flatten_path,
-    # _get_full_backup_dir,
-    # _git,
     is_excluded,
 )
 
@@ -145,8 +137,6 @@ async def _backup_untracked(snapshot_dir: Path, repo_root: Path, paths: list[str
 
 async def _get_all_tracked_files(repo_root: Path) -> list[str]:
     """Get all files tracked by git in the repository."""
-    # output = await git_cmd(repo_root, "ls-files", "-z")
-    # return decode_paths(output)
     output = await git_cmd("ls-files", repo_root=repo_root)
     return output.splitlines()
 
@@ -170,13 +160,6 @@ def _split_by_exclude(paths: list[str], exclude_regex: str) -> tuple[list[str], 
 
 
 async def _gather_git_info(repo_root: Path) -> tuple[str, str, list[str], list[str], list[str]]:
-    # branch_raw, commit_raw, staged_raw, unstaged_raw, untracked_raw = await asyncio.gather(
-    #     git_cmd("rev-parse", "--abbrev-ref", "HEAD", repo_root=repo_root),
-    #     git_cmd("rev-parse", "HEAD", repo_root=repo_root),
-    #     git_cmd("diff", "--cached", "--name-only", "-z", repo_root=repo_root),
-    #     git_cmd("diff", "--name-only", "-z", repo_root=repo_root),
-    #     git_cmd("ls-files", "--others", "--exclude-standard", "-z", repo_root=repo_root),
-    # )
     branch_raw, commit_raw, staged_raw, unstaged_raw, untracked_raw = await asyncio.gather(
         git_cmd("rev-parse", "--abbrev-ref", "HEAD", repo_root=repo_root),
         git_cmd("rev-parse", "HEAD", repo_root=repo_root),
@@ -186,7 +169,6 @@ async def _gather_git_info(repo_root: Path) -> tuple[str, str, list[str], list[s
     )
     branch = branch_raw.strip()
     commit_hash = commit_raw.strip()
-    # return branch, commit_hash, decode_paths(staged_raw), decode_paths(unstaged_raw), decode_paths(untracked_raw)
     return branch, commit_hash, staged_raw.splitlines(), unstaged_raw.splitlines(), untracked_raw.splitlines()
 
 
@@ -222,14 +204,13 @@ async def take_snapshot_async(repo_root: Path) -> Manifest:
     branch, commit_hash, staged_paths, unstaged_paths, untracked_paths = await _gather_git_info(repo_root)
     snapshot_dir = get_snapshot_dir(branch, commit_hash, repo_root)
 
-    # settings = _backup_settings(repo_root)
     exclude_regex = backup_config.full_backup_exclude_dir_regex
 
     staged_keep, staged_full = _split_by_exclude(staged_paths, exclude_regex)
     unstaged_keep, unstaged_full = _split_by_exclude(unstaged_paths, exclude_regex)
     untracked_keep, untracked_full = _split_by_exclude(untracked_paths, exclude_regex)
 
-    full_backup_dir = get_full_backup_dir(repo_root)
+    full_backup_dir = get_full_backup_dir()
     full_backups = await _build_full_backups(
         full_backup_dir, repo_root, exclude_regex, staged_full, unstaged_full, untracked_full
     )

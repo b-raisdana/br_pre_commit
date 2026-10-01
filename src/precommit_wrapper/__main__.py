@@ -211,7 +211,6 @@ async def _run_backup(terminal_lock: asyncio.Lock) -> tuple[JobResult, str | Non
             "backup",
             "--repo",
             str(get_user_repo_path_from_env()),
-            # "--print-manifest-json",
         ],
         terminal_lock,
         timeout_seconds=wrapper_config.job_timeout_seconds,

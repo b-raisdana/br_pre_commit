@@ -5,7 +5,6 @@ from pathlib import Path
 from pydantic import Field
 
 from helper.config import FromPyProjectTomlConfig
-from helper.paths import get_user_repo_path_from_env
 
 
 class RatchetConfig(FromPyProjectTomlConfig):
@@ -27,42 +26,5 @@ class RatchetConfig(FromPyProjectTomlConfig):
     ]
     exclude_dir_regex: str = Field(default="archive_not_used_trash", validation_alias="exclude-dir")
 
-    # @property
-    # def baseline_dir(self) -> Path:
-    #     from config import br_pre_commit_config
-
-    #     dir_: Path = (
-    #         get_user_repo_path_from_env()
-    #         / br_pre_commit_config.data_folder_rel_path
-    #         / self.ratchet_data_folder_rel_path
-    #     )
-    #     dir_.mkdir(parents=True, exist_ok=True)
-
-    #     return dir_
-
 
 ratchet_config: RatchetConfig = RatchetConfig.from_pyproject_toml("ratchet")
-
-# RatchetConfig = TypedDict(
-#     "RatchetConfig",
-#     {
-#         "target": str,
-#         "max-lines": int,
-#         "line-growth-slack": int,
-#         "complexity-ranks": str,
-#         "xenon-max-absolute": str,
-#         "exclude-dir": str,
-#         "baseline-dir": str,
-#     },
-#     total=False,
-# )
-
-#
-# TARGET = str(_SETTINGS["target"])
-# COMPLEXITY_RANKS = str(_SETTINGS["complexity-ranks"])
-# LOC_SLACK = int(_SETTINGS["line-growth-slack"])
-# XENON_MAX_ABSOLUTE = str(_SETTINGS["xenon-max-absolute"])
-# EXCLUDE_DIR = str(_SETTINGS.get("exclude-dir", "archive_not_used_trash"))
-#
-# MYPY_CODED_ERROR_RE = re.compile(r": error: .*\[([\w-]+)\]\s*$")
-# MYPY_UNCODED_ERROR_RE = re.compile(r": error: ")

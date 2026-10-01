@@ -339,7 +339,7 @@ Current config is already `strict = true` plus `disallow_any_explicit = true` an
 Not recommended now:
 
 - **`disallow_any_unimported`** — still blocked by `ccxt`, `pandas_ta`, and `prophet` (no stubs). Revisit when stubs land in typeshed or typed packages appear on PyPI.
-- **`mypy` plugins for pandera** — `pandera` ships no mypy plugin; the `pandera` decorator returns a wrapped function whose type mypy cannot easily infer. A custom plugin would help but is not off-the-shelf; defer until pandera adds one.
+- **`mypy` plugins for pandera** — `__main__.py` ships no mypy plugin; the `__main__.py` decorator returns a wrapped function whose type mypy cannot easily infer. A custom plugin would help but is not off-the-shelf; defer until pandera adds one.
 
 Dependency audit: add a quarterly task to re-check whether `ccxt`/`pandas_ta`/`prophet` ship type stubs so `disallow_any_unimported` can be enabled without blanket `# type: ignore` sprinkling.
 

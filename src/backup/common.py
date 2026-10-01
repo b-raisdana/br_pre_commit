@@ -14,33 +14,6 @@ from pathlib import Path
 
 log = logging.getLogger("backup")
 
-# class BackupSettings(TypedDict, total=False):
-#     full_backup_exclude_dir_regex: str
-
-
-# def _shared_backup_defaults() -> BackupSettings:
-#     """Read the [tool.br_pre_commit.backup] section from pyproject.toml."""
-#     data = tomllib.loads(br_pre_commit_config.py_project_toml_file_name.read_text(encoding="utf-8"))
-#     tool = data.get("tool", {})
-#     if not isinstance(tool, dict):
-#         return BackupSettings()
-#     section = tool.get("br_pre_commit", {})
-#     if not isinstance(section, dict):
-#         return BackupSettings()
-#     backup_section = section.get("backup")
-#     if not isinstance(backup_section, dict):
-#         return BackupSettings()
-#     return BackupSettings(
-#         full_backup_exclude_dir_regex=str(
-#             backup_section.get("full_backup_exclude_dir_regex", _DEFAULT_FULL_BACKUP_EXCLUDE_DIR_REGEX)
-#         )
-#     )
-
-
-# def _backup_settings(repo_root: Path) -> BackupSettings:
-#     """Load backup settings from [tool.br_pre_commit.backup] in pyproject.toml."""
-#     return _shared_backup_defaults()
-
 
 def flatten_path(path: str) -> str:
     return path.replace("/", "_").replace("\\", "_")
@@ -49,10 +22,6 @@ def flatten_path(path: str) -> str:
 def content_hash(content: bytes) -> str:
     """Return a short, non-cryptographic content identifier."""
     return f"{zlib.crc32(content) & 0xFFFFFFFF:08x}"[-7:]
-
-
-# def decode_paths(output: bytes) -> list[str]:
-#     return [path.decode("utf-8", errors="surrogateescape") for path in output.split(b"\0") if path]
 
 
 def is_excluded(path: str, exclude_dir: str) -> bool:

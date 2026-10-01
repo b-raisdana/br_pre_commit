@@ -133,6 +133,19 @@ The checked-in `.pre-commit-config.yaml` is the master functionality list. Every
 | `no-commit-to-main`       | Read-only | Blocks direct commits to protected branches  |
 | `no-object-annotations`   | Read-only | Blocks generic 'object' type in type-hinting |
 
+### `no-object-annotations`
+
+The hook rejects an explicit `object` annotation anywhere in a type hint (parameter, return, variable) and suggests a more specific type.
+
+To allow one, add the ignore tag as a comment inside the annotation, on the same line as the `object` occurrence:
+
+```python
+def read_section(section: str) -> dict[str, object]:  # ignore: no-object-annotations
+    ...
+```
+
+The tag must match exactly `# ignore: no-object-annotations`. Because it is matched against the annotation's own source lines, a multi-line annotation needs the tag on the line holding `object`; a tag on the `def` line above it does not suppress anything. A `cast("dict[str, object]", value)` inside the function body is not an annotation, so it needs no tag.
+
 ## Other kind if integration
 
 ### After cloning a consuming project...

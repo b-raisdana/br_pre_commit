@@ -24,27 +24,6 @@ def main():  # override: RatchetConfigOverride | None = None):
     for old_baseline in find_baseline_files():
         old_baseline.unlink()
     asyncio.run(baseline_current_state())
-    # # if override is not None:
-    # #     with RatchetSettingsOverride(override):
-    # old_baseline = load_and_consolidate_baselines()
-    # from .tools import _run_current_analyzers
-    # from .common import get_current_counts
-    #
-    # ruff_violations, mypy_records, xenon_data, loc_counts = _run_current_analyzers()
-    # current_counts = get_current_counts(ruff_violations, mypy_records, xenon_data, loc_counts)
-    # current_counts = {k: v for k, v in current_counts.items() if v > 0}
-    # new_baseline = compute_new_baseline(old_baseline, current_counts)
-    # write_new_baseline(old_baseline, new_baseline)
-    # # else:
-    # #     old_baseline = load_and_consolidate_baselines()
-    # #     from .tools import _run_current_analyzers
-    # #     from .common import get_current_counts
-    # #
-    # #     ruff_violations, mypy_records, xenon_data, loc_counts = _run_current_analyzers()
-    # #     current_counts = get_current_counts(ruff_violations, mypy_records, xenon_data, loc_counts)
-    # #     current_counts = {k: v for k, v in current_counts.items() if v > 0}
-    # #     new_baseline = compute_new_baseline(old_baseline, current_counts)
-    # #     write_new_baseline(old_baseline, new_baseline)
 
 
 if __name__ == "__main__":

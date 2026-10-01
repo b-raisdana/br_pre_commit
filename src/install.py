@@ -37,8 +37,6 @@ def get_active_venv() -> Path | None:
 
 
 def get_user_repo_root_from_git(cwd: Path) -> Path:
-    # if cwd:
-    #     return Path(cwd).resolve()
     user_repo_root = Path(
         subprocess.check_output(
             ["git", "-C", cwd, "rev-parse", "--show-toplevel"],

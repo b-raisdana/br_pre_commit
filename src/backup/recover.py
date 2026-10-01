@@ -195,7 +195,7 @@ def _recover_category(
     if category == "untracked":
         return _recover_untracked(repo_root, snapshot_dir, manifest.untracked, dry_run)
     if category == "full":
-        return _recover_full(repo_root, get_full_backup_dir(repo_root), manifest.full_backups, dry_run)
+        return _recover_full(repo_root, get_full_backup_dir(), manifest.full_backups, dry_run)
     return [f"unknown recovery category: {category}"]
 
 

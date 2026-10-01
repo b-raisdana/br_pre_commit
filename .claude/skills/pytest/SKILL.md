@@ -9,7 +9,7 @@ Companion to [test-strategy](../test-strategy/SKILL.md) (which type to write) �
 
 ## Running tests — read this first
 
-Windows Python installs (`py -3.9`...`3.14`) lack this project's deps (`pandas`, `pandas_ta`, `tensorflow`, `pandera`, ...) — don't `pip install` into a throwaway venv, that hits meson/build-from-source errors on Windows for nothing. The real environment is the WSL conda env `tf`:
+Windows Python installs (`py -3.9`...`3.14`) lack this project's deps (`pandas`, `pandas_ta`, `tensorflow`, `__main__.py`, ...) — don't `pip install` into a throwaway venv, that hits meson/build-from-source errors on Windows for nothing. The real environment is the WSL conda env `tf`:
 
 ```bash
 wsl.exe -d Ubuntu-24.04 -- bash -lc '

@@ -16,6 +16,7 @@ import optree
 import pandas as pd
 import pandera.pandas as pa
 from br_py_log_n_profile import log_d, log_w
+from helper.output_dump import dump_function_output
 
 from config import app_config
 
@@ -23,7 +24,7 @@ Pandera_DFM_Type = TypeVar("Pandera_DFM_Type", bound=pa.DataFrameModel)
 _WARN_INACTIVE_N_RETURN_CHECK_ENFORCEMENT: bool = False
 
 
-def _contains_legacy_pandas_dataframe(annotation: object) -> bool:
+def _contains_legacy_pandas_dataframe(annotation: object) -> bool:  # ignore: no-object-annotations
     """Return True when annotation contains bare/legacy pandas DataFrame."""
     if annotation is pd.DataFrame:
         return True
@@ -141,7 +142,7 @@ def _deep_scan_call(
     _chain: tuple[str, ...],
     visited: set[int],
 ) -> list[NanFillHit]:
-    target: object = fn.__globals__.get(func_node.id)
+    target: object = fn.__globals__.get(func_node.id)  # ignore: no-object-annotations
     if not isinstance(target, FunctionType):
         return []
     return _scan_nan_fills(
@@ -192,7 +193,7 @@ def _enforce_output[T](result: T, *, n_return: int, trim_to_n_return: bool, qual
     """Walk nested DataFrame / tuple / list / dict via optree, enforcing
     NaN-drop + n_return on every DataFrame leaf."""
 
-    def _leaf(x: object) -> object:
+    def _leaf(x: object) -> object:  # ignore: no-object-annotations
         if isinstance(x, pd.DataFrame):
             return _enforce_dataframe(x, n_return=n_return, trim_to_n_return=trim_to_n_return, qualname=qualname)
         return x
@@ -209,7 +210,7 @@ class _NReturnState:
 def _resolve_n_return_state(
     func_obj: FunctionType,
     n_return_in_sig: bool,
-    n_return_raw: object,
+    n_return_raw: int | None,
     allow_return_nan: bool,
 ) -> _NReturnState:
     if n_return_in_sig:
@@ -243,13 +244,13 @@ def pandera_validate[**P, R](
     func: Callable[P, R],
     *,
     allow_pandas_dataframe: bool = ...,
-    inplace: bool = ...,
     trim_to_n_return: bool = ...,
     warn_on_nan_fill: bool = ...,
     forbid_nan_fill: bool = ...,
     deep_nan_fill_scan: bool = ...,
     nan_fill_scan_depth: int = ...,
     extra_nan_fill_names: frozenset[str] = ...,
+    dump_output: bool = ...,
 ) -> Callable[P, R]: ...
 
 
@@ -258,13 +259,13 @@ def pandera_validate[**P, R](
     func: None = None,
     *,
     allow_pandas_dataframe: bool = ...,
-    inplace: bool = ...,
     trim_to_n_return: bool = ...,
     warn_on_nan_fill: bool = ...,
     forbid_nan_fill: bool = ...,
     deep_nan_fill_scan: bool = ...,
     nan_fill_scan_depth: int = ...,
     extra_nan_fill_names: frozenset[str] = ...,
+    dump_output: bool = ...,
 ) -> Callable[[Callable[P, R]], Callable[P, R]]: ...
 
 
@@ -272,17 +273,18 @@ def pandera_validate[**P, R](
     func: Callable[P, R] | None = None,
     *,
     allow_pandas_dataframe: bool = False,
-    inplace: bool = False,
     trim_to_n_return: bool = True,
     warn_on_nan_fill: bool = True,
     forbid_nan_fill: bool = False,
     deep_nan_fill_scan: bool = False,
     nan_fill_scan_depth: int = 2,
     extra_nan_fill_names: frozenset[str] = frozenset(),
+    dump_output: bool = False,
 ) -> Callable[P, R] | Callable[[Callable[P, R]], Callable[P, R]]:
     """
     Runtime Pandera validation decorator. See app/helper/README.md for full docs
-    (decorator options, call-time kwargs, production bypass, exceptions).
+    (decorator options, call-time kwargs, production bypass, exceptions, and the
+    `dump_output` option backed by helper/output_dump.py).
     """
 
     def decorator(func: Callable[P, R]) -> Callable[P, R]:
@@ -295,7 +297,7 @@ def pandera_validate[**P, R](
         if not allow_pandas_dataframe:
             hints = get_type_hints(func_obj, include_extras=True)
             for name in func_obj.__annotations__:
-                annotation: object | None = hints.get(name)
+                annotation: object | None = hints.get(name)  # ignore: no-object-annotations
                 if annotation is not None and _contains_legacy_pandas_dataframe(annotation):
                     where = "return annotation" if name == "return" else f"parameter {name}"
                     log_w(
@@ -315,39 +317,39 @@ def pandera_validate[**P, R](
         if app_config.environment == "production":
             return func
 
-        inner = pa.check_types(lazy=True, inplace=inplace)(func)
+        inner = pa.check_types(lazy=True)(func)
         n_return_in_sig = "n_return" in inspect.signature(func_obj).parameters
 
         @wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-            n_return_raw: object = kwargs.pop("n_return", None)
+            n_return_raw: int | None = kwargs.pop("n_return", None)
             allow_return_nan = bool(kwargs.pop("allow_return_nan", False))
             discard_n_return = bool(kwargs.pop("discard_n_return", False))
 
             state = _resolve_n_return_state(func_obj, n_return_in_sig, n_return_raw, allow_return_nan)
 
-            call_kwargs: dict[str, object] = dict(kwargs)
+            call_kwargs: dict[str, object] = dict(kwargs)  # ignore: no-object-annotations
             if state.n_return_valid and not discard_n_return:
                 call_kwargs["n_return"] = n_return_raw
 
             # call_kwargs is rewritten dynamically (n_return/allow_return_nan/
-            # discard_n_return popped and conditionally re-added), so it no
-            # longer matches _P.kwargs exactly from the type checker's view —
-            # this is the one unavoidable seam between ParamSpec preservation
-            # and runtime kwarg rewriting.
+            # discard_n_return popped and conditionally re-added), so it no longer
+            # matches _P.kwargs exactly: the one unavoidable seam between ParamSpec
+            # preservation and runtime kwarg rewriting.
             result: R = inner(*args, **call_kwargs)  # type: ignore[arg-type]
 
-            if not state.expect_n_return_enforcement:
-                return result
-
-            # log_w(NOT_TESTED)
-            assert state.n_return_valid  # guaranteed by the raise above when enforcement_active
-            return _enforce_output(
-                result,
-                n_return=cast(int, n_return_raw),
-                trim_to_n_return=trim_to_n_return,
-                qualname=func_obj.__qualname__,
-            )
+            if state.expect_n_return_enforcement:
+                # log_w(NOT_TESTED)
+                assert state.n_return_valid  # guaranteed by the raise above when enforcement_active
+                result = _enforce_output(
+                    result,
+                    n_return=cast(int, n_return_raw),
+                    trim_to_n_return=trim_to_n_return,
+                    qualname=func_obj.__qualname__,
+                )
+            if dump_output:
+                dump_function_output(func_obj, result)
+            return result
 
         return wrapper
 

@@ -9,15 +9,6 @@ from pydantic import Field, field_validator
 
 from helper.config import FromPyProjectTomlConfig
 
-# def _flatten_defaults() -> dict[str, dict[str, object]]:  # ignore: no-object-annotations
-#     """Map [tool.br_pre_commit.<name>] sections onto flat [name] sections."""
-#     return _shared_defaults()
-
-
-# WrapperConfig = TypedDict(
-#     "WrapperConfig", {"unknown-hook-policy": str, "job-timeout-seconds": float, "protected-branches": list[str]}
-# )
-
 
 class WrapperConfig(FromPyProjectTomlConfig):
     protected_branches: list[str] = Field(default=[], validation_alias="protected-branches")
@@ -38,11 +29,6 @@ class WrapperConfig(FromPyProjectTomlConfig):
 
 
 wrapper_config = WrapperConfig.from_pyproject_toml("wrapper")
-
-
-# class AppConfig(TypedDict, total=False):
-#     wrapper: WrapperConfig
-#     ratchet: RatchetConfig
 
 
 class PreCommitHook(TypedDict, total=False):
@@ -91,17 +77,6 @@ def get_mutating_hooks() -> frozenset[str]:
     )
 
 
-# _MUTATING_HOOKS = frozenset(
-#     {
-#         "trailing-whitespace",
-#         "end-of-file-fixer",
-#         "mixed-line-ending",
-#         "ruff",
-#         "ruff-format",
-#         "sync-skill-files",
-#         br_pre_commit_config.ratchet_hook_id,
-#     }
-# )
 _READ_ONLY_HOOKS = frozenset(
     {
         "check-yaml",
@@ -120,51 +95,10 @@ _READ_ONLY_HOOKS = frozenset(
 )
 
 
-# def unknown_hook_policy() -> str:
-#     config = _merged_config()
-#     wrapper = config.get("wrapper")
-#     if wrapper is None:
-#         raise ValueError("wrapper configuration is missing")
-#     policy = wrapper["unknown-hook-policy"]
-#     if policy not in {"warn", "error"}:
-#         raise ValueError("wrapper.unknown-hook-policy must be 'warn' or 'error'")
-#     return policy
-
-
-# def job_timeout_seconds() -> float:
-#     config = _merged_config()
-#     wrapper = config.get("wrapper")
-#     if wrapper is None:
-#         raise ValueError("wrapper configuration is missing")
-#     timeout = float(wrapper["job-timeout-seconds"])
-#     if timeout <= 0:
-#         raise ValueError("wrapper.job-timeout-seconds must be positive")
-#     return timeout
-
-
-# def protected_branches() -> tuple[str, ...]:
-#     config = _merged_config()
-#     wrapper = config.get("wrapper")
-#     if wrapper is None:
-#         raise ValueError("wrapper configuration is missing")
-#     branches = wrapper.get("protected-branches", [])
-#     if not isinstance(branches, list) or any(not isinstance(branch, str) or not branch for branch in branches):
-#         raise ValueError("wrapper.protected-branches must be a list of non-empty strings")
-#     return tuple(branches)
-
-
-# def ratchet_settings() -> RatchetConfig:
-#     config = _merged_config()
-#     settings = config.get("ratchet")
-#     if settings is None:
-#         raise ValueError("ratchet configuration is missing")
-#     return settings
-
-
 def classify_hooks(hook_ids: list[str], *, policy: str) -> tuple[list[HookSpec], list[str]]:
     """Classify hook IDs into mutating (serial) and read-only (concurrent) specs.
 
-    Hook IDs not in ``_MUTATING_HOOKS`` or ``_READ_ONLY_HOOKS`` are "unknown".
+    Hook IDs not in ``get_mutating_hooks()`` or ``_READ_ONLY_HOOKS`` are "unknown".
     With ``policy="error"`` they raise ``ValueError``; with ``"warn"`` they
     run serially. See README.md § "Recognized hook IDs" for the full list.
     Projects must use IDs from those sets — see ``.pre-commit-config.yaml``
