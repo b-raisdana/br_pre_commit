@@ -5,11 +5,11 @@
   "mypy:call-arg": 2,
   "mypy:comparison-overlap": 1,
   "mypy:explicit-any": 2,
-  "mypy:import-untyped": 1,
   "mypy:misc": 8,
   "mypy:no-any-return": 1,
   "mypy:no-untyped-call": 1,
   "mypy:no-untyped-def": 3,
   "mypy:return-value": 2,
+  "mypy:unused-ignore": 1,
   "xenon": 2
 }

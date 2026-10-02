@@ -314,7 +314,7 @@ def pandera_validate[**P, R](
         if br_pre_commit_config.environment == "production":
             return func
 
-        inner = pa.check_types(lazy=True)(func)
+        inner = pa.check_types(lazy=True, inplace=True)(func)
         n_return_in_sig = "n_return" in inspect.signature(func_obj).parameters
 
         @wraps(func)
