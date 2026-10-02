@@ -39,9 +39,8 @@ import numpy as np
 import pandas as pd
 from br_py_log_n_profile import log_w
 
-from ..br_pandera.dump_folder import get_dump_folder
 from .content_hash import content_hash
-from .repo_root import find_repo_root_or_parent
+from .dump_folder import get_dump_folder
 
 Array = np.ndarray[tuple[int, ...], np.dtype[np.generic]]  # type: ignore[explicit-any]
 JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
@@ -69,6 +68,8 @@ def namespace_path(source_file: Path) -> str:
     The path is taken relative to the Git root owning ``source_file``, so a
     library installed elsewhere cannot influence the namespace.
     """
+    from ..helper.repo_root import find_repo_root_or_parent
+
     root = find_repo_root_or_parent(source_file)
     resolved = source_file.resolve()
     try:
