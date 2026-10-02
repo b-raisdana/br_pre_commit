@@ -10,6 +10,5 @@
   "mypy:no-untyped-call": 1,
   "mypy:no-untyped-def": 3,
   "mypy:return-value": 2,
-  "mypy:unused-ignore": 1,
   "xenon": 2
 }
