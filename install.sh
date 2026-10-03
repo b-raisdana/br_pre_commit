@@ -1,12 +1,25 @@
 #!/usr/bin/env sh
 
-INSTALL_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-PYTHON="$(command -v python)"
+set -eu
 
-echo "Python: $PYTHON"
-echo "Install directory: $INSTALL_DIR"
+BrPreCommitDir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+UserRepoDir="$(pwd)"
+
+Python="${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}"
+Python="${Python:-$(command -v python || true)}"
+
+
+echo "Python: $Python"
+echo "br_pre_commit repository directory: $BrPreCommitDir"
+echo "User repository directory: $UserRepoDir"
+
+if [ -z "$Python" ] || [ ! -x "$Python" ]; then
+  echo "ERROR: no usable Python interpreter; activate a virtual environment first." >&2
+  exit 1
+fi
 
 # Run as a module from the repository root: src.install imports its siblings
 # (src.helper.paths), which only resolve inside the src package.
-cd "$INSTALL_DIR"
-exec "$PYTHON" -m src.install "$@"
+cd "$BrPreCommitDir"
+
+exec "$Python" -m src.install "$UserRepoDir" "$@"

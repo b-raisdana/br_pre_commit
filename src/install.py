@@ -220,12 +220,12 @@ def main() -> int:
         return -1
 
     parser = argparse.ArgumentParser(prog="br_pre_commit.install")
-    parser.add_argument("user_repo_path", metavar="user-repo-path", nargs="?", default=Path.cwd())
+    parser.add_argument("user_repo_path", metavar="user-repo-path", nargs="?")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    user_repo_root = Path(args.user_repo_path).resolve() if args.user_repo_path else Path.cwd().resolve()
+    user_repo_root = Path(args.user_repo_path or Path.cwd()).resolve()
 
     if args.dry_run:
         return install(
