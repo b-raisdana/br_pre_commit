@@ -5,3 +5,4 @@ __pycache__/
 logs/pre-commit/
 .idea
 .env
+node_modules

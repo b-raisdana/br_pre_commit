@@ -10,6 +10,7 @@ Shared pre-commit infrastructure for python repositories. It owns the concurrent
   - [Recognized hook IDs](#recognized-hook-ids)
   - [Standard hooks](#standard-hooks)
   - [Specialized hooks](#specialized-hooks)
+    - [`no-object-annotations`](#no-object-annotations)
   - [Other kind if integration](#other-kind-if-integration)
     - [After cloning a consuming project...](#after-cloning-a-consuming-project)
     - [To upgrade deliberately the 'br\_pre\_commit' to a new version](#to-upgrade-deliberately-the-br_pre_commit-to-a-new-version)
@@ -204,7 +205,6 @@ python -m src.backup.recover \
 | [src/README.md](src/README.md)                                                                                         | Source-tree layout overview, with links to every package README.                                                                                                     |
 | [src/precommit_wrapper/README.md](src/precommit_wrapper/README.md)                                                       | Concurrent wrapper internals: module map, hook classification, scheduling, exit codes, log/summary formats, and the deliberate `__main__`/`report.py` circular import. |
 | [src/br_pandera/README.md](src/br_pandera/README.md)                                                                           | `pandera_validate` decorator options, call-time kwargs, NaN-fill detection, dump-folder rules, and the package-qualified import surface.                                 |
-| [src/ratchet/README.md](src/ratchet/README.md)                                                                         | Ratchet module entry point, layering, and module-grouping rationale.                                                                                               |
 | [src/ratchet/RATCHET.md](src/ratchet/RATCHET.md)                                                                       | Incremental ratchet design: per-file blocking gate, project-wide trend baselines, upgrade plan.                                                                   |
 | [src/sync_skills/README.md](src/sync_skills/README.md)                                                                 | Bidirectional `SKILL.md` mirroring across agent directories (`.claude`, `.codex`, `.devin`, etc.) and conflict-resolution rules.                                    |
 | [pyproject.toml](pyproject.toml)                                                                                       | Shared default settings under `[tool.br_pre_commit.*]` (`unknown-hook-policy`, `job-timeout-seconds`, `protected-branches`, ratchet parameters, backup exclusions). |
