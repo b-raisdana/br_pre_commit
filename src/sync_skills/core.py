@@ -19,9 +19,9 @@ from .config import sync_skills_config
 
 AGENTS = [
     "claude",
-    "codex",
+    "agents",  # "codex",
     "devin",
-    "qoder",
+    # "qoder",
     "copilot",
     "kiro",
     "kilo",

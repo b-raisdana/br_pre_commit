@@ -75,7 +75,7 @@ def test_is_excluded_by_hardcoded_and_prefix():
     assert m.is_excluded("use-aget-skills")
     assert m.is_excluded("kilo-only-todo-discipline")
     assert m.is_excluded("claude-only-review")
-    assert m.is_excluded("codex-only-experimental")
+    assert m.is_excluded("agents-only-experimental")
 
 
 def test_is_not_excluded_for_shared_skills():
