@@ -10,10 +10,16 @@ Shared pre-commit infrastructure for python repositories. It owns the concurrent
   - [Recognized hook IDs](#recognized-hook-ids)
     - [Enabling / disabling each control](#enabling--disabling-each-control)
   - [Backup exclusion regex](#backup-exclusion-regex)
+    - [How it works](#how-it-works)
+    - [Customizing the regex](#customizing-the-regex)
+    - [What gets backed up vs. excluded](#what-gets-backed-up-vs-excluded)
+    - [Per-attempt manifest](#per-attempt-manifest)
   - [Standard hooks](#standard-hooks)
   - [Specialized hooks](#specialized-hooks)
     - [`no-object-annotations`](#no-object-annotations)
     - [`incremental-ratchet` — when and how to run a baseline](#incremental-ratchet--when-and-how-to-run-a-baseline)
+      - [When to run a baseline](#when-to-run-a-baseline)
+      - [How to run a baseline](#how-to-run-a-baseline)
   - [Other kind if integration](#other-kind-if-integration)
     - [After cloning a consuming project...](#after-cloning-a-consuming-project)
     - [To upgrade deliberately the 'br\_pre\_commit' to a new version](#to-upgrade-deliberately-the-br_pre_commit-to-a-new-version)
@@ -370,7 +376,6 @@ python -m src.backup.recover \
 | [src/README.md](src/README.md)                                                                                         | Source-tree layout overview, with links to every package README.                                                                                                     |
 | [src/precommit_wrapper/README.md](src/precommit_wrapper/README.md)                                                       | Concurrent wrapper internals: module map, hook classification, scheduling, exit codes, log/summary formats, and the deliberate `__main__`/`report.py` circular import. |
 | [src/br_pandera/README.md](src/br_pandera/README.md)                                                                           | `pandera_validate` decorator options, call-time kwargs, NaN-fill detection, dump-folder rules, and the package-qualified import surface.                                 |
-| [src/ratchet/README.md](src/ratchet/README.md)                                                                         | Ratchet module entry point, layering, and module-grouping rationale.                                                                                               |
 | [src/ratchet/RATCHET.md](src/ratchet/RATCHET.md)                                                                       | Incremental ratchet design: per-file blocking gate, project-wide trend baselines, upgrade plan.                                                                   |
 | [src/sync_skills/README.md](src/sync_skills/README.md)                                                                 | Bidirectional `SKILL.md` mirroring across agent directories (`.claude`, `.codex`, `.devin`, etc.) and conflict-resolution rules.                                    |
 | [src/backup/README.md](src/backup/README.md)                                                                           | Backup system: patch/full snapshots, exclusion regex, content-addressed storage, recovery commands.                                                                 |
