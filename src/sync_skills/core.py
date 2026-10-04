@@ -18,9 +18,9 @@ from ..helper.git import (
 
 AGENTS = [
     "claude",
-    "codex",
+    "agents",  # "codex",
     "devin",
-    "qoder",
+    # "qoder",
     "copilot",
     "kiro",
     "kilo",
