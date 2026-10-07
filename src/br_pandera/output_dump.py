@@ -122,12 +122,6 @@ def _extractable_frame(value: pd.DataFrame | Array) -> pd.DataFrame:
     return _frame_with_flat_index(value)
 
 
-def _parquet_payload(frame: pd.DataFrame) -> bytes:
-    buffer = io.BytesIO()
-    frame.to_parquet(buffer, engine="pyarrow", index=False)
-    return buffer.getvalue()
-
-
 # ---------------------------------------------------------------------------
 # Walking the returned value
 # ---------------------------------------------------------------------------
@@ -223,8 +217,16 @@ def _write(folder: Path, base_name: str, suffix: str, payload: bytes) -> Path:
     return path
 
 
-def _write_frame(folder: Path, base_name: str, frame: pd.DataFrame) -> Path:
-    return _write(folder, base_name, PARQUET_SUFFIX, _parquet_payload(frame))
+def _write_frame(folder: Path, base_name: str, value: pd.DataFrame | Array) -> Path:
+    """Parquet dump of ``value``, whose array form is converted to a tabular frame.
+
+    The payload is built in memory because the content hash belongs in the file
+    name, which therefore has to be known before the file exists.
+    """
+    frame = _extractable_frame(value)
+    payload = io.BytesIO()
+    frame.to_parquet(payload, engine="pyarrow", index=False)
+    return _write(folder, base_name, PARQUET_SUFFIX, payload.getvalue())
 
 
 def _write_json(folder: Path, base_name: str, value: JsonValue) -> Path:
@@ -252,7 +254,7 @@ def _dump[Output](func: FunctionType, result: Output) -> tuple[Path, ...]:
     folder = get_dump_folder(source_file)
     base_name = build_base_name(source_file, func.__qualname__)
     if isinstance(result, (pd.DataFrame, np.ndarray)) and result.ndim >= 1:
-        return (_write_frame(folder, base_name, _extractable_frame(result)),)
+        return (_write_frame(folder, base_name, result),)
     references = _write_frames(folder, base_name, _collect_frames(result, ()))
     return (*references.values(), _write_json(folder, base_name, _json_value(result, (), references)))
 
