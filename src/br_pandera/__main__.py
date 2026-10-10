@@ -318,7 +318,7 @@ def pandera_validate[**P, R](
         n_return_in_sig = "n_return" in inspect.signature(func_obj).parameters
 
         @wraps(func)
-        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        def pandera_validate_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             n_return_raw: int | None = kwargs.pop("n_return", None)
             allow_return_nan = bool(kwargs.pop("allow_return_nan", False))
             discard_n_return = bool(kwargs.pop("discard_n_return", False))
@@ -348,7 +348,7 @@ def pandera_validate[**P, R](
                 dump_function_output(func_obj, result)
             return result
 
-        return wrapper
+        return pandera_validate_wrapper
 
     if func is not None:
         return decorator(func)

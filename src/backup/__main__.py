@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..helper.git import git_cmd
-from ..helper.paths import get_full_backup_dir, get_log_dir
+from ..helper.paths import get_backup_manifest_dir, get_full_backup_dir, get_log_dir
 from .common import (
     content_hash,
     flatten_path,
@@ -24,6 +24,60 @@ from .models import Manifest
 
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 log = logging.getLogger("backup")
+
+
+def _attempt_timestamp() -> str:
+    """Human-readable timestamp of the backup attempt, with milliseconds."""
+    return datetime.now().strftime("%Y-%m-%dT%H-%M-%S.%f")[:-3]
+
+
+def _entry_fullpath(entry: dict[str, str], base_dir: Path) -> str:
+    stored = entry.get("stored_path")
+    if not stored or stored == "None":
+        return ""
+    return str(base_dir / stored)
+
+
+def _write_attempt_manifest(
+    manifest_dir: Path,
+    attempt_ts: str,
+    snapshot_dir: Path,
+    full_backup_dir: Path,
+    manifest: Manifest,
+) -> Path:
+    """Write a JSON manifest listing every backup file's full path for this attempt.
+
+    The file is named after the human-readable timestamp (with milliseconds) of
+    the attempt so it is unique and sortable.
+    """
+    files: list[str] = []
+    for entry in manifest.staged:
+        full = _entry_fullpath(entry, snapshot_dir)
+        if full:
+            files.append(full)
+    for entry in manifest.unstaged:
+        full = _entry_fullpath(entry, snapshot_dir)
+        if full:
+            files.append(full)
+    for entry in manifest.untracked:
+        full = _entry_fullpath(entry, snapshot_dir)
+        if full:
+            files.append(full)
+    for entry in manifest.full_backups:
+        full = _entry_fullpath(entry, full_backup_dir)
+        if full:
+            files.append(full)
+
+    payload = {
+        "attempt_timestamp": attempt_ts,
+        "branch": manifest.branch,
+        "commit_hash": manifest.commit_hash,
+        "snapshot_dir": manifest.snapshot_dir,
+        "files": files,
+    }
+    manifest_path = manifest_dir / f"{attempt_ts}.json"
+    manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return manifest_path
 
 
 def _write_manifest(path: Path, manifest: Manifest) -> None:
@@ -230,6 +284,21 @@ async def take_snapshot_async(repo_root: Path) -> Manifest:
         await asyncio.to_thread(_write_manifest, snapshot_dir / "manifest.json", manifest)
     except Exception as exc:
         log.exception("Failed to write manifest: %s", exc)
+        raise
+
+    attempt_ts = _attempt_timestamp()
+    manifest.attempt_timestamp = attempt_ts
+    try:
+        await asyncio.to_thread(
+            _write_attempt_manifest,
+            get_backup_manifest_dir(),
+            attempt_ts,
+            snapshot_dir,
+            full_backup_dir,
+            manifest,
+        )
+    except Exception as exc:
+        log.exception("Failed to write attempt manifest: %s", exc)
         raise
 
     total_size = await asyncio.to_thread(_snapshot_size, snapshot_dir)

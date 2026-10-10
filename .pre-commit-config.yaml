@@ -98,10 +98,10 @@ repos:
     files: ^src/.*\.py$
     stages:
     - pre-commit
-  - id: no-commit-to-main
+  - id: no-commit-to-trunk
     name: block direct commits to protected branches
     language: system
-    entry: python -m src.check_no_commit_to_main
+    entry: python -m src.check_no_commit_to_trunk
     pass_filenames: false
     always_run: true
     stages:

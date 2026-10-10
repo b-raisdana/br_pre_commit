@@ -181,7 +181,7 @@ async def _main_async() -> int:
     human_ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
     branch = await git_cmd("rev-parse", "--abbrev-ref", "HEAD")
     staged = await get_staged_files()
-    results = _run_branch_protection(branch) if pre_commit_hook_is_enabled("no-commit-to-main") else []
+    results = _run_branch_protection(branch) if pre_commit_hook_is_enabled("no-commit-to-trunk") else []
     if not results:
         results = await _run_pipeline(staged)
 

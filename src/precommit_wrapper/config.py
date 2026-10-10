@@ -1,25 +1,36 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, TypedDict, cast
 
 import yaml
 from pydantic import Field, field_validator
+from pydantic_settings import SettingsConfigDict
 
 from ..helper.config import FromPyProjectTomlConfig
 
 
 class WrapperConfig(FromPyProjectTomlConfig):
-    protected_branches: list[str] = Field(default=[], validation_alias="protected-branches")
+    model_config = SettingsConfigDict(populate_by_name=True)
+
+    protected_branches_regex: str = Field(default="^(main|develop|uat)$", validation_alias="protected-branches-regex")
     unknown_hook_policy: Literal["warn", "error"] = Field(default="warn", validation_alias="unknown-hook-policy")
     job_timeout_seconds: int = Field(default=3 * 60, validation_alias="job-timeout-seconds")
 
-    @field_validator("protected_branches", mode="before")
+    @field_validator("protected_branches_regex", mode="before")
     @classmethod
-    def _validate_protected_branches(cls, value: list[str]) -> list[str]:
-        if not isinstance(value, list) or any(not isinstance(branch, str) or not branch for branch in value):
-            raise ValueError("wrapper.protected-branches must be a list of non-empty strings")
+    def _validate_protected_branches_regex(
+        cls,
+        value: object,  # ignore: no-object-annotations
+    ) -> str:
+        if not isinstance(value, str) or not value:
+            raise ValueError("wrapper.protected-branches-regex must be a non-empty string")
+        try:
+            re.compile(value)
+        except re.error as exc:
+            raise ValueError(f"wrapper.protected-branches-regex is not a valid regular expression: {exc}") from exc
         return value
 
     pre_commit_stage: str = "pre-commit"
@@ -86,7 +97,7 @@ _READ_ONLY_HOOKS = frozenset(
         "pytest-integration-collect",
         "integration-tests",
         "check-pandera-decorator",
-        "no-commit-to-main",
+        "no-commit-to-trunk",
         "no-object-annotations",
     }
 )

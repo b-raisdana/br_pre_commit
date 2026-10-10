@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -40,7 +41,7 @@ class JobResult:
 
 
 def _branch_protection_result(branch: str) -> JobResult | None:
-    if branch not in wrapper_config.protected_branches:
+    if not re.fullmatch(wrapper_config.protected_branches_regex, branch):
         return None
     merge_in_progress = subprocess.run(
         ["git", "-C", str(get_user_repo_path_from_env()), "rev-parse", "--verify", "--quiet", "MERGE_HEAD"],

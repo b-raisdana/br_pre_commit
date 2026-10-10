@@ -73,6 +73,17 @@ def get_full_backup_dir() -> Path:
     return get_log_dir() / "full_backup"
 
 
+def get_backup_manifest_dir() -> Path:
+    """Directory where per-attempt backup manifests live.
+
+    Each pre-commit/backup attempt writes a single JSON manifest here whose
+    name is the human-readable timestamp (with milliseconds) of the attempt.
+    """
+    dir_ = get_log_dir() / "backup-manifests"
+    dir_.mkdir(parents=True, exist_ok=True)
+    return dir_
+
+
 def get_ratchet_baseline_dir() -> Path:
     dir_ = get_user_repo_path_from_env() / ".br-pre-commit" / "ratchet"
     dir_.mkdir(parents=True, exist_ok=True)

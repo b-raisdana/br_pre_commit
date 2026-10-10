@@ -11,7 +11,7 @@ pytestmark = [pytest.mark.unit, pytest.mark.precommit_wrapper]
 
 
 def test_branch_protection_blocks_main_by_default(monkeypatch):
-    monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches", ["main"])
+    monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches_regex", "^(main|develop|uat)$")
     monkeypatch.setattr(
         precommit_wrapper.subprocess,
         "run",
@@ -25,14 +25,28 @@ def test_branch_protection_blocks_main_by_default(monkeypatch):
     assert result.returncode == 1
 
 
+def test_branch_protection_blocks_develop_and_uat(monkeypatch):
+    monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches_regex", "^(main|develop|uat)$")
+    monkeypatch.setattr(
+        precommit_wrapper.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1),
+    )
+
+    for branch in ("develop", "uat"):
+        result = precommit_wrapper._branch_protection_result(branch)
+        assert result is not None
+        assert result.returncode == 1
+
+
 def test_branch_protection_allows_feature_branch(monkeypatch):
-    monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches", ["main"])
+    monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches_regex", "^(main|develop|uat)$")
 
     assert precommit_wrapper._branch_protection_result("feature/test") is None
 
 
 def test_branch_protection_allows_merge_into_main(monkeypatch):
-    monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches", ["main"])
+    monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches_regex", "^(main|develop|uat)$")
     monkeypatch.setattr(
         precommit_wrapper.subprocess,
         "run",
@@ -40,6 +54,18 @@ def test_branch_protection_allows_merge_into_main(monkeypatch):
     )
 
     assert precommit_wrapper._branch_protection_result("main") is None
+
+
+def test_branch_protection_rejects_partial_branch_name_match(monkeypatch):
+    monkeypatch.setattr(precommit_wrapper.wrapper_config, "protected_branches_regex", "^(main|develop|uat)$")
+    monkeypatch.setattr(
+        precommit_wrapper.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1),
+    )
+
+    for branch in ("main-foo", "feature/main", "developing"):
+        assert precommit_wrapper._branch_protection_result(branch) is None
 
 
 def test_hook_command_uses_explicit_files_to_avoid_nested_stash():

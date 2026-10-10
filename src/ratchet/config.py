@@ -3,11 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from pydantic import Field
+from pydantic_settings import SettingsConfigDict
 
 from ..helper.config import FromPyProjectTomlConfig
 
 
 class RatchetConfig(FromPyProjectTomlConfig):
+    model_config = SettingsConfigDict(populate_by_name=True)
+
     target_dir_rel_path: Path = Field(default=Path("src"), validation_alias="target")
     ratchet_data_folder_rel_path: Path = Path("ratchet")
     baseline_glob: str = "baseline*.json"

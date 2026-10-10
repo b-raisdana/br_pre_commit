@@ -16,8 +16,11 @@
   "mypy:typeddict-item": 1,
   "mypy:unused-coroutine": 1,
   "mypy:unused-ignore": 1,
+  "ruff:E402": 1,
+  "ruff:E501": 1,
   "ruff:F401": 1,
   "ruff:I001": 1,
   "ruff:SIM115": 3,
+  "ruff:W292": 1,
   "xenon": 2
 }

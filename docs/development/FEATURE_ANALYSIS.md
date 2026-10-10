@@ -6,7 +6,7 @@
 
 The clone-local `.git/hooks/pre-commit` shim is installed with `bash ../br_pre_commit/install/install.sh "$PWD"` from a target project.
 
-The installed hook delegates to `src/precommit_wrapper/__main__.py` (`python -m br_pre_commit.src.precommit_wrapper`, run from the target repository's root; no `PYTHONPATH` is exported). Before running project hooks, the wrapper blocks branches listed by `wrapper.protected-branches` (`["main"]` by default). It then reads the target project's `.pre-commit-config.yaml`, uses one shared staged-files context, runs file-mutating hooks serially, and runs read-only hooks in concurrent subprocesses. Unknown hooks fail by default (`wrapper.unknown-hook-policy` in
+The installed hook delegates to `src/precommit_wrapper/__main__.py` (`python -m br_pre_commit.src.precommit_wrapper`, run from the target repository's root; no `PYTHONPATH` is exported). Before running project hooks, the wrapper blocks branches matching `wrapper.protected-branches-regex` (`^(main|develop|uat)$` by default). It then reads the target project's `.pre-commit-config.yaml`, uses one shared staged-files context, runs file-mutating hooks serially, and runs read-only hooks in concurrent subprocesses. Unknown hooks fail by default (`wrapper.unknown-hook-policy` in
 `[tool.br_pre_commit.wrapper]` of `pyproject.toml`); `warn` runs them serially. Each job has the configured timeout.
 
 The hook IDs the wrapper can classify are defined as frozensets in `precommit_config.py` (`_MUTATING_HOOKS` and `_READ_ONLY_HOOKS`); see README.md § "Recognized hook IDs" for the full list and the requirement that every project config use only registered IDs.

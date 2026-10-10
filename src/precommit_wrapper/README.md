@@ -15,7 +15,7 @@ Concurrent `pre-commit` runner installed as the target project's Git hook. Entry
 
 Read from `[tool.br_pre_commit.wrapper]` in the **user project's** `pyproject.toml` via `../helper/config.py` (no `.br-pre-commit.toml`, no per-project override file):
 
-- `protected-branches` — branches that reject direct commits (default `[]`).
+- `protected-branches-regex` — regex matched against the current branch name (default `^(main|develop|uat)$`).
 - `unknown-hook-policy` — `warn` (default) or `error`: what happens to hook IDs the wrapper cannot classify.
 - `job-timeout-seconds` — per-hook timeout, default `180`.
 
@@ -38,7 +38,7 @@ IDs in neither set are "unregistered": under `policy="error"` `classify_hooks()`
 
 ## Branch protection
 
-When `no-commit-to-main` is enabled, `report.py` calls `_branch_protection_result()` **before** the pipeline. On a protected branch with no merge in progress (`git rev-parse --verify MERGE_HEAD` fails), it returns a synthetic failing job: no hook runs, no backup is taken, the commit aborts. The merge-progress check lets merge commits through.
+When `no-commit-to-trunk` is enabled, `report.py` calls `_branch_protection_result()` **before** the pipeline. On a protected branch with no merge in progress (`git rev-parse --verify MERGE_HEAD` fails), it returns a synthetic failing job: no hook runs, no backup is taken, the commit aborts. The merge-progress check lets merge commits through.
 
 ## Failure handling and exit codes
 

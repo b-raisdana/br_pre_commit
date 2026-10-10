@@ -47,7 +47,7 @@ _READ_ONLY_HOOKS = frozenset(
         "pytest-integration-collect",
         "integration-tests",
         "check-pandera-decorator",
-        "no-commit-to-main",
+        "no-commit-to-trunk",
         "no-object-annotations",
     }
 )

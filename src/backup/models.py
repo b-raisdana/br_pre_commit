@@ -13,3 +13,4 @@ class Manifest:
     unstaged: list[dict[str, str]]
     untracked: list[dict[str, str]]
     full_backups: list[dict[str, str]] = field(default_factory=list)
+    attempt_timestamp: str = ""

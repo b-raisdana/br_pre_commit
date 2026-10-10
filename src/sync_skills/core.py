@@ -15,6 +15,7 @@ from ..helper.git import (
     show_index_blob,
     stage,
 )
+from .config import sync_skills_config
 
 AGENTS = [
     "claude",
@@ -26,7 +27,7 @@ AGENTS = [
     "kilo",
 ]
 
-HARDCODED_SKIPS = {"use-aget-skills", "kilo-only-todo-discipline"}
+HARDCODED_SKIPS = set(sync_skills_config.hardcoded_skips)
 
 GIT_COMMIT_SPECIAL = "git-commit"
 _GITHUB_PATH = ".github/git-commit"

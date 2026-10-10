@@ -18,37 +18,83 @@ Wired in `.pre-commit-config.yaml` as `sync-skill-files` and runs when a `SKILL.
 
 ## Exclusions
 
+How the sync hook decides a skill is agent-specific and must not propagate:
+
+**Detection is purely folder-name based.** The hook never reads the contents of `SKILL.md` to make that decision. A skill is excluded from cross-agent sync when its *folder name* matches one of the two rules below. This is checked by `is_excluded()` in `src/sync_skills/core.py:38`, which is consulted at every point where a skill would otherwise be written to or verified across mirrors (`__main__.py:99,113,117`, `sync.py:125,145,231`).
+
 Two mechanisms keep agent-specific skills from propagating:
 
-### 1. Hardcoded skip list (`HARDCODED_SKIPS`)
+### 1. Configurable skip list (`hardcoded-skips`)
 
-Exact folder names in the Python `set` at the top of `src/sync_skills/__main__.py`:
+Exact folder names configured in `pyproject.toml` under `[tool.br_pre_commit.sync_skills]`:
 
-```python
-HARDCODED_SKIPS = {"use-aget-skills", "kilo-only-todo-discipline"}
+```toml
+[tool.br_pre_commit.sync_skills]
+hardcoded-skips = ["use-aget-skills", "kilo-only-todo-discipline"]
 ```
 
-Use this for legacy skills that were excluded before the naming convention existed, or for one-offs that don't fit the prefix pattern.
+This replaces the previous hardcoded Python set. Use this for legacy skills that were excluded before the naming convention existed, or for one-offs that don't fit the prefix pattern.
+
+The list is loaded at runtime from `sync_skills_config.hardcoded_skips` (see `src/sync_skills/config.py`).
 
 ### 2. `{agent}-only-` prefix pattern
 
-Any folder whose name starts with `<agent>-only-` is automatically excluded from cross-agent sync.
+Any folder whose name starts with `<agent>-only-` is automatically excluded from cross-agent sync. The check is:
+
+```python
+any(skill_dir.startswith(f"{a}-only-") for a in AGENTS)
+```
 
 Examples: `kilo-only-todo-discipline`, `claude-only-review`, `codex-only-experimental`. This is the preferred convention for new agent-specific skills.
+
+> **Note:** the folder name must start with the prefix. Placing the agent name later in the name (e.g. `my-skill-kilo-only`) does **not** trigger exclusion — only a leading `<agent>-only-` prefix is recognized.
 
 ## Adding a new agent-specific skill
 
 1. Create it under the agent's directory using the prefix:
    `mkdir -p .kilo/skills/kilo-only-my-skill`
-2. Add `SKILL.md` inside it with the standard marker:
+2. Add `SKILL.md` inside it. The sync hook never copies it to the other agent directories purely because of the `kilo-only-` folder prefix — no content marker is required or inspected.
+3. To make the intent self-documenting, you may include the marker line:
    `This skill is specifically designed for the Kilo agent. Do not propagate to other agent skill directories.`
-3. The sync hook never copies it to the other agent directories.
+   This is documentation only; it does not affect sync behavior.
 
-## Adding a new shared agent
+## Managing interested agents (add / remove)
 
-1. Add the agent slug to the `AGENTS` list in `src/sync_skills/__main__.py`.
-2. Create `.<agent>/skills/` in the repo.
-3. The sync loop includes it automatically.
+The set of agents whose `SKILL.md` files are mirrored lives in the `AGENTS`
+list in `src/sync_skills/core.py`. Add or remove an agent slug there; the sync
+loop picks it up on the next run automatically.
+
+### Adding an agent
+
+1. Add the agent slug to the `AGENTS` list in `src/sync_skills/core.py`:
+   ```python
+   AGENTS = ["claude", "codex", "devin", "qoder", "copilot", "kiro", "kilo", "myagent"]
+   ```
+2. Create the agent's skills directory in the repo:
+   ```sh
+   mkdir -p .myagent/skills
+   ```
+3. Stage the directory and run the hook once:
+   ```sh
+   git add .myagent/skills
+   # edit or copy a SKILL.md, then:
+   pre-commit run sync-skill-files --all-files
+   ```
+   The first sync creates the mirror slots for the new agent and propagates every
+   existing shared skill into `.<agent>/skills/<skill>/SKILL.md`.
+
+### Removing an agent
+
+1. Remove the agent slug from the `AGENTS` list in `src/sync_skills/core.py`.
+2. The agent's directory (`.myagent/`) is no longer touched by the sync loop.
+   If you want it gone from the repo, delete the directory and commit the removal:
+   ```sh
+   git rm -r .myagent
+   ```
+   The hook will not complain about a missing mirror for a removed agent.
+
+> **Note:** removing an agent slug from `AGENTS` does **not** delete its skills
+> from the working tree — the sync loop only stops *writing* to that slot.
 
 ## Dependency
 

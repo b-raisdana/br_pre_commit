@@ -51,15 +51,15 @@ def test_enabled_hooks_reads_only_pre_commit_stage(tmp_path):
 def test_hook_master_switch_can_disable_and_enable_hook(tmp_path):
     cfg_file = tmp_path / ".pre-commit-config.yaml"
     cfg_file.write_text(
-        "repos:\n  - repo: local\n    hooks:\n      - id: no-commit-to-main\n        stages: [manual]\n",
+        "repos:\n  - repo: local\n    hooks:\n      - id: no-commit-to-trunk\n        stages: [manual]\n",
         encoding="utf-8",
     )
 
-    assert not hooks.pre_commit_hook_is_enabled("no-commit-to-main", cfg_file)
+    assert not hooks.pre_commit_hook_is_enabled("no-commit-to-trunk", cfg_file)
 
     cfg_file.write_text(cfg_file.read_text(encoding="utf-8").replace("manual", "pre-commit"), encoding="utf-8")
 
-    assert hooks.pre_commit_hook_is_enabled("no-commit-to-main", cfg_file)
+    assert hooks.pre_commit_hook_is_enabled("no-commit-to-trunk", cfg_file)
 
 
 def test_unknown_hook_error_policy_fails():
@@ -84,13 +84,21 @@ def test_ratchet_hook_is_registered_without_recursion():
     assert specs == [config.HookSpec(hook_id, mutates_files=True)]
 
 
-def test_main_is_protected_by_default(tmp_path):
-    assert config.wrapper_config.protected_branches == ["main"]
+def test_default_trunk_regex_matches_main_develop_uat():
+    assert config.wrapper_config.protected_branches_regex == "^(main|develop|uat)$"
 
 
-@pytest.mark.parametrize("value", ['"main"', '["main", ""]', "[1]"])
-def test_protected_branches_rejects_invalid_values(tmp_path, value):
+@pytest.mark.parametrize("value", ['["main", ""]', "[1]", "123"])
+def test_protected_branches_regex_rejects_invalid_values(tmp_path, value):
     from pydantic import ValidationError
 
-    with pytest.raises(ValidationError, match="protected-branches"):
-        config.WrapperConfig.model_validate({"protected-branches": eval(value)})
+    with pytest.raises(ValidationError, match="protected-branches-regex"):
+        config.WrapperConfig.model_validate({"protected-branches-regex": eval(value)})
+
+
+@pytest.mark.parametrize("value", ["(", "*", "[a-"])
+def test_protected_branches_regex_rejects_invalid_regex(tmp_path, value):
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="protected-branches-regex"):
+        config.WrapperConfig.model_validate({"protected-branches-regex": value})
