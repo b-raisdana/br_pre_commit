@@ -1,4 +1,4 @@
-"""Run pre-commit hooks concurrently with live and per-hook final logs.
+"""Run the pre-commit pipeline with advisory checks and live logs.
 
 See README.md for the module map, scheduling rules, and exit codes.
 """
@@ -13,16 +13,11 @@ import re
 import signal
 import subprocess
 import sys
-from collections.abc import Awaitable, Sequence
+from collections.abc import Awaitable
 from dataclasses import dataclass
 
 from ..helper.paths import get_br_pre_commit_package_prefix_from_env, get_user_repo_path_from_env
-from .config import (
-    HookSpec,
-    classify_hooks,
-    wrapper_config,
-)
-from .hooks import enabled_pre_commit_hook_ids
+from .config import wrapper_config
 
 ADVISORY_RUFF_RULES = "Q,RUF,T10,T20,ERA"
 
@@ -119,8 +114,8 @@ async def _run_job(
     return JobResult(job_id, tuple(command), return_code, duration, "".join(stdout_parts), "".join(stderr_parts))
 
 
-def _hook_command(hook_id: str, staged: list[str]) -> list[str]:
-    return ["pre-commit", "run", hook_id, "--hook-stage", "pre-commit", "--color", "never", "--files", *staged]
+def _pipeline_command(staged: list[str]) -> list[str]:
+    return ["pre-commit", "run", "--hook-stage", "pre-commit", "--color", "never", "--files", *staged]
 
 
 async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
@@ -149,16 +144,6 @@ async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
         await proc.wait()
 
 
-def _reader_jobs(
-    specs: Sequence[HookSpec], staged: list[str], terminal_lock: asyncio.Lock, timeout: float
-) -> list[Awaitable[JobResult]]:
-    return [
-        _run_job(spec.hook_id, _hook_command(spec.hook_id, staged), terminal_lock, timeout_seconds=timeout)
-        for spec in specs
-        if not spec.mutates_files
-    ]
-
-
 def _advisory_jobs(py_files: list[str], terminal_lock: asyncio.Lock, timeout: float) -> list[Awaitable[JobResult]]:
     if not py_files:
         return []
@@ -181,28 +166,23 @@ def _advisory_jobs(py_files: list[str], terminal_lock: asyncio.Lock, timeout: fl
 
 
 async def _run_hooks(staged: list[str]) -> list[JobResult]:
-    policy = wrapper_config.unknown_hook_policy
     timeout = wrapper_config.job_timeout_seconds
-    specs, unknown = classify_hooks(enabled_pre_commit_hook_ids(), policy=policy)
-    if unknown:
-        sys.stdout.write(f"warning: unregistered hooks run serially: {', '.join(unknown)}\n")
-
     terminal_lock = asyncio.Lock()
-    results: list[JobResult] = []
-    for spec in (spec for spec in specs if spec.mutates_files):
-        results.append(
-            await _run_job(spec.hook_id, _hook_command(spec.hook_id, staged), terminal_lock, timeout_seconds=timeout)
-        )
-
-    jobs = _reader_jobs(specs, staged, terminal_lock, timeout)
     py_files = [
         f
         for f in staged
         if (f.startswith("src/") and f.endswith(".py") and (get_user_repo_path_from_env() / f).exists())
     ]
+    jobs = [
+        _run_job(
+            "pre-commit",
+            _pipeline_command(staged),
+            terminal_lock,
+            timeout_seconds=timeout,
+        )
+    ]
     jobs.extend(_advisory_jobs(py_files, terminal_lock, timeout))
-    results.extend(await asyncio.gather(*jobs))
-    return results
+    return await asyncio.gather(*jobs)
 
 
 async def _run_backup(terminal_lock: asyncio.Lock) -> tuple[JobResult, str | None]:

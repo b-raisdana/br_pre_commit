@@ -6,7 +6,7 @@ Concurrent `pre-commit` runner installed as the target project's Git hook. Entry
 
 | Module | Responsibility |
 | ------ | -------------- |
-| `__main__.py` | Subprocess execution, mutating-serial then read-only-concurrent scheduling, advisory lint jobs, backup trigger, process-group termination |
+| `__main__.py` | Subprocess execution, one staged pre-commit pipeline, advisory lint jobs, backup trigger, process-group termination |
 | `report.py` | Environment precondition check, branch protection, per-run report, JSON summary line, `main()` |
 | `config.py` | Settings from `pyproject.toml` and the hook-ID classification sets |
 | `hooks.py` | Which hook IDs the YAML enables (`stages` switch) |
@@ -19,23 +19,12 @@ Read from `[tool.br_pre_commit.wrapper]` in the **user project's** `pyproject.to
 - `unknown-hook-policy` — `warn` (default) or `error`: what happens to hook IDs the wrapper cannot classify.
 - `job-timeout-seconds` — per-hook timeout, default `180`.
 
-## Hook classification
+## Hook execution
 
-Each enabled ID falls in exactly one set:
-
-- **Mutating** (`get_mutating_hooks()`) — run serially, in YAML order, before anything else, because they rewrite files (`trailing-whitespace`, `end-of-file-fixer`, `mixed-line-ending`, `ruff`, `ruff-format`, `sync-skill-files`, `incremental-ratchet`).
-- **Read-only** (`_READ_ONLY_HOOKS`) — all launched concurrently.
-
-IDs in neither set are "unregistered": under `policy="error"` `classify_hooks()` raises `unregistered pre-commit hook(s): <ids>`; under `policy="warn"` they run serially and the wrapper prints `warning: unregistered hooks run serially: <ids>`. The root `README.md` § "Recognized hook IDs" lists the full sets, and `.pre-commit-config.yaml` is the authoritative reference config.
-
-## Execution model
-
-- Every hook runs as `pre-commit run <id> --hook-stage pre-commit --color never --files <staged>`, with cwd = the user repo.
-- Concurrent hooks additionally run alongside two **advisory** jobs on staged `src/**/*.py`: `advisory-ruff` (`--select Q,RUF,T10,T20,ERA`, JSON) and `advisory-radon` (`mi --min B --max C`). Their stdout is not streamed; findings are parsed by `report.py` into the summary as `advisory_lint_warnings` and printed as `warning:` lines.
-- Advisory jobs **never fail the commit** — `report.py` excludes any job whose ID starts with `advisory-` when computing `passed`.
-- With no staged files the wrapper falls back to one full `pre-commit run --hook-stage pre-commit` and skips the staged-files-only sandbox.
-- Hooks run inside `pre_commit.staged_files_only(Store().directory)` so mutating hooks see only the staged tree.
-
+- The wrapper launches one `pre-commit run --hook-stage pre-commit --color never --files <staged>` process. Pre-commit runs configured hooks in YAML order and manages staged-file isolation once.
+- The wrapper runs advisory Ruff and Radon checks alongside that process for staged Python files; advisory findings do not block commits.
+- With no staged files, the wrapper runs one full `pre-commit run --hook-stage pre-commit` and skips advisory lint.
+- Do not wrap nested pre-commit commands in `staged_files_only`; it makes the staged changes appear unstaged to the child process and triggers the hook-modified-files failure.
 ## Branch protection
 
 When `no-commit-to-trunk` is enabled, `report.py` calls `_branch_protection_result()` **before** the pipeline. On a protected branch with no merge in progress (`git rev-parse --verify MERGE_HEAD` fails), it returns a synthetic failing job: no hook runs, no backup is taken, the commit aborts. The merge-progress check lets merge commits through.

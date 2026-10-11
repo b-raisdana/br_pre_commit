@@ -1,6 +1,6 @@
 # br_pre_commit
 
-Shared pre-commit infrastructure for python repositories. It owns the concurrent wrapper, incremental ratchet, failure backup/recovery, hook installer, and their tests. Projects keep only their own hook selection, optional overrides, and project-specific ratchet baselines.
+Shared pre-commit infrastructure for python repositories. It owns the staged hook pipeline, advisory checks, incremental ratchet, failure backup/recovery, hook installer, and their tests. Projects keep only their own hook selection, optional overrides, and project-specific ratchet baselines.
 
 ## Table of Contents
 

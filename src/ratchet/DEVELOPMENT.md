@@ -5,12 +5,7 @@ overview, see [README.md](README.md).
 
 ## Bootstrapping / resetting a baseline key
 
-Delete (or edit) its entry in any `baseline*.json` file and run `python -m src.ratchet`
-once — it remeasures and records the current count as the new trend baseline for that key,
-same as first-time setup. Alternatively, call `common.baseline_current_state()` directly,
-or use the dedicated entry point `python -m src.ratchet.baseline` (shell wrapper:
-`baseline.sh`, PowerShell: `baseline.ps1`). This only affects the trend layer; there's
-nothing to bootstrap for the per-file gate since it is recomputed fresh every run.
+Edit or delete the key in existing `baseline*.json` files, then run `python -m src.ratchet.baseline` to regenerate the trend baseline from current counts (shell wrappers: `baseline.sh` and `baseline.ps1`). The hook itself reads baselines without changing files or the Git index. This only affects the trend layer; the per-file gate is recomputed every run.
 
 ## Mutation-safety policy
 
@@ -75,7 +70,7 @@ current status.
 ```
 __main__.py:main()
   ├── gate._validate_configured_hooks()                    ← warn on unregistered hooks
-  ├── common.load_and_consolidate_baselines()              ← merge baseline*.json (union+min); consolidate if >1
+  ├── common.load_merged_baseline()                         ← read-only union + min across baseline files
   ├── gate.touched_app_python_files()                      ← git diff --cached --name-status -M
   ├── common._collect_analyzer_results(touched, ...)
   │     ├── gate._head_worktree() if touched               ← throwaway checkout at HEAD
@@ -92,7 +87,6 @@ __main__.py:main()
   │           └── gate._loc_regression()                    ← loc: block if over cap+slack; new file cap
   ├── if blocked: common._print_blocked() → DETAIL_PRINTERS → details.print_*_details()
   ├── common.compute_new_baseline(old, current)              ← union + min (never drops vectors)
-  ├── common._write_new_baseline(...)                       ← write baseline_<hash>.json if changed + git add
   └── common._print_trends(regressed, improved, gate.characterization_test_touched)
 ```
 
@@ -178,10 +172,10 @@ document that it is `"ABCDEF"` because radon uses single-letter A–F ranks.
 
 #### F5 — fragile baseline write and git-staging race (P1)
 
-**Status: Still open.**
+**Status: Partially resolved.** The pre-commit path is read-only; explicit baseline maintenance still writes and stages files.
 
 **Location:** `write_baseline_file` (`common.py:156-164`), called from
-`common._write_new_baseline` (`common.py:219-222`) and `common.load_and_consolidate_baselines`
+`common.baseline_current_state` and `common.load_and_consolidate_baselines`
 (`common.py:185-191`).
 
 **Weakness:**

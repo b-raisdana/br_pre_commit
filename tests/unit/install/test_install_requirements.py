@@ -44,6 +44,17 @@ def test_verify_requirements_empty_when_all_present(install):
         assert install.verify_requirements() == []
 
 
+def test_generated_hooks_clear_inherited_git_context(install, tmp_path, monkeypatch):
+    monkeypatch.setattr(install, "get_active_venv", lambda: tmp_path / "Scripts" / "python.exe")
+    monkeypatch.setattr(install, "wrapper_module", lambda *_: "src.precommit_wrapper")
+
+    posix_hook = install.generate_posix_hook(tmp_path, tmp_path / "br_pre_commit")
+    powershell_hook = install.generate_powershell_hook(tmp_path, tmp_path / "br_pre_commit")
+
+    assert "unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE" in posix_hook
+    assert "unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE" in powershell_hook
+
+
 def test_verify_requirements_reports_missing(install):
     """verify_requirements includes the import names that are not importable."""
     real_find_spec = importlib.util.find_spec

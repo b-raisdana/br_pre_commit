@@ -108,7 +108,7 @@ def test_touched_file_regression_blocks_even_with_no_prior_baseline(hermetic, mo
     assert "ruff in src/a.py: 0 -> 1" in out
 
 
-def test_touched_file_with_no_regression_passes_and_resyncs_baseline(hermetic, monkeypatch):
+def test_touched_file_with_no_regression_passes_without_writing_baseline(hermetic, monkeypatch):
     import src.ratchet.__main__ as main_module
     import src.ratchet.tools as tools_module
 
@@ -126,11 +126,9 @@ def test_touched_file_with_no_regression_passes_and_resyncs_baseline(hermetic, m
 
     exit_code = main()
 
-    # No touched file regressed, so the run passes. ruff:OLD counted 0 against a baseline of
-    # 2, so the ratcheted baseline drops the key and is written as its own content-addressed
-    # file; the stale file stays until the next load_and_consolidate_baselines() folds it in.
+    # No touched file regressed. The improved trend is reported without rewriting the baseline.
     assert exit_code == 0
-    assert _baseline_contents(hermetic) == [{"ruff:OLD": 2}, {}]
+    assert _baseline_contents(hermetic) == [{"ruff:OLD": 2}]
 
 
 # ---- analyzer concurrency tests ----
@@ -245,6 +243,19 @@ def test_load_and_consolidate_merges_multiple_files_and_removes_old(hermetic):
     assert json.loads(remaining[0].read_text(encoding="utf-8")) == result
     assert not first.exists()
     assert not second.exists()
+
+
+def test_load_merged_baseline_merges_without_mutating_files(hermetic):
+    first = _seed(hermetic, {"ruff:E501": 3})
+    second = _seed(hermetic, {"mypy:arg-type": 2, "ruff:E501": 5})
+    originals = {path: path.read_bytes() for path in (first, second)}
+
+    import src.ratchet.__main__ as main_module
+
+    result = main_module._load_merged_baseline()
+
+    assert result == {"mypy:arg-type": 2, "ruff:E501": 3}
+    assert {path: path.read_bytes() for path in (first, second)} == originals
 
 
 def test_load_and_consolidate_single_file_is_untouched(hermetic):

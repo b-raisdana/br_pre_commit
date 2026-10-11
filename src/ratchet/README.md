@@ -24,11 +24,7 @@ baseline to drift or merge-conflict on.
    runs already computed for the trend layer. A regression in one file can't be masked by
    an unrelated file improving elsewhere, and there's no "first time this rule/file has
    ever been seen" loophole.
-2. **Project-wide trend** (`common.py`, `baseline.py`) — `baseline*.json` files track one
-   count per key, content-addressed by SHA-256. After every successful commit they resync
-   to fresh counts (union of keys, lowest value kept — ratchet down only, never up). This
-   layer **never blocks** — it exists purely as a long-term "is total debt trending down"
-   signal and to trigger characterization-test reminders.
+2. **Project-wide trend** (`common.py`, `baseline.py`) — baseline files track counts by rule and are merged in memory for informational reporting. The pre-commit hook is read-only; use `python -m src.ratchet.baseline` to explicitly record fresh counts.
 
 ## Module layout
 
@@ -38,7 +34,7 @@ baseline to drift or merge-conflict on.
 | `gate.py` | Per-file regression evaluation, touched-file detection, `git worktree` management, characterization-test reminder trigger |
 | `common.py` | Shared types, subprocess runners (`run`/`output_run`), baseline I/O & merging, trend analysis, detail-printer registry |
 | `config.py` | `RatchetConfig` model loaded from `pyproject.toml` — all tunable policy constants |
-| `__main__.py` | Orchestration: the only module with stdout, git staging, and baseline file writes |
+| `__main__.py` | Read-only hook orchestration and trend reporting |
 | `baseline.py` | Bootstrap entry point (`baseline_current_state`) for regenerating baselines from current state |
 | `details.py` | Per-tool detail printers that re-run the specific tool on blocked files |
 
@@ -88,17 +84,7 @@ entirely the per-file gate above.
 
 ## Keeping the trend baseline current
 
-After every successful (non-blocked) commit, the trend baseline is updated by unioning the
-existing baseline(s) with the just-measured counts: every key present in either set is kept
-(keys are never dropped, even at 0), and the **lowest** (best) value wins. If the result
-differs from the prior baseline, it is written as a new `baseline_<hash>.json` file
-(SHA-256 content hash as filename suffix, avoiding merge conflicts across parallel
-branches) and staged in the same commit — no threshold, no lazy accumulation.
-
-At the **start** of every run, if more than one `baseline*.json` file exists (e.g. from
-parallel branches merged into one), they are merged (union + min), the old files are
-removed, and the consolidated result is written as a single new hashed file. With only one
-file on disk, no consolidation happens — it is read as-is.
+The pre-commit hook reads trend baselines without modifying files or the Git index. It merges multiple `baseline*.json` files in memory (union of keys, lowest value wins) and reports project-wide counts; this trend is informational and never blocks. To record fresh counts, run `python -m src.ratchet.baseline` explicitly after reviewing the measured state. Baseline files remain content-addressed by SHA-256 to reduce parallel-branch conflicts.
 
 ## Why not per-line `# noqa` / `# type: ignore` baselines
 

@@ -149,21 +149,12 @@ def _run_branch_protection(branch: str) -> list[JobResult]:
 
 
 async def _run_pipeline(staged: list[str]) -> list[JobResult]:
-    from .__main__ import JobResult, _run_hooks, _run_job  # noqa: F402,E402
+    from .__main__ import _run_hooks, _run_job  # noqa: F402,E402
 
     if not staged:
         sys.stdout.write("No staged files; running the standard pre-commit pipeline.\n")
         return [await _run_job("pre-commit", ["pre-commit", "run", "--hook-stage", "pre-commit"], asyncio.Lock())]
-    try:
-        from pre_commit.staged_files_only import staged_files_only
-        from pre_commit.store import Store
-
-        with staged_files_only(Store().directory):
-            return await _run_hooks(staged)
-    except ValueError as exc:
-        message = f"configuration error: {exc}"
-        sys.stdout.write(message + "\n")
-        return [JobResult("configuration", (), 2, 0.0, "", message)]
+    return await _run_hooks(staged)
 
 
 def _write_summary(human_ts: str, results: list[JobResult]) -> tuple[Path, list[LintWarning]]:

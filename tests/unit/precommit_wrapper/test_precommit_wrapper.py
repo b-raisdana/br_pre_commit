@@ -68,10 +68,20 @@ def test_branch_protection_rejects_partial_branch_name_match(monkeypatch):
         assert precommit_wrapper._branch_protection_result(branch) is None
 
 
-def test_hook_command_uses_explicit_files_to_avoid_nested_stash():
-    command = precommit_wrapper._hook_command("pytest-fast", ["app/a.py", "app/b.py"])
+def test_pipeline_command_runs_all_precommit_hooks_once_with_explicit_files():
+    command = precommit_wrapper._pipeline_command(["src/a.py", "README.md"])
 
-    assert command[-3:] == ["--files", "app/a.py", "app/b.py"]
+    assert command == [
+        "pre-commit",
+        "run",
+        "--hook-stage",
+        "pre-commit",
+        "--color",
+        "never",
+        "--files",
+        "src/a.py",
+        "README.md",
+    ]
 
 
 def test_run_job_keeps_stdout_and_stderr_in_memory():
@@ -149,32 +159,22 @@ def test_advisory_warnings_parse_ruff_and_radon_results(monkeypatch, tmp_path):
     ]
 
 
-def test_run_hooks_finishes_mutators_before_starting_read_only_jobs(monkeypatch):
+def test_run_hooks_runs_one_pipeline_and_advisories(monkeypatch, tmp_path):
     calls = []
-    both_readers_started = asyncio.Event()
-    readers = 0
-
-    monkeypatch.setattr(precommit_wrapper.wrapper_config, "unknown_hook_policy", "error")
     monkeypatch.setattr(precommit_wrapper.wrapper_config, "job_timeout_seconds", 10)
-    monkeypatch.setattr(precommit_wrapper, "enabled_pre_commit_hook_ids", lambda: ["ruff", "pytest-fast", "check-yaml"])
+    monkeypatch.setattr(precommit_wrapper, "get_user_repo_path_from_env", lambda: tmp_path)
+    source = tmp_path / "src" / "a.py"
+    source.parent.mkdir()
+    source.write_text("pass\n", encoding="utf-8")
 
     async def fake_run(job_id, command, lock, *, stream_output=True, timeout_seconds=None):
-        nonlocal readers
-        calls.append(f"start:{job_id}")
-        if job_id == "ruff":
-            calls.append("finish:ruff")
-        else:
-            readers += 1
-            if readers == 2:
-                both_readers_started.set()
-            await asyncio.wait_for(both_readers_started.wait(), timeout=1)
-            calls.append(f"finish:{job_id}")
+        calls.append((job_id, command))
         return precommit_wrapper.JobResult(job_id, tuple(command), 0, 0.0, "", "")
 
     monkeypatch.setattr(precommit_wrapper, "_run_job", fake_run)
 
-    results = asyncio.run(precommit_wrapper._run_hooks(["README.md"]))
+    results = asyncio.run(precommit_wrapper._run_hooks(["src/a.py", "README.md"]))
 
-    assert calls.index("finish:ruff") < calls.index("start:pytest-fast")
-    assert calls.index("finish:ruff") < calls.index("start:check-yaml")
-    assert [result.job_id for result in results] == ["ruff", "pytest-fast", "check-yaml"]
+    pipeline_calls = [command for job_id, command in calls if job_id == "pre-commit"]
+    assert pipeline_calls == [precommit_wrapper._pipeline_command(["src/a.py", "README.md"])]
+    assert [result.job_id for result in results] == ["pre-commit", "advisory-ruff", "advisory-radon"]

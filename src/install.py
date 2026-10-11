@@ -85,6 +85,7 @@ def generate_posix_hook(user_repo_path: Path, br_pre_commit_repo_root: Path) -> 
         "#!/usr/bin/env sh\n"
         f"export BR_PRE_COMMIT_REPO_ROOT='{br_pre_commit_repo_root}'\n"
         f"export USER_REPO_ROOT='{user_repo_path}'\n\n"
+        "unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE\n\n"
         f"export PATH='{active_venv.parent}':\"$PATH\"\n\n"
         f'exec "{active_venv}" -m {module} "$@"\n'
     )
@@ -102,6 +103,7 @@ def generate_powershell_hook(user_repo_path: Path, br_pre_commit_repo_root: Path
         "#!/bin/sh\n"
         f"export BR_PRE_COMMIT_REPO_ROOT='{br_pre_commit_repo_root}'\n"
         f"export USER_REPO_ROOT='{user_repo_path}'\n\n"
+        "unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE\n\n"
         f"export PATH='{active_venv.parent}':\"$PATH\"\n\n"
         "if command -v pwsh > /dev/null 2>&1; then\n"
         f"{command_line('pwsh')}"

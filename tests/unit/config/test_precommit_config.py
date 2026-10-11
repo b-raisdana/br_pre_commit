@@ -102,3 +102,37 @@ def test_protected_branches_regex_rejects_invalid_regex(tmp_path, value):
 
     with pytest.raises(ValidationError, match="protected-branches-regex"):
         config.WrapperConfig.model_validate({"protected-branches-regex": value})
+
+
+def test_extra_keys_are_reported_but_do_not_crash(tmp_path, caplog):
+    """Schema mismatch must be reported and dropped, not abort the run."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        "[tool.br_pre_commit.wrapper]\n"
+        'unknown-hook-policy = "warn"\n'
+        'protected-branches = ["main"]\n'
+        'protected-branches-regex = "^(main|develop|uat)$"\n',
+        encoding="utf-8",
+    )
+
+    with caplog.at_level("ERROR"):
+        loaded = config.WrapperConfig.from_pyproject_toml("wrapper", pyproject_toml_path=pyproject)
+
+    assert loaded.protected_branches_regex == "^(main|develop|uat)$"
+    assert "protected-branches" in caplog.text
+    assert "unknown key" in caplog.text
+
+
+def test_missing_required_keys_are_reported_and_defaulted(tmp_path, caplog):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        "[tool.br_pre_commit.wrapper]\n# all keys omitted; defaults must fill in\n",
+        encoding="utf-8",
+    )
+
+    with caplog.at_level("ERROR"):
+        loaded = config.WrapperConfig.from_pyproject_toml("wrapper", pyproject_toml_path=pyproject)
+
+    assert loaded.protected_branches_regex == "^(main|develop|uat)$"
+    assert loaded.unknown_hook_policy == "warn"
+    assert loaded.job_timeout_seconds == 180

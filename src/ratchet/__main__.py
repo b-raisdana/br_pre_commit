@@ -1,9 +1,4 @@
-"""Main entry point for the incremental pre-commit ratchet.
-
-Orchestrates the full ratchet run: loads baselines, runs analyzers (current + before),
-evaluates per-file gate, computes new baseline, prints trends. This is the only
-module with side effects (stdout, git staging, file writes).
-"""
+"""Read-only entry point for the incremental pre-commit ratchet."""
 
 from __future__ import annotations
 
@@ -17,14 +12,13 @@ from .common import (
     _print_trends,
     _tool_of,
     _tool_totals,
-    _write_new_baseline,
     async_collect_analyzer_results,
     async_get_current_counts,
-    async_load_and_consolidate_baselines,
-    async_write_new_baseline,
     compute_new_baseline,
+    find_baseline_files,
     get_current_counts,
-    load_and_consolidate_baselines,
+    load_json,
+    merge_baselines,
 )
 from .config import ratchet_config
 from .gate import (
@@ -37,12 +31,18 @@ from .gate import (
 from .tools import _run_current_and_before_analyzers, run_current_analyzers
 
 
+def _load_merged_baseline() -> dict[str, int]:
+    files = find_baseline_files()
+    merged = merge_baselines([load_json(path) for path in files])
+    return {key: value for key, value in merged.items() if value > 0}
+
+
 def main() -> int:
     unknown = _validate_configured_hooks()
     if unknown:
         print(f"Incremental pre-commit ratchet: warning: unregistered hook(s): {', '.join(unknown)}")
 
-    old_baseline = load_and_consolidate_baselines()
+    old_baseline = _load_merged_baseline()
     touched = touched_app_python_files()
     results = _collect_analyzer_results(
         touched,
@@ -62,7 +62,6 @@ def main() -> int:
         return 1
 
     new_baseline = compute_new_baseline(old_baseline, current_counts)
-    _write_new_baseline(old_baseline, new_baseline)
     _print_trends(regressed, improved, characterization_test_touched)
 
     tool_totals, tool_baseline_totals = _tool_totals(current_counts, new_baseline, _tool_of)
@@ -78,7 +77,7 @@ async def async_main() -> int:
     if unknown:
         print(f"Incremental pre-commit ratchet: warning: unregistered hook(s): {', '.join(unknown)}")
 
-    old_baseline = await async_load_and_consolidate_baselines()
+    old_baseline = _load_merged_baseline()
     touched = touched_app_python_files()
     results = await async_collect_analyzer_results(
         touched,
@@ -98,7 +97,6 @@ async def async_main() -> int:
         return 1
 
     new_baseline = compute_new_baseline(old_baseline, current_counts)
-    await async_write_new_baseline(old_baseline, new_baseline)
     _print_trends(regressed, improved, characterization_test_touched)
 
     tool_totals, tool_baseline_totals = _tool_totals(current_counts, new_baseline, _tool_of)
