@@ -14,7 +14,7 @@ import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypedDict
+from typing import TypedDict, cast
 
 from ..helper.paths import get_user_repo_path_from_env
 from .config import RatchetConfig, ratchet_config
@@ -442,9 +442,9 @@ class RatchetSettingsOverride:
 
     def __init__(self, override: RatchetConfigOverride | None = None):
         self.override = override or RatchetConfigOverride()
-        self._original_config = None
+        self._original_config: dict[str, object] | None = None  # ignore: no-object-annotations
 
-    def __enter__(self):
+    def __enter__(self) -> RatchetSettingsOverride:
         self._original_config = {
             "target_dir_rel_path": ratchet_config.target_dir_rel_path,
             "loc_max_lines": ratchet_config.loc_max_lines,
@@ -457,15 +457,15 @@ class RatchetSettingsOverride:
         self.override.apply_to_config(ratchet_config)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:  # ignore: no-object-annotations
         if self._original_config:
-            ratchet_config.target_dir_rel_path = self._original_config["target_dir_rel_path"]
-            ratchet_config.loc_max_lines = self._original_config["loc_max_lines"]
-            ratchet_config.loc_line_growth_slack = self._original_config["loc_line_growth_slack"]
-            ratchet_config.xenon_max_absolute = self._original_config["xenon_max_absolute"]
-            ratchet_config.xenon_complexity_ranks = self._original_config["xenon_complexity_ranks"]
-            ratchet_config.exclude_dir_regex = self._original_config["exclude_dir_regex"]
-            ratchet_config.exclude_dirs = self._original_config["exclude_dirs"]
+            ratchet_config.target_dir_rel_path = cast(Path, self._original_config["target_dir_rel_path"])
+            ratchet_config.loc_max_lines = cast(int, self._original_config["loc_max_lines"])
+            ratchet_config.loc_line_growth_slack = cast(int, self._original_config["loc_line_growth_slack"])
+            ratchet_config.xenon_max_absolute = cast(str, self._original_config["xenon_max_absolute"])
+            ratchet_config.xenon_complexity_ranks = cast(str, self._original_config["xenon_complexity_ranks"])
+            ratchet_config.exclude_dir_regex = cast(str, self._original_config["exclude_dir_regex"])
+            ratchet_config.exclude_dirs = cast(list[str], self._original_config["exclude_dirs"])
 
 
 async def baseline_current_state(override: RatchetConfigOverride | None = None, force: bool = False) -> dict[str, int]:

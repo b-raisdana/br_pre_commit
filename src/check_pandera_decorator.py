@@ -20,9 +20,24 @@ from __future__ import annotations
 
 import ast
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 _TYPEVAR_IGNORE_MARKER = "# pandera-validate: ignore[typevar]"
+
+
+_DATAFRAME_PREFIXES = {"pd", "pt", "pandera.typing", "pandas"}
+
+
+def _get_attribute_parts(node: ast.Attribute) -> list[str]:
+    parts: list[str] = []
+    current: ast.AST = node
+    while isinstance(current, ast.Attribute):
+        parts.insert(0, current.attr)
+        current = current.value
+    if isinstance(current, ast.Name):
+        parts.insert(0, current.id)
+    return parts
 
 
 def _is_dataframe_annotation(node: ast.AST) -> bool:
@@ -36,38 +51,27 @@ def _is_dataframe_annotation(node: ast.AST) -> bool:
     * ``pandas.DataFrame``
     * ``DataFrame`` (when imported directly)
     """
-    # Subscript: pt.DataFrame[Schema] → inspect the value (pt.DataFrame)
     if isinstance(node, ast.Subscript):
         return _is_dataframe_annotation(node.value)
 
-    # BinOp: pt.DataFrame[Schema] | None → inspect both sides
     if isinstance(node, ast.BinOp):
         return _is_dataframe_annotation(node.left) or _is_dataframe_annotation(node.right)
 
-    # Bare ``DataFrame`` (from pandas import DataFrame / from pandera.typing import DataFrame)
-    if isinstance(node, ast.Name) and node.id == "DataFrame":
-        return True
+    if isinstance(node, ast.Name):
+        return node.id == "DataFrame"
 
     if not isinstance(node, ast.Attribute):
         return False
 
-    # pd.DataFrame / pt.DataFrame / pandas.DataFrame / pandera.typing.DataFrame
-    parts: list[str] = []
-    current: ast.AST = node
-    while isinstance(current, ast.Attribute):
-        parts.insert(0, current.attr)
-        current = current.value
-    if isinstance(current, ast.Name):
-        parts.insert(0, current.id)
-
+    parts = _get_attribute_parts(node)
     if not parts or parts[-1] != "DataFrame":
         return False
 
     prefix = ".".join(parts[:-1])
-    return prefix in {"pd", "pt", "pandera.typing", "pandas"}
+    return prefix in _DATAFRAME_PREFIXES
 
 
-def _walk_annotation(node: ast.AST) -> ast.AST:
+def _walk_annotation(node: ast.AST) -> Iterator[ast.AST]:
     """Recursively yield every sub-node inside a type annotation."""
     yield node
     if isinstance(node, ast.Subscript):
@@ -108,35 +112,33 @@ def _has_pandera_transform(decorator_list: list[ast.expr]) -> bool:
     return False
 
 
+def _has_dataframe_annotation(nodes: list[ast.AST]) -> bool:
+    for node in nodes:
+        for ann_node in _walk_annotation(node):
+            if _is_dataframe_annotation(ann_node):
+                return True
+    return False
+
+
 def _function_uses_dataframe_annotation(func: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     """Return True if the function's annotations mention a DataFrame type."""
-    # Parameters
-    for arg in func.args.args:
-        if arg.annotation is not None:
-            for node in _walk_annotation(arg.annotation):
-                if _is_dataframe_annotation(node):
-                    return True
-    for arg in func.args.kwonlyargs:
-        if arg.annotation is not None:
-            for node in _walk_annotation(arg.annotation):
-                if _is_dataframe_annotation(node):
-                    return True
+    annotations: list[ast.AST] = []
+
+    # Positional and keyword-only arguments
+    annotations.extend(arg.annotation for arg in func.args.args if arg.annotation is not None)
+    annotations.extend(arg.annotation for arg in func.args.kwonlyargs if arg.annotation is not None)
+
+    # *args and **kwargs
     if func.args.vararg is not None and func.args.vararg.annotation is not None:
-        for node in _walk_annotation(func.args.vararg.annotation):
-            if _is_dataframe_annotation(node):
-                return True
+        annotations.append(func.args.vararg.annotation)
     if func.args.kwarg is not None and func.args.kwarg.annotation is not None:
-        for node in _walk_annotation(func.args.kwarg.annotation):
-            if _is_dataframe_annotation(node):
-                return True
+        annotations.append(func.args.kwarg.annotation)
 
     # Return annotation
     if func.returns is not None:
-        for node in _walk_annotation(func.returns):
-            if _is_dataframe_annotation(node):
-                return True
+        annotations.append(func.returns)
 
-    return False
+    return _has_dataframe_annotation(annotations)
 
 
 def check_file(path: Path) -> list[str]:

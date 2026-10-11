@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings
 from .paths import get_pyproject_toml_path
 
 
-class FromPyProjectTomlConfig(BaseSettings):
+class FromPyProjectTomlConfig(BaseSettings):  # type: ignore[explicit-any]
     @classmethod
     @lru_cache
     def from_pyproject_toml(cls, section: str, pyproject_toml_path: Path | None = None) -> Self:

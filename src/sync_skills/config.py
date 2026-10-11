@@ -6,7 +6,7 @@ from pydantic_settings import SettingsConfigDict
 from ..helper.config import FromPyProjectTomlConfig
 
 
-class SyncSkillsConfig(FromPyProjectTomlConfig):
+class SyncSkillsConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
     model_config = SettingsConfigDict(populate_by_name=True)
 
     hardcoded_skips: list[str] = Field(

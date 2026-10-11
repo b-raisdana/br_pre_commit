@@ -5,9 +5,9 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class AppConfig(BaseSettings):
-    br_pre_commit_repo_root: str = Field(validation_alias="BR_PRE_COMMIT_REPO_ROOT")
-    user_repo_root: str = Field(validation_alias="USER_REPO_ROOT")
+class AppConfig(BaseSettings):  # type: ignore[explicit-any]
+    br_pre_commit_repo_root: str = Field(validation_alias="BR_PRE_COMMIT_REPO_ROOT", default="")
+    user_repo_root: str = Field(validation_alias="USER_REPO_ROOT", default="")
 
     data_folder_rel_path: Path = Path(".br-pre-commit")
     py_project_toml_file_name: Path = Path("pyproject.toml")

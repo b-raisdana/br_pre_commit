@@ -320,7 +320,7 @@ def pandera_validate[**P, R](
 
         @wraps(func)
         def pandera_validate_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-            n_return_raw: int | None = kwargs.pop("n_return", None)
+            n_return_raw: int | None = cast(int | None, kwargs.pop("n_return", None))
             allow_return_nan = bool(kwargs.pop("allow_return_nan", False))
             discard_n_return = bool(kwargs.pop("discard_n_return", False))
 

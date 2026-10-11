@@ -12,7 +12,7 @@ from pydantic_settings import SettingsConfigDict
 from ..helper.config import FromPyProjectTomlConfig
 
 
-class WrapperConfig(FromPyProjectTomlConfig):
+class WrapperConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
     model_config = SettingsConfigDict(populate_by_name=True)
 
     protected_branches_regex: str = Field(default="^(main|develop|uat)$", validation_alias="protected-branches-regex")
@@ -45,6 +45,7 @@ class PreCommitHook(TypedDict, total=False):
 
 
 class PreCommitRepo(TypedDict, total=False):
+    repo: str
     hooks: list[PreCommitHook]
 
 

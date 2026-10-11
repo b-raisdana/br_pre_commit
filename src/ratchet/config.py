@@ -8,7 +8,7 @@ from pydantic_settings import SettingsConfigDict
 from ..helper.config import FromPyProjectTomlConfig
 
 
-class RatchetConfig(FromPyProjectTomlConfig):
+class RatchetConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
     model_config = SettingsConfigDict(populate_by_name=True)
 
     target_dir_rel_path: Path = Field(default=Path("src"), validation_alias="target")

@@ -8,11 +8,13 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 
 import yaml
 
 from .helper.paths import get_br_pre_commit_package_prefix, get_pre_commit_config_yaml_path
 from .helper.requirements import unsatisfied_requirements
+from .precommit_wrapper.config import PreCommitConfig, PreCommitHook, PreCommitRepo
 
 
 def get_active_venv() -> Path | None:
@@ -112,6 +114,29 @@ def generate_powershell_hook(user_repo_path: Path, br_pre_commit_repo_root: Path
     )
 
 
+def _get_or_create_local_repo(config: PreCommitConfig) -> PreCommitRepo:
+    repos = config.get("repos")
+    if not isinstance(repos, list):
+        repos = []
+        config["repos"] = repos
+
+    for repo in repos:
+        if isinstance(repo, dict) and repo.get("repo") == "local":
+            return cast(PreCommitRepo, repo)
+
+    local_repo: PreCommitRepo = {"repo": "local", "hooks": []}
+    repos.append(local_repo)
+    return local_repo
+
+
+def _get_or_create_hooks(local_repo: PreCommitRepo) -> list[PreCommitHook]:
+    hooks = local_repo.get("hooks")
+    if not isinstance(hooks, list):
+        hooks = []
+        local_repo["hooks"] = hooks
+    return hooks
+
+
 def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) -> list[str]:
     """Merge recognized br_pre_commit hooks into the project's .pre-commit-config.yaml.
 
@@ -122,40 +147,24 @@ def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) ->
 
     Returns a list of human-readable messages describing what was added.
     """
-    config_path = get_pre_commit_config_yaml_path()  # user_repo_root / ".pre-commit-config.yaml"
+    config_path = get_pre_commit_config_yaml_path()
     messages: list[str] = []
 
     if not config_path.exists():
         config_path.write_text("repos:\n", encoding="utf-8")
         messages.append(f"Created {config_path.relative_to(user_repo_root)}")
 
-    config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {"repos": []}
-    if not isinstance(config, dict):
-        config = {"repos": []}
-    repos = config.setdefault("repos", [])
-    if not isinstance(repos, list):
-        repos = []
-        config["repos"] = repos
+    loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config = cast(PreCommitConfig, loaded if isinstance(loaded, dict) else {"repos": []})
 
-    local_repo = None
-    for repo in repos:
-        if isinstance(repo, dict) and repo.get("repo") == "local":
-            local_repo = repo
-            break
-    if local_repo is None:
-        local_repo = {"repo": "local", "hooks": []}
-        repos.append(local_repo)
-
-    hooks = local_repo.setdefault("hooks", [])
-    if not isinstance(hooks, list):
-        hooks = []
-        local_repo["hooks"] = hooks
+    local_repo = _get_or_create_local_repo(config)
+    hooks = _get_or_create_hooks(local_repo)
 
     existing_ids = {h.get("id") for h in hooks if isinstance(h, dict)}
     if "incremental-ratchet" not in existing_ids:
         from .config import br_pre_commit_config
 
-        hooks.append(br_pre_commit_config.ratchet_hook_id)
+        hooks.append({"id": br_pre_commit_config.ratchet_hook_id})
         messages.append(f"Added 'incremental-ratchet' hook to {config_path.name}")
 
     config_path.write_text(
@@ -163,6 +172,19 @@ def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) ->
         encoding="utf-8",
     )
     return messages
+
+
+def _generate_hook_content(user_repo_root: Path, br_pre_commit_repo_root: Path) -> str:
+    if is_wsl():
+        return generate_posix_hook(user_repo_root, br_pre_commit_repo_root)
+    if sys.platform == "win32":
+        return generate_powershell_hook(user_repo_root, br_pre_commit_repo_root)
+    return generate_posix_hook(user_repo_root, br_pre_commit_repo_root)
+
+
+def _prompt_force_overwrite(hook_path: Path) -> bool:
+    print(f"Hook already exists at {hook_path} (use --force to silently overwrite)")
+    return input("Force install? (y/n) ").lower() in ["y", "yes"]
 
 
 def install(cwd: Path, force: bool, dry_run: bool) -> int:
@@ -183,30 +205,22 @@ def install(cwd: Path, force: bool, dry_run: bool) -> int:
     git_dir = get_git_dir(user_repo_root)
     hook_path = git_dir / "hooks" / "pre-commit"
 
-    if is_wsl():
-        hook_content = generate_posix_hook(user_repo_root, br_pre_commit_repo_root)
-    elif sys.platform == "win32":
-        hook_content = generate_powershell_hook(user_repo_root, br_pre_commit_repo_root)
-    else:
-        hook_content = generate_posix_hook(user_repo_root, br_pre_commit_repo_root)
+    hook_content = _generate_hook_content(user_repo_root, br_pre_commit_repo_root)
 
     if dry_run:
         print(f"Would write to {hook_path}")
         print(hook_content)
         return 0
 
-    if hook_path.exists() and not force:
-        print(f"Hook already exists at {hook_path} (use --force to sliently overwrite)")
-        if input("Force install? (y/n) ").lower() not in ["y", "yes"]:
-            return 1
+    if hook_path.exists() and not force and not _prompt_force_overwrite(hook_path):
+        return 1
 
     hook_path.write_text(hook_content, encoding="utf-8")
     hook_path.chmod(hook_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     print(f"Installed {hook_path}")
 
-    if not dry_run:
-        for msg in merge_project_config(user_repo_root, br_pre_commit_repo_root):
-            print(msg)
+    for msg in merge_project_config(user_repo_root, br_pre_commit_repo_root):
+        print(msg)
     return 0
 
 

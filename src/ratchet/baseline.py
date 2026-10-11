@@ -19,11 +19,12 @@ from .common import (
 log = __import__("logging").getLogger(__name__)
 
 
-def main():  # override: RatchetConfigOverride | None = None):
+def main() -> int:
     """Synchronous main entry point for baseline operations with optional config override."""
     for old_baseline in find_baseline_files():
         old_baseline.unlink()
     asyncio.run(baseline_current_state())
+    return 0
 
 
 if __name__ == "__main__":

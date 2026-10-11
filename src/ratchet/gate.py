@@ -11,6 +11,7 @@ from __future__ import annotations
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import cast
 
 from ..helper.paths import get_pre_commit_config_yaml_path, get_user_repo_path_from_env
 from .common import TouchedFile, path_matches_with_regex, run
@@ -28,7 +29,7 @@ def touched_app_python_files() -> list[TouchedFile]:
         status = parts[0]
         old_raw, new_raw = (parts[1], parts[2]) if status.startswith("R") else (parts[1], parts[1])
         new_path = Path(new_raw)
-        if new_path.parts[:1] != (ratchet_config.target_dir_rel_path,) or new_path.suffix != ".py":
+        if new_path.parts[:1] != (str(ratchet_config.target_dir_rel_path),) or new_path.suffix != ".py":
             continue
         if path_matches_with_regex(Path(line).resolve(), ratchet_config.exclude_dir_regex):
             continue
@@ -137,7 +138,7 @@ def _validate_configured_hooks() -> list[str]:
         get_pre_commit_config_yaml_path()
     )  # get_user_repo_path_from_env() / ".pre-commit-config.yaml")
     _, unknown = classify_hooks(hook_ids, policy=wrapper_config.unknown_hook_policy)
-    return unknown
+    return cast(list[str], unknown)
 
 
 def characterization_test_touched() -> bool:

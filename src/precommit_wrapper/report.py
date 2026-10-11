@@ -123,6 +123,7 @@ def _write_report(human_ts: str, results: list[JobResult]) -> Path:
     temporary_path = report_path.with_suffix(".tmp")
     temporary_path.write_text("\n".join(sections), encoding="utf-8")
     temporary_path.replace(report_path)
+    assert isinstance(report_path, Path)
     return report_path
 
 
@@ -179,7 +180,7 @@ async def _main_async() -> int:
 
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     human_ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
-    branch = await git_cmd("rev-parse", "--abbrev-ref", "HEAD")
+    branch = cast(str, await git_cmd("rev-parse", "--abbrev-ref", "HEAD"))
     staged = await get_staged_files()
     results = _run_branch_protection(branch) if pre_commit_hook_is_enabled("no-commit-to-trunk") else []
     if not results:

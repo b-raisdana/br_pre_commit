@@ -11,6 +11,7 @@ import sys
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 from ..helper.git import git_cmd
 from ..helper.paths import get_backup_manifest_dir, get_full_backup_dir, get_log_dir
@@ -188,7 +189,7 @@ async def _backup_untracked(snapshot_dir: Path, repo_root: Path, paths: list[str
 async def _get_all_tracked_files(repo_root: Path) -> list[str]:
     """Get all files tracked by git in the repository."""
     output = await git_cmd("ls-files", repo_root=repo_root)
-    return output.splitlines()
+    return cast(list[str], output.splitlines())
 
 
 async def _backup_all_tracked_files(full_backup_dir: Path, repo_root: Path, exclude_regex: str) -> list[dict[str, str]]:
@@ -217,9 +218,12 @@ async def _gather_git_info(repo_root: Path) -> tuple[str, str, list[str], list[s
         git_cmd("diff", "--name-only", repo_root=repo_root),
         git_cmd("ls-files", "--others", "--exclude-standard", repo_root=repo_root),
     )
-    branch = branch_raw.strip()
-    commit_hash = commit_raw.strip()
-    return branch, commit_hash, staged_raw.splitlines(), unstaged_raw.splitlines(), untracked_raw.splitlines()
+    branch = cast(str, branch_raw.strip())
+    commit_hash = cast(str, commit_raw.strip())
+    staged = cast(list[str], staged_raw.splitlines())
+    unstaged = cast(list[str], unstaged_raw.splitlines())
+    untracked = cast(list[str], untracked_raw.splitlines())
+    return branch, commit_hash, staged, unstaged, untracked
 
 
 async def _build_full_backups(
@@ -319,13 +323,13 @@ def take_snapshot(repo_root: Path) -> Manifest:
 
 
 def get_snapshot_dir(branch: str, commit_hash: str, repo_root: Path) -> Path:
-    # snapshot_dir = repo_root / "logs" / "pre-commit" / "backup-patches" / f"{flatten_path(branch)}.{commit_hash[:7]}"
     snapshot_dir = get_log_dir() / "backup-patches" / f"{flatten_path(branch)}.{commit_hash[:7]}"
     try:
         snapshot_dir.mkdir(parents=True, exist_ok=True)
     except Exception as exc:
         log.exception("Failed to create snapshot directory %s: %s", snapshot_dir, exc)
         raise
+    assert isinstance(snapshot_dir, Path)
     return snapshot_dir
 
 

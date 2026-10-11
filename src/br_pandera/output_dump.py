@@ -42,7 +42,7 @@ from br_py_log_n_profile import log_w
 from .content_hash import content_hash
 from .dump_folder import get_dump_folder
 
-Array = np.ndarray[tuple[int, ...], np.dtype[np.generic]]  # type: ignore[explicit-any]
+Array = np.ndarray[tuple[int, ...], np.dtype[np.generic]]
 JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 PARQUET_SUFFIX = ".parquet"
 JSON_SUFFIX = ".json"

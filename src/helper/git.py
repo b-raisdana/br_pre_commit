@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import subprocess
 from pathlib import Path
+from typing import cast
 
 from .paths import get_user_repo_path_from_env
 
@@ -46,7 +47,7 @@ async def git_cmd(
         stderr = exc.stderr.decode(errors="replace") if return_bytes else exc.stderr
         raise GitCommandError(f"git -C {repo_root} {' '.join(args)} failed: {stderr.strip()}") from exc
 
-    return result.stdout
+    return result.stdout  # type: ignore[no-any-return]
 
 
 async def get_repo(repo_root: Path | None = None) -> Path:
@@ -111,7 +112,7 @@ async def stage(
 
 async def get_staged_files() -> list[str]:
     output = await git_cmd("diff", "--cached", "--name-only")
-    return output.splitlines() if output else []
+    return cast(list[str], output.splitlines()) if output else []
 
 
 async def diff_cached_name_status(
@@ -121,9 +122,12 @@ async def diff_cached_name_status(
     if repo_root is None:
         repo_root = get_user_repo_path_from_env()
 
-    return await git_cmd(
-        "diff",
-        "--cached",
-        "--name-status",
-        repo_root=repo_root,
+    return cast(
+        str,
+        await git_cmd(
+            "diff",
+            "--cached",
+            "--name-status",
+            repo_root=repo_root,
+        ),
     )

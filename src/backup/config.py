@@ -1,7 +1,7 @@
 from ..helper.config import FromPyProjectTomlConfig
 
 
-class BackupConfig(FromPyProjectTomlConfig):
+class BackupConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
     staged_prefix: str = "staged"
     unstaged_prefix: str = "unstaged"
     untracked_prefix: str = "untracked"

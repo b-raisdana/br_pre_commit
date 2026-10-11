@@ -10,7 +10,7 @@ responsible for discovering.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any  # ignore: no-object-annotations
 
 if TYPE_CHECKING:
     from .br_pandera.__main__ import pandera_validate
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 __all__ = ["pandera_validate"]
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> Any:  # type: ignore[explicit-any]
     if name == "pandera_validate":
         from .br_pandera.__main__ import pandera_validate
 

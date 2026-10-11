@@ -36,7 +36,9 @@ ignore_missing_imports = true
 follow_imports = "silent"
 # archive_not_used_trash/ holds unreachable-from-presentation code kept for reference, not linted -
 # see app/archive_not_used_trash/README.md.
-exclude = "(^|/)archive_not_used_trash/"
+# logs/pre-commit/backup-patches/ contains gitignored backup artifacts from pre-commit runs;
+# these are duplicate/legacy source copies that should not be type-checked.
+exclude = "(^|/)(archive_not_used_trash|logs/pre-commit/backup-patches)/"
 
 # Shared defaults for br_pre_commit. A project may override any
 # value under [tool.br_pre_commit.wrapper] / [tool.br_pre_commit.ratchet] /

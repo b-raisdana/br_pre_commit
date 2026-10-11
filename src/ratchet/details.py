@@ -3,9 +3,9 @@
 Holds the per-tool detail printers (ruff, mypy, xenon, loc) and the
 ``DETAIL_PRINTERS`` registry so that ``__main__.py`` stays under the LOC cap.
 
-Functions look up helper symbols through the ``baseline`` module at call time so
-that tests can monkeypatch ``baseline_module.run_output`` / ``run`` /
-``_line_count`` and have the detail printers honour those patches.
+Functions look up helper symbols through the ``common`` module at call time so
+that tests can monkeypatch ``common_module.run`` / ``count_lines``
+and have the detail printers honour those patches.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from ..helper.paths import get_pyproject_toml_path, get_user_repo_path_from_env
-from . import baseline as _baseline
+from . import common as _common
 from . import tools as _tools
 from .config import ratchet_config
 
@@ -23,7 +23,7 @@ def print_ruff_details(paths: list[Path]) -> None:
     if not paths:
         print("    no files to inspect")
         return
-    output = _baseline.run_output("ruff", "check", *(path.as_posix() for path in paths))
+    output = _common.run("ruff", "check", *(path.as_posix() for path in paths))
     print(output.rstrip() or "    ruff reported no errors on these files")
 
 
@@ -34,7 +34,7 @@ def print_mypy_details(paths: list[Path]) -> None:
         return
     config_path = get_pyproject_toml_path()  # str(get_user_repo_path_from_env() / "pyproject.toml")
     cwd = get_user_repo_path_from_env() / ratchet_config.target_dir_rel_path
-    output = _baseline.run_output("mypy", "--config-file", config_path, *app_paths, cwd=cwd)
+    output = _common.run("mypy", "--config-file", config_path, *app_paths, cwd=cwd)
     print(output.rstrip() or "    mypy reported no errors on these files")
 
 
@@ -44,7 +44,7 @@ def print_xenon_details(paths: list[Path], max_absolute: str = "B") -> None:
         print("    no files to inspect")
         return
     exclude_dirs = ",".join(ratchet_config.exclude_dirs)
-    stdout = _baseline.run(
+    stdout = _common.run(
         "radon",
         "cc",
         str(ratchet_config.target_dir_rel_path),
@@ -71,7 +71,7 @@ def print_xenon_details(paths: list[Path], max_absolute: str = "B") -> None:
 def print_loc_details(paths: list[Path], max_lines: int = 300) -> None:
     for path in paths:
         print(
-            f"    {path.as_posix()}: {_baseline._line_count(get_user_repo_path_from_env() / path)} lines "
+            f"    {path.as_posix()}: {_common.count_lines(get_user_repo_path_from_env() / path)} lines "
             f"(cap {max_lines}, slack {ratchet_config.loc_line_growth_slack})"
         )
 
