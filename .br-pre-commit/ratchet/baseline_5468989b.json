@@ -1,0 +1,7 @@
+{
+  "loc": 215,
+  "mypy:attr-defined": 8,
+  "mypy:explicit-any": 1,
+  "mypy:no-any-return": 1,
+  "xenon": 1
+}
