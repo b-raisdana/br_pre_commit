@@ -31,8 +31,9 @@ HARDCODED_SKIPS = set(sync_skills_config.hardcoded_skips)
 
 GIT_COMMIT_SPECIAL = "git-commit"
 _GITHUB_PATH = ".github/git-commit"
+RESOLVE_COMMAND = "python -m src.sync_skills.resolve"
 
-_REPO_ROOT = Path(os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd())).resolve()
+_BR_PRE_COMMIT_REPO_ROOT = Path(os.environ.get("BR_PRE_COMMIT_REPO_ROOT", Path.cwd())).resolve()
 _SKILL_FILENAME = "SKILL.md"
 
 
@@ -40,20 +41,25 @@ def is_excluded(skill_dir: str) -> bool:
     return skill_dir in HARDCODED_SKIPS or any(skill_dir.startswith(f"{a}-only-") for a in AGENTS)
 
 
-def get_skill_parents(repo_root: Path) -> dict[str, Path]:
-    return {a: repo_root / f".{a}" / "skills" for a in AGENTS if (repo_root / f".{a}" / "skills").is_dir()}
+def get_skill_parents(br_pre_commit_repo_root: Path) -> dict[str, Path]:
+    parents: dict[str, Path] = {}
+    for agent in AGENTS:
+        parent = br_pre_commit_repo_root / f".{agent}" / "skills"
+        if parent.is_dir():
+            parents[agent] = parent
+    return parents
 
 
-def _rel(path: Path, repo_root: Path) -> str:
-    return path.relative_to(repo_root).as_posix()
+def _rel(path: Path, br_pre_commit_repo_root: Path) -> str:
+    return path.relative_to(br_pre_commit_repo_root).as_posix()
 
 
-def _index_bytes(repo_root: Path, rel: str) -> bytes | None:
-    return asyncio.run(show_index_blob(rel, repo_root))
+def _index_bytes(br_pre_commit_repo_root: Path, rel: str) -> bytes | None:
+    return asyncio.run(show_index_blob(rel, br_pre_commit_repo_root))
 
 
-def _stage(repo_root: Path, rel: str) -> None:
-    asyncio.run(stage(rel, repo_root))
+def _stage(br_pre_commit_repo_root: Path, rel: str) -> None:
+    asyncio.run(stage(rel, br_pre_commit_repo_root))
 
 
 def classify_skill_path(path_str: str) -> tuple[str, str] | None:
@@ -68,13 +74,17 @@ def classify_skill_path(path_str: str) -> tuple[str, str] | None:
     return None
 
 
-def mirror_slots(repo_root: Path, skill_parents: dict[str, Path], skill_name: str) -> list[tuple[str, Path]]:
+def mirror_slots(
+    br_pre_commit_repo_root: Path,
+    skill_parents: dict[str, Path],
+    skill_name: str,
+) -> list[tuple[str, Path]]:
     """All mirror locations for a skill (the ``.github`` slot only for git-commit)."""
     slots: list[tuple[str, Path]] = []
     for agent, parent in skill_parents.items():
         slots.append((agent, parent / skill_name / _SKILL_FILENAME))
     if skill_name == GIT_COMMIT_SPECIAL:
-        slots.append((_GITHUB_PATH, repo_root / _GITHUB_PATH / _SKILL_FILENAME))
+        slots.append((_GITHUB_PATH, br_pre_commit_repo_root / _GITHUB_PATH / _SKILL_FILENAME))
     return slots
 
 
@@ -99,7 +109,7 @@ def parse_staged_name_status(raw: str) -> list[tuple[str, str]]:
     return entries
 
 
-def cleanup_empty_skill_dirs(skill_parents: dict[str, Path], repo_root: Path) -> list[str]:
+def cleanup_empty_skill_dirs(skill_parents: dict[str, Path], br_pre_commit_repo_root: Path) -> list[str]:
     """Remove empty skill directories left behind after SKILL.md deletions.
 
     Git does not track empty directories, so a staged deletion of a skill's
@@ -117,20 +127,20 @@ def cleanup_empty_skill_dirs(skill_parents: dict[str, Path], repo_root: Path) ->
         for skill_dir in parent.iterdir():
             if skill_dir.is_dir() and not any(skill_dir.iterdir()):
                 skill_dir.rmdir()
-                removed.append(_rel(skill_dir, repo_root))
-    gh_skill_dir = repo_root / _GITHUB_PATH
+                removed.append(_rel(skill_dir, br_pre_commit_repo_root))
+    gh_skill_dir = br_pre_commit_repo_root / _GITHUB_PATH
     if gh_skill_dir.is_dir() and not any(gh_skill_dir.iterdir()):
         gh_skill_dir.rmdir()
-        removed.append(_rel(gh_skill_dir, repo_root))
+        removed.append(_rel(gh_skill_dir, br_pre_commit_repo_root))
     return removed
 
 
-def discover_skills(skill_parents: dict[str, Path], repo_root: Path) -> set[str]:
+def discover_skills(skill_parents: dict[str, Path], br_pre_commit_repo_root: Path) -> set[str]:
     seen = set()
     for parent in skill_parents.values():
         for skill_dir in parent.iterdir():
             if skill_dir.is_dir() and (skill_dir / _SKILL_FILENAME).is_file():
                 seen.add(skill_dir.name)
-    if (repo_root / _GITHUB_PATH / _SKILL_FILENAME).is_file():
+    if (br_pre_commit_repo_root / _GITHUB_PATH / _SKILL_FILENAME).is_file():
         seen.add(GIT_COMMIT_SPECIAL)
     return seen

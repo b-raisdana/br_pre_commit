@@ -23,7 +23,7 @@ from .core import (
 )
 
 
-def get_staged_skill_changes(repo_root: Path) -> dict[str, list[tuple[str, str, bytes | None]]]:
+def get_staged_skill_changes(br_pre_commit_repo_root: Path) -> dict[str, list[tuple[str, str, bytes | None]]]:
     """Detect staged skill changes from git (the source of truth for add/modify/delete).
 
     Returns ``skill_name -> [(slot_key, status, staged_blob)]`` where ``status`` is
@@ -32,7 +32,7 @@ def get_staged_skill_changes(repo_root: Path) -> dict[str, list[tuple[str, str, 
     """
     status_map = {"A": "add", "M": "modify", "R": "rename", "C": "rename"}
     by_skill: dict[str, list[tuple[str, str, bytes | None]]] = {}
-    for path, code in parse_staged_name_status(asyncio.run(diff_cached_name_status(repo_root))):
+    for path, code in parse_staged_name_status(asyncio.run(diff_cached_name_status(br_pre_commit_repo_root))):
         classified = classify_skill_path(path)
         if classified is None:
             continue
@@ -40,7 +40,7 @@ def get_staged_skill_changes(repo_root: Path) -> dict[str, list[tuple[str, str, 
         if code == "D":
             status, blob = "delete", None
         else:
-            status, blob = status_map.get(code, "modify"), _index_bytes(repo_root, path)
+            status, blob = status_map.get(code, "modify"), _index_bytes(br_pre_commit_repo_root, path)
         by_skill.setdefault(skill_name, []).append((slot_key, status, blob))
     return by_skill
 
@@ -86,7 +86,7 @@ def compute_intent(
 
 
 def remove_mirror(
-    repo_root: Path,
+    br_pre_commit_repo_root: Path,
     skill_name: str,
     slot: str,
     path: Path,
@@ -97,15 +97,15 @@ def remove_mirror(
     Returns ``True`` when the mirror was actually removed (and staged), ``False``
     when it was already gone or could not be safely removed.
     """
-    rel = _rel(path, repo_root)
-    idx = _index_bytes(repo_root, rel)
+    rel = _rel(path, br_pre_commit_repo_root)
+    idx = _index_bytes(br_pre_commit_repo_root, rel)
     work = path.read_bytes() if path.exists() else None
     if work is None and idx is None:
         return False  # already gone
     if idx is not None and (work is None or work == idx):
         # Clean tracked mirror (or staged-deleted already reflected in worktree) -> stage deletion.
         path.unlink(missing_ok=True)
-        _stage(repo_root, rel)
+        _stage(br_pre_commit_repo_root, rel)
         return True
     problems.append(
         f"mirror '{skill_name}' in {slot} ({rel}) has uncommitted/untracked content that a staged "
@@ -115,22 +115,22 @@ def remove_mirror(
 
 
 def remove_skill_from_all_agents(
-    repo_root: Path,
+    br_pre_commit_repo_root: Path,
     skill_name: str,
     skill_parents: dict[str, Path],
     problems: list[str],
 ) -> bool:
     changed = False
-    for slot, path in mirror_slots(repo_root, skill_parents, skill_name):
+    for slot, path in mirror_slots(br_pre_commit_repo_root, skill_parents, skill_name):
         if is_excluded(skill_name):
             continue
-        if remove_mirror(repo_root, skill_name, slot, path, problems):
+        if remove_mirror(br_pre_commit_repo_root, skill_name, slot, path, problems):
             changed = True
     return changed
 
 
 def apply_modification(
-    repo_root: Path,
+    br_pre_commit_repo_root: Path,
     skill_name: str,
     canonical: bytes,
     skill_parents: dict[str, Path],
@@ -141,21 +141,21 @@ def apply_modification(
     Mirrors with uncommitted work that would be clobbered are recorded in
     ``problems`` instead of touched.
     """
-    for slot, path in mirror_slots(repo_root, skill_parents, skill_name):
+    for slot, path in mirror_slots(br_pre_commit_repo_root, skill_parents, skill_name):
         if is_excluded(skill_name):
             continue
-        rel = _rel(path, repo_root)
-        idx = _index_bytes(repo_root, rel)
+        rel = _rel(path, br_pre_commit_repo_root)
+        idx = _index_bytes(br_pre_commit_repo_root, rel)
         work = path.read_bytes() if path.exists() else None
         if work is None:
             # Missing mirror -> safe to create (nothing to clobber).
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(canonical)
-            _stage(repo_root, rel)
+            _stage(br_pre_commit_repo_root, rel)
         elif work == canonical:
             # Worktree already canonical; just make sure the index agrees (idempotent).
             if idx != canonical:
-                _stage(repo_root, rel)
+                _stage(br_pre_commit_repo_root, rel)
         elif idx is None:
             # Untracked file carrying different content -> clobbering would lose work.
             problems.append(
@@ -165,7 +165,7 @@ def apply_modification(
         elif idx == work:
             # Clean (staged-or-HEAD) mirror that lags the canonical version -> safe to update.
             path.write_bytes(canonical)
-            _stage(repo_root, rel)
+            _stage(br_pre_commit_repo_root, rel)
         else:
             # index != worktree -> uncommitted edits at risk of being overwritten.
             problems.append(
@@ -175,20 +175,25 @@ def apply_modification(
 
 
 def _create_missing_mirrors(
-    repo_root: Path,
+    br_pre_commit_repo_root: Path,
     skill_name: str,
     canonical: bytes,
     skill_parents: dict[str, Path],
 ) -> None:
-    for _, path in mirror_slots(repo_root, skill_parents, skill_name):
+    for _, path in mirror_slots(br_pre_commit_repo_root, skill_parents, skill_name):
         if not path.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(canonical)
-            _stage(repo_root, _rel(path, repo_root))
+            _stage(br_pre_commit_repo_root, _rel(path, br_pre_commit_repo_root))
 
 
-def _report_divergence(skill_name: str, present: list[tuple[str, Path]], repo_root: Path, problems: list[str]) -> None:
-    detail = ", ".join(f"{slot}: {_rel(p, repo_root)}" for slot, p in present)
+def _report_divergence(
+    skill_name: str,
+    present: list[tuple[str, Path]],
+    br_pre_commit_repo_root: Path,
+    problems: list[str],
+) -> None:
+    detail = ", ".join(f"{slot}: {_rel(p, br_pre_commit_repo_root)}" for slot, p in present)
     problems.append(
         f"out-of-sync mirrors for '{skill_name}': {detail}. Edit one mirror to the desired "
         f"content, copy it to the others (e.g. cp <chosen>/SKILL.md <other>/SKILL.md), stage, "
@@ -197,24 +202,24 @@ def _report_divergence(skill_name: str, present: list[tuple[str, Path]], repo_ro
 
 
 def _check_skill_sync(
-    repo_root: Path,
+    br_pre_commit_repo_root: Path,
     skill_name: str,
     skill_parents: dict[str, Path],
     problems: list[str],
 ) -> None:
-    slots = mirror_slots(repo_root, skill_parents, skill_name)
+    slots = mirror_slots(br_pre_commit_repo_root, skill_parents, skill_name)
     present = [(slot, p) for slot, p in slots if p.exists()]
     if not present:
         return
     contents = {p.read_bytes() for _, p in present}
     if len(contents) == 1:
-        _create_missing_mirrors(repo_root, skill_name, contents.pop(), skill_parents)
+        _create_missing_mirrors(br_pre_commit_repo_root, skill_name, contents.pop(), skill_parents)
         return
-    _report_divergence(skill_name, present, repo_root, problems)
+    _report_divergence(skill_name, present, br_pre_commit_repo_root, problems)
 
 
 def verify_sync(
-    repo_root: Path,
+    br_pre_commit_repo_root: Path,
     skill_parents: dict[str, Path],
     problems: list[str],
     skip: set[str] | None = None,
@@ -227,7 +232,7 @@ def verify_sync(
     run) are left to that earlier, more specific message to avoid double-reporting.
     """
     skip = skip or set()
-    for skill_name in discover_skills(skill_parents, repo_root):
+    for skill_name in discover_skills(skill_parents, br_pre_commit_repo_root):
         if is_excluded(skill_name) or skill_name in skip:
             continue
-        _check_skill_sync(repo_root, skill_name, skill_parents, problems)
+        _check_skill_sync(br_pre_commit_repo_root, skill_name, skill_parents, problems)

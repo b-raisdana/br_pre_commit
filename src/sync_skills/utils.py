@@ -5,12 +5,13 @@ from __future__ import annotations
 
 from ..helper.git import GitCommandError, InvalidGitRepositoryError, get_repo
 from .core import (
+    _BR_PRE_COMMIT_REPO_ROOT,
     _GITHUB_PATH,
-    _REPO_ROOT,
     _SKILL_FILENAME,
     AGENTS,
     GIT_COMMIT_SPECIAL,
     HARDCODED_SKIPS,
+    RESOLVE_COMMAND,
     _index_bytes,
     _rel,
     _stage,
@@ -22,6 +23,7 @@ from .core import (
     mirror_slots,
     parse_staged_name_status,
 )
+from .resolve import interactive_resolve
 from .sync import (
     apply_modification,
     compute_intent,
@@ -36,7 +38,7 @@ __all__ = [
     "GIT_COMMIT_SPECIAL",
     "HARDCODED_SKIPS",
     "_GITHUB_PATH",
-    "_REPO_ROOT",
+    "_BR_PRE_COMMIT_REPO_ROOT",
     "_SKILL_FILENAME",
     "_index_bytes",
     "_rel",
@@ -48,12 +50,14 @@ __all__ = [
     "discover_skills",
     "get_skill_parents",
     "get_staged_skill_changes",
+    "interactive_resolve",
     "is_excluded",
     "mirror_slots",
     "parse_staged_name_status",
     "remove_mirror",
     "remove_skill_from_all_agents",
     "verify_sync",
+    "RESOLVE_COMMAND",
     "GitCommandError",
     "InvalidGitRepositoryError",
     "get_repo",

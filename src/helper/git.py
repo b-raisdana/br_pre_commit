@@ -15,7 +15,7 @@ import subprocess
 from pathlib import Path
 from typing import cast
 
-from .paths import get_user_repo_path_from_env
+from .paths import get_user_repo_path_from_env, git_subprocess_env
 
 
 class GitCommandError(Exception):
@@ -28,32 +28,33 @@ class InvalidGitRepositoryError(Exception):
 
 async def git_cmd(
     *args: str,
-    repo_root: Path | None = None,
+    git_repo_root: Path | None = None,
     return_bytes: bool = False,
 ) -> str | bytes:
-    """Run ``git -C <repo_root> <args>`` and return stdout."""
-    if repo_root is None:
-        repo_root = get_user_repo_path_from_env()
+    """Run ``git -C <git_repo_root> <args>`` and return stdout."""
+    if git_repo_root is None:
+        git_repo_root = get_user_repo_path_from_env()
 
     try:
         result = await asyncio.to_thread(
             subprocess.run,
-            ["git", "-C", str(repo_root), *args],
+            ["git", "-C", str(git_repo_root), *args],
             check=True,
             capture_output=True,
             text=(not return_bytes),
+            env=git_subprocess_env(),
         )
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr.decode(errors="replace") if return_bytes else exc.stderr
-        raise GitCommandError(f"git -C {repo_root} {' '.join(args)} failed: {stderr.strip()}") from exc
+        raise GitCommandError(f"git -C {git_repo_root} {' '.join(args)} failed: {stderr.strip()}") from exc
 
     return result.stdout  # type: ignore[no-any-return]
 
 
-async def get_repo(repo_root: Path | None = None) -> Path:
+async def get_repo(git_repo_root: Path | None = None) -> Path:
     """Return the git repository root for ``path``."""
-    if repo_root is None:
-        repo_root = get_user_repo_path_from_env()
+    if git_repo_root is None:
+        git_repo_root = get_user_repo_path_from_env()
 
     try:
         result = await asyncio.to_thread(
@@ -61,53 +62,55 @@ async def get_repo(repo_root: Path | None = None) -> Path:
             [
                 "git",
                 "-C",
-                str(repo_root),
+                str(git_repo_root),
                 "rev-parse",
                 "--show-toplevel",
             ],
             check=True,
             capture_output=True,
             text=True,
+            env=git_subprocess_env(),
         )
     except subprocess.CalledProcessError as exc:
-        raise InvalidGitRepositoryError(f"{repo_root} is not a git repository: {exc.stderr.strip()}") from exc
+        raise InvalidGitRepositoryError(f"{git_repo_root} is not a git repository: {exc.stderr.strip()}") from exc
 
     return Path(result.stdout.strip())
 
 
 async def show_index_blob(
     rel: str,
-    repo_root: Path | None = None,
+    git_repo_root: Path | None = None,
 ) -> bytes | None:
     """Return the staged blob bytes for ``rel``, or ``None`` if absent."""
-    if repo_root is None:
-        repo_root = get_user_repo_path_from_env()
+    if git_repo_root is None:
+        git_repo_root = get_user_repo_path_from_env()
 
     try:
         result = await asyncio.to_thread(
             subprocess.run,
-            ["git", "-C", str(repo_root), "show", f":{rel}"],
+            ["git", "-C", str(git_repo_root), "show", f":{rel}"],
             check=True,
             capture_output=True,
+            env=git_subprocess_env(),
         )
     except subprocess.CalledProcessError as exc:
         if exc.returncode == 128:
             return None
 
-        raise GitCommandError(f"git -C {repo_root} show :{rel} failed: {exc.stderr.strip()}") from exc
+        raise GitCommandError(f"git -C {git_repo_root} show :{rel} failed: {exc.stderr.strip()}") from exc
 
     return result.stdout
 
 
 async def stage(
     rel: str,
-    repo_root: Path | None = None,
+    git_repo_root: Path | None = None,
 ) -> None:
     """Stage ``rel`` (``git add <rel>``)."""
-    if repo_root is None:
-        repo_root = get_user_repo_path_from_env()
+    if git_repo_root is None:
+        git_repo_root = get_user_repo_path_from_env()
 
-    await git_cmd("add", rel, repo_root=repo_root)
+    await git_cmd("add", rel, git_repo_root=git_repo_root)
 
 
 async def get_staged_files() -> list[str]:
@@ -116,11 +119,11 @@ async def get_staged_files() -> list[str]:
 
 
 async def diff_cached_name_status(
-    repo_root: Path | None = None,
+    git_repo_root: Path | None = None,
 ) -> str:
     """Return ``git diff --cached --name-status`` output."""
-    if repo_root is None:
-        repo_root = get_user_repo_path_from_env()
+    if git_repo_root is None:
+        git_repo_root = get_user_repo_path_from_env()
 
     return cast(
         str,
@@ -128,6 +131,6 @@ async def diff_cached_name_status(
             "diff",
             "--cached",
             "--name-status",
-            repo_root=repo_root,
+            git_repo_root=git_repo_root,
         ),
     )

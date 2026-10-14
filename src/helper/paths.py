@@ -1,27 +1,46 @@
+import os
 import subprocess
 from functools import lru_cache
 from pathlib import Path
+
+_GIT_REPOSITORY_ENV = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_PREFIX",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+)
+
+
+def git_subprocess_env(*, inherit_index: bool = True) -> dict[str, str]:
+    """Remove hook worktree overrides while preserving its active index by default."""
+    env = os.environ.copy()
+    for name in _GIT_REPOSITORY_ENV:
+        env.pop(name, None)
+    if not inherit_index:
+        env.pop("GIT_INDEX_FILE", None)
+    return env
 
 
 @lru_cache
 def get_user_repo_path_from_env() -> Path:
     from ..config import br_pre_commit_config
 
-    repo_root = br_pre_commit_config.user_repo_root
-    if not repo_root:
+    user_repo_root = br_pre_commit_config.user_repo_root
+    if not user_repo_root:
         raise ValueError("USER_REPO_ROOT environment variable is required")
-    return Path(repo_root).resolve()
+    return Path(user_repo_root).resolve()
 
 
 @lru_cache
 def get_br_pre_commit_repo_path_from_env() -> Path:
     from ..config import br_pre_commit_config
 
-    repo_root = br_pre_commit_config.br_pre_commit_repo_root
-    if not repo_root:
+    br_pre_commit_repo_root = br_pre_commit_config.br_pre_commit_repo_root
+    if not br_pre_commit_repo_root:
         raise ValueError("BR_PRE_COMMIT_REPO_ROOT environment variable is required")
-
-    return Path(repo_root).resolve()
+    return Path(br_pre_commit_repo_root).resolve()
 
 
 @lru_cache
@@ -97,6 +116,7 @@ def get_user_repo_root_from_git(repo_path: str | None = None) -> Path:
         subprocess.check_output(
             ["git", "rev-parse", "--show-toplevel"],
             text=True,
+            env=git_subprocess_env(),
         ).strip()
     )
     return result

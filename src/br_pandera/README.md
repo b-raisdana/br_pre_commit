@@ -73,8 +73,8 @@ One process-wide switch set once by the importing project, instead of a folder a
 from pandera.dump_folder import configure_pandera_dump_folder
 
 configure_pandera_dump_folder("logs/debug_frames")  # relative -> <git root>/logs/debug_frames
-configure_pandera_dump_folder("/var/tmp/frames")    # absolute -> used as-is
-configure_pandera_dump_folder(None)                 # restore the default
+configure_pandera_dump_folder("/var/tmp/frames")  # absolute -> used as-is
+configure_pandera_dump_folder(None)  # restore the default
 ```
 
 - Default is `logs/output_dump/`.
@@ -88,5 +88,5 @@ This package is vendored from a larger project; its public surface is re-exporte
 
 - `from br_pre_commit import pandera_validate` is the supported entry point.
 - The implementation lives in `br_pre_commit/src/br_pandera/`, always under a package-qualified path (`br_pre_commit.src.br_pandera` from a consuming repository, `src.br_pandera` from this repository's own root). The package is deliberately **not** named `pandera`: nothing puts `src/` itself on `sys.path`, and the distinct name keeps it from ever shadowing the third-party `pandera` distribution the decorator validates with (`import pandera.pandas`), even if some future entry point did.
-- Dumping uses `src/helper/output_dump.py` (content-addressed file names) and `src/helper/repo_root.py`; configure the target folder through `configure_pandera_dump_folder` above.
+- Dumping uses `src/helper/output_dump.py` (content-addressed file names) and `src/helper/git_repo_root.py`; configure the target folder through `configure_pandera_dump_folder` above.
 - `import pandera.pandas` additionally requires a Pandera release that ships the `pandera.pandas` submodule.

@@ -29,9 +29,11 @@ def read_section(section: str) -> dict[str, object]:  # ignore: no-object-annota
 def process() -> dict[str, object]:  # ignore: no-object-annotations
     return {}
 
+
 # Parameter annotation with tag on same line
 def handler(data: list[object]) -> None:  # ignore: no-object-annotations
     pass
+
 
 # Variable annotation with tag on same line
 items: list[object] = []  # ignore: no-object-annotations
@@ -43,10 +45,9 @@ items: list[object] = []  # ignore: no-object-annotations
 def complex_func(
     data: dict[
         str,  # some comment
-        object  # ignore: no-object-annotations
-    ]
-) -> None:
-    ...
+        object,  # ignore: no-object-annotations
+    ],
+) -> None: ...
 ```
 
 ### ❌ Rejected (tag on wrong line)
@@ -55,17 +56,20 @@ def complex_func(
 # Tag on def line - does NOT work
 def bad_example() -> dict[str, object]:  # ignore: no-object-annotations
     ...
+
+
 #         ^^^^^^ 'object' is on this line, but tag is on the def line above
 
+
 # Tag missing entirely
-def also_bad() -> dict[str, object]:
-    ...
+def also_bad() -> dict[str, object]: ...
 ```
 
 ### ✅ Allowed (cast is not an annotation)
 
 ```python
 from typing import cast
+
 
 def example(value: dict) -> dict[str, str]:
     # This cast contains 'object' but is NOT an annotation

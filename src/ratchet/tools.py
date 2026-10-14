@@ -26,9 +26,9 @@ def _parse_ruff_json(stdout: str) -> list[RuffViolation]:
         return []
 
 
-def ruff_run(root: Path | None = None) -> list[RuffViolation]:
-    root = root or get_user_repo_path_from_env()  # ROOT if root is None else root
-    stdout = run("ruff", "check", str(ratchet_config.target_dir_rel_path), "--output-format=json", cwd=root)
+def ruff_run(user_repo_root: Path | None = None) -> list[RuffViolation]:
+    user_repo_root = user_repo_root or get_user_repo_path_from_env()
+    stdout = run("ruff", "check", str(ratchet_config.target_dir_rel_path), "--output-format=json", cwd=user_repo_root)
     return _parse_ruff_json(stdout)
 
 
@@ -36,11 +36,11 @@ def _group_ruff_by_rule(violations: list[RuffViolation]) -> dict[str, int]:
     return dict(Counter(f"ruff:{violation['code']}" for violation in violations if violation.get("code")))
 
 
-def _group_ruff_by_file(violations: list[RuffViolation], root: Path | None = None) -> dict[str, int]:
-    root = root or get_user_repo_path_from_env()  # if root is None else root
+def _group_ruff_by_file(violations: list[RuffViolation], user_repo_root: Path | None = None) -> dict[str, int]:
+    user_repo_root = user_repo_root or get_user_repo_path_from_env()
     return dict(
         Counter(
-            Path(violation["filename"]).relative_to(root).as_posix()
+            Path(violation["filename"]).relative_to(user_repo_root).as_posix()
             for violation in violations
             if violation.get("filename")
         )
@@ -58,14 +58,14 @@ def _parse_mypy_records(output: str) -> list[tuple[str, str]]:
     return records
 
 
-def mypy_run(root: Path | None = None) -> list[tuple[str, str]]:
-    root = root or get_user_repo_path_from_env()
+def mypy_run(user_repo_root: Path | None = None) -> list[tuple[str, str]]:
+    user_repo_root = user_repo_root or get_user_repo_path_from_env()
     output = output_run(
         "mypy",
         "--config-file",
-        str(get_pyproject_toml_path()),  # str(root / "pyproject.toml"),
+        str(get_pyproject_toml_path()),  # str(user_repo_root / "pyproject.toml"),
         ".",
-        cwd=root / ratchet_config.target_dir_rel_path,
+        cwd=user_repo_root / ratchet_config.target_dir_rel_path,
     )
     return _parse_mypy_records(output)
 
@@ -85,8 +85,8 @@ def _parse_xenon_json(stdout: str) -> XenonData:
         return {}
 
 
-def xenon_run(root: Path | None = None) -> XenonData:
-    root = root or get_user_repo_path_from_env()
+def xenon_run(user_repo_root: Path | None = None) -> XenonData:
+    user_repo_root = user_repo_root or get_user_repo_path_from_env()
     exclude_dirs = ",".join(ratchet_config.exclude_dirs)
     stdout = run(
         "radon",
@@ -96,7 +96,7 @@ def xenon_run(root: Path | None = None) -> XenonData:
         "-i",
         f"tests,{exclude_dirs}",
         "--show-closures",
-        cwd=root,
+        cwd=user_repo_root,
     )
     return _parse_xenon_json(stdout)
 
@@ -125,13 +125,13 @@ def _group_xenon_by_file(data: XenonData, max_absolute: str | None = None) -> di
     return result
 
 
-def loc_line_counts(root: Path | None = None) -> dict[str, int]:
-    root = root or get_user_repo_path_from_env()
+def loc_line_counts(user_repo_root: Path | None = None) -> dict[str, int]:
+    user_repo_root = user_repo_root or get_user_repo_path_from_env()
     counts: dict[str, int] = {}
-    for path in (root / ratchet_config.target_dir_rel_path).rglob("*.py"):
+    for path in (user_repo_root / ratchet_config.target_dir_rel_path).rglob("*.py"):
         if "__pycache__" in path.parts or path_matches_with_regex(path, ratchet_config.exclude_dir_regex):
             continue
-        counts[path.relative_to(root).as_posix()] = count_lines(path)
+        counts[path.relative_to(user_repo_root).as_posix()] = count_lines(path)
     return counts
 
 
@@ -154,7 +154,7 @@ def run_current_analyzers() -> tuple[list[RuffViolation], list[tuple[str, str]],
 
 
 def _run_current_and_before_analyzers(
-    before_root: Path,
+    before_user_repo_root: Path,
 ) -> tuple[
     list[RuffViolation],
     list[tuple[str, str]],
@@ -167,9 +167,9 @@ def _run_current_and_before_analyzers(
         current_mypy = executor.submit(mypy_run)
         current_xenon = executor.submit(xenon_run)
         current_loc = executor.submit(loc_line_counts)
-        before_ruff = executor.submit(ruff_run, before_root)
-        before_mypy = executor.submit(mypy_run, before_root)
-        before_xenon = executor.submit(xenon_run, before_root)
+        before_ruff = executor.submit(ruff_run, before_user_repo_root)
+        before_mypy = executor.submit(mypy_run, before_user_repo_root)
+        before_xenon = executor.submit(xenon_run, before_user_repo_root)
 
         ruff_violations = current_ruff.result()
         mypy_records = current_mypy.result()
@@ -177,7 +177,7 @@ def _run_current_and_before_analyzers(
         loc_counts = current_loc.result()
         before_by_file = {
             "mypy": _group_mypy_by_file(before_mypy.result()),
-            "ruff": _group_ruff_by_file(before_ruff.result(), root=before_root),
+            "ruff": _group_ruff_by_file(before_ruff.result(), user_repo_root=before_user_repo_root),
             "xenon": _group_xenon_by_file(before_xenon.result()),
         }
     return ruff_violations, mypy_records, xenon_data, loc_counts, before_by_file

@@ -67,11 +67,11 @@ def test_aggregate_regression_alone_never_blocks(hermetic, monkeypatch, capsys):
     monkeypatch.setattr(
         tools_module,
         "ruff_run",
-        lambda root=None: [{"filename": "/repo/src/a.py", "code": "E501"}] * 5,
+        lambda user_repo_root=None: [{"filename": "/repo/src/a.py", "code": "E501"}] * 5,
     )
-    monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: [])
-    monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: {})
-    monkeypatch.setattr(tools_module, "loc_line_counts", lambda root=None: {})
+    monkeypatch.setattr(tools_module, "mypy_run", lambda user_repo_root=None: [])
+    monkeypatch.setattr(tools_module, "xenon_run", lambda user_repo_root=None: {})
+    monkeypatch.setattr(tools_module, "loc_line_counts", lambda user_repo_root=None: {})
     monkeypatch.setattr(main_module, "touched_app_python_files", lambda: [])
 
     exit_code = main()
@@ -91,11 +91,11 @@ def test_touched_file_regression_blocks_even_with_no_prior_baseline(hermetic, mo
     monkeypatch.setattr(
         tools_module,
         "ruff_run",
-        lambda root=None: [{"filename": str(hermetic / "src/a.py"), "code": "E501"}],
+        lambda user_repo_root=None: [{"filename": str(hermetic / "src/a.py"), "code": "E501"}],
     )
-    monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: [])
-    monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: {})
-    monkeypatch.setattr(tools_module, "loc_line_counts", lambda root=None: {})
+    monkeypatch.setattr(tools_module, "mypy_run", lambda user_repo_root=None: [])
+    monkeypatch.setattr(tools_module, "xenon_run", lambda user_repo_root=None: {})
+    monkeypatch.setattr(tools_module, "loc_line_counts", lambda user_repo_root=None: {})
     monkeypatch.setattr(main_module, "touched_app_python_files", lambda: touched)
     monkeypatch.setattr(main_module, "_head_worktree", lambda: None)
     monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
@@ -108,17 +108,18 @@ def test_touched_file_regression_blocks_even_with_no_prior_baseline(hermetic, mo
     assert "ruff in src/a.py: 0 -> 1" in out
 
 
-def test_touched_file_with_no_regression_passes_and_resyncs_baseline(hermetic, monkeypatch):
+def test_touched_file_with_no_regression_passes_without_rewriting_baseline(hermetic, monkeypatch):
     import src.ratchet.__main__ as main_module
     import src.ratchet.tools as tools_module
 
     _block_details_off(monkeypatch)
     _seed(hermetic, {"ruff:OLD": 2})
+    _seed(hermetic, {"mypy:OLD": 1})
     touched = [TouchedFile(path=Path("src/a.py"), is_new=False, old_path=Path("src/a.py"))]
-    monkeypatch.setattr(tools_module, "ruff_run", lambda root=None: [])
-    monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: [])
-    monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: {})
-    monkeypatch.setattr(tools_module, "loc_line_counts", lambda root=None: {})
+    monkeypatch.setattr(tools_module, "ruff_run", lambda user_repo_root=None: [])
+    monkeypatch.setattr(tools_module, "mypy_run", lambda user_repo_root=None: [])
+    monkeypatch.setattr(tools_module, "xenon_run", lambda user_repo_root=None: {})
+    monkeypatch.setattr(tools_module, "loc_line_counts", lambda user_repo_root=None: {})
     monkeypatch.setattr(main_module, "touched_app_python_files", lambda: touched)
     monkeypatch.setattr(main_module, "_head_worktree", lambda: None)
     monkeypatch.setattr(common_module, "count_lines", lambda path: 10)
@@ -126,11 +127,12 @@ def test_touched_file_with_no_regression_passes_and_resyncs_baseline(hermetic, m
 
     exit_code = main()
 
-    # No touched file regressed, so the run passes. ruff:OLD counted 0 against a baseline of
-    # 2, so the ratcheted baseline drops the key and is written as its own content-addressed
-    # file; the stale file stays until the next load_and_consolidate_baselines() folds it in.
+    # The check is read-only even when current counts show an improvement.
     assert exit_code == 0
-    assert _baseline_contents(hermetic) == [{"ruff:OLD": 2}, {}]
+    assert {frozenset(item.items()) for item in _baseline_contents(hermetic)} == {
+        frozenset({("ruff:OLD", 2)}),
+        frozenset({("mypy:OLD", 1)}),
+    }
 
 
 # ---- analyzer concurrency tests ----
@@ -164,10 +166,10 @@ def test_current_and_before_analyzers_start_concurrently(monkeypatch, tmp_path):
 
     import src.ratchet.tools as tools_module
 
-    monkeypatch.setattr(tools_module, "ruff_run", lambda root=None: completed([]))
-    monkeypatch.setattr(tools_module, "mypy_run", lambda root=None: completed([]))
-    monkeypatch.setattr(tools_module, "xenon_run", lambda root=None: completed({}))
-    monkeypatch.setattr(tools_module, "loc_line_counts", lambda root=None: completed({}))
+    monkeypatch.setattr(tools_module, "ruff_run", lambda user_repo_root=None: completed([]))
+    monkeypatch.setattr(tools_module, "mypy_run", lambda user_repo_root=None: completed([]))
+    monkeypatch.setattr(tools_module, "xenon_run", lambda user_repo_root=None: completed({}))
+    monkeypatch.setattr(tools_module, "loc_line_counts", lambda user_repo_root=None: completed({}))
 
     from src.ratchet.tools import _run_current_and_before_analyzers
 
@@ -231,20 +233,20 @@ def test_baseline_filename_is_deterministic_hash_of_content():
     assert name1 == name2
 
 
-def test_load_and_consolidate_merges_multiple_files_and_removes_old(hermetic):
+def test_load_and_consolidate_merges_multiple_files_without_changing_them(hermetic):
     first = _seed(hermetic, {"ruff:E501": 3})
     second = _seed(hermetic, {"mypy:arg-type": 2, "ruff:E501": 5})
+    original_first = first.read_text(encoding="utf-8")
+    original_second = second.read_text(encoding="utf-8")
 
     result = load_and_consolidate_baselines()
 
     # Merge takes the minimum per key and drops zero-valued keys.
     assert result == {"mypy:arg-type": 2, "ruff:E501": 3}
     remaining = find_baseline_files()
-    assert len(remaining) == 1
-    assert remaining[0].name == baseline_filename(result)
-    assert json.loads(remaining[0].read_text(encoding="utf-8")) == result
-    assert not first.exists()
-    assert not second.exists()
+    assert set(remaining) == {first, second}
+    assert first.read_text(encoding="utf-8") == original_first
+    assert second.read_text(encoding="utf-8") == original_second
 
 
 def test_load_and_consolidate_single_file_is_untouched(hermetic):

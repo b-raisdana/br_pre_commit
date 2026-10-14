@@ -6,14 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from src.helper.paths import get_log_dir
-
 pytestmark = [pytest.mark.integration, pytest.mark.backup]
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+BR_PRE_COMMIT_REPO_ROOT = Path(__file__).resolve().parents[3]
 BACKUP_MODULE = "src.backup"
 RECOVER_MODULE = "src.backup.recover"
-_TEST_ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
 
 
 def _init_git_repo(tmp_path: Path) -> Path:
@@ -27,28 +24,36 @@ def _init_git_repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _run_backup(repo_root: Path) -> Path:
+def _make_env(user_repo_root: Path) -> dict[str, str]:
+    return {
+        **os.environ,
+        "PYTHONPATH": str(BR_PRE_COMMIT_REPO_ROOT),
+        "USER_REPO_ROOT": str(user_repo_root),
+        "BR_PRE_COMMIT_REPO_ROOT": str(BR_PRE_COMMIT_REPO_ROOT),
+    }
+
+
+def _run_backup(user_repo_root: Path) -> Path:
     subprocess.run(
-        [sys.executable, "-m", BACKUP_MODULE, "--repo", str(repo_root)],
+        [sys.executable, "-m", BACKUP_MODULE, "--repo", str(user_repo_root)],
         capture_output=True,
         text=True,
         check=True,
-        cwd=repo_root,
-        env=_TEST_ENV,
+        cwd=user_repo_root,
+        env=_make_env(user_repo_root),
     )
-    # snapshot_dirs = list((repo_root / "logs" / "pre-commit" / "backup-patches").iterdir())
-    snapshot_dirs = list((get_log_dir() / "backup-patches").iterdir())
+    snapshot_dirs = list((user_repo_root / "logs" / "pre-commit" / "backup-patches").iterdir())
     assert snapshot_dirs, "No snapshot directory created"
     return sorted(snapshot_dirs)[-1]
 
 
 def _run_recover(
-    snapshot_dir: Path, repo_root: Path, extra_args: list[str] | None = None
+    snapshot_dir: Path, user_repo_root: Path, extra_args: list[str] | None = None
 ) -> subprocess.CompletedProcess:
-    args = [sys.executable, "-m", RECOVER_MODULE, "--snapshot", str(snapshot_dir), "--repo", str(repo_root)]
+    args = [sys.executable, "-m", RECOVER_MODULE, "--snapshot", str(snapshot_dir), "--repo", str(user_repo_root)]
     if extra_args:
         args.extend(extra_args)
-    return subprocess.run(args, capture_output=True, text=True, cwd=repo_root, env=_TEST_ENV)
+    return subprocess.run(args, capture_output=True, text=True, cwd=user_repo_root, env=_make_env(user_repo_root))
 
 
 # ---- (a) staged + unstaged round-trip ----

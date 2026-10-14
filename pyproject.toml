@@ -11,7 +11,13 @@ packages = ["br_pre_commit"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-markers = ["unit: fast isolated unit tests"]
+markers = [
+    "unit: fast isolated unit tests",
+    "integration: integration tests",
+    "backup: backup-related tests",
+    "precommit_wrapper: precommit wrapper tests",
+    "ratchet: ratchet tests",
+]
 addopts = "-n auto"
 
 [tool.ruff]

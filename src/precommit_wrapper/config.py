@@ -13,7 +13,7 @@ from ..helper.config import FromPyProjectTomlConfig
 
 
 class WrapperConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
-    model_config = SettingsConfigDict(populate_by_name=True)
+    model_config = SettingsConfigDict(populate_by_name=True, extra="allow")
 
     protected_branches_regex: str = Field(default="^(main|develop|uat)$", validation_alias="protected-branches-regex")
     unknown_hook_policy: Literal["warn", "error"] = Field(default="warn", validation_alias="unknown-hook-policy")
@@ -36,7 +36,30 @@ class WrapperConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
     pre_commit_stage: str = "pre-commit"
 
 
-wrapper_config = WrapperConfig.from_pyproject_toml("wrapper")
+_wrapper_config: WrapperConfig | None = None
+
+
+def __getattr__(name: str):
+    global _wrapper_config
+    if name == "wrapper_config":
+        if _wrapper_config is None:
+            _wrapper_config = WrapperConfig.from_pyproject_toml("wrapper")
+        return _wrapper_config
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return [
+        "WrapperConfig",
+        "PreCommitHook",
+        "PreCommitRepo",
+        "PreCommitConfig",
+        "get_pre_commit_config_from_yaml",
+        "HookSpec",
+        "get_mutating_hooks",
+        "classify_hooks",
+        "wrapper_config",
+    ]
 
 
 class PreCommitHook(TypedDict, total=False):

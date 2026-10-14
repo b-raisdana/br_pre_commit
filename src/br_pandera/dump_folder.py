@@ -9,7 +9,7 @@ from pathlib import Path
 
 from br_py_log_n_profile import log_d
 
-from ..helper.repo_root import find_repo_root
+from ..helper.git_repo_root import find_git_repo_root
 
 DEFAULT_DUMP_SUBPATH = Path("logs") / "output_dump"
 
@@ -37,7 +37,7 @@ def resolve_dump_folder(source_file: Path) -> Path:
     folder = _CUSTOM_DUMP_FOLDER if _CUSTOM_DUMP_FOLDER is not None else DEFAULT_DUMP_SUBPATH
     if folder.is_absolute():
         return folder
-    return (find_repo_root(source_file) or source_file.resolve().parent) / folder
+    return (find_git_repo_root(source_file) or source_file.resolve().parent) / folder
 
 
 def get_dump_folder(source_file: Path) -> Path:

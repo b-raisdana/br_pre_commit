@@ -6,6 +6,7 @@ See README.md for the module map, scheduling rules, and exit codes.
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import logging
 import os
@@ -26,8 +27,19 @@ from .hooks import enabled_pre_commit_hook_ids
 
 ADVISORY_RUFF_RULES = "Q,RUF,T10,T20,ERA"
 
-logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
-log = logging.getLogger("pre-commit-wrapper")
+
+# Force UTF-8 stdout/stderr on Windows for proper Unicode handling
+def _setup_windows_utf8() -> None:
+    if os.name == "nt" and not hasattr(sys, "_br_pre_commit_utf8_setup"):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", write_through=True)
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace", write_through=True)
+        sys._br_pre_commit_utf8_setup = True  # type: ignore[attr-defined]
+
+
+if __name__ == "__main__":
+    _setup_windows_utf8()
+    logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
+    log = logging.getLogger("pre-commit-wrapper")
 
 
 @dataclass(frozen=True)

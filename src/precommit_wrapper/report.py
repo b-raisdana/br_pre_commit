@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -236,7 +237,11 @@ def _check_environment() -> int:
 
 
 def main() -> int:
-    from .__main__ import log  # noqa: F402,E402
+    from .__main__ import _setup_windows_utf8  # noqa: F402,E402
+
+    _setup_windows_utf8()
+    logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
+    log = logging.getLogger("pre-commit-wrapper")
 
     environment_failure = _check_environment()
     if environment_failure:

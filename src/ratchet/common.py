@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypedDict, cast
 
-from ..helper.paths import get_user_repo_path_from_env
+from ..helper.paths import get_user_repo_path_from_env, git_subprocess_env
 from .config import RatchetConfig, ratchet_config
 
 
@@ -159,8 +159,16 @@ def write_baseline_file(baseline: dict[str, int]) -> None:
     path = get_ratchet_baseline_dir() / baseline_filename(baseline)
     path.parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(baseline, indent=2, sort_keys=True)
+    for stale in path.parent.glob(ratchet_config.baseline_glob):
+        if stale != path:
+            stale.unlink()
     path.write_text(content + "\n", encoding="utf-8", newline="\n")
-    subprocess.run(["git", "add", str(path)], cwd=get_user_repo_path_from_env(), check=False)
+    subprocess.run(
+        ["git", "add", "-A", "--", str(path.parent)],
+        cwd=get_user_repo_path_from_env(),
+        check=False,
+        env=git_subprocess_env(),
+    )
     print(f"Baseline written to {path}: {content}")
 
 
@@ -176,19 +184,12 @@ async def async_write_baseline_file(baseline: dict[str, int]) -> None:
 
 
 def load_and_consolidate_baselines() -> dict[str, int]:
-    """Load all baseline files, merge them, and consolidate to a single file if >1 existed."""
+    """Load and merge baseline files without changing the working tree."""
     files = find_baseline_files()
     if not files:
         return {}
     baselines = [load_json(f) for f in files]
     merged = {k: v for k, v in merge_baselines(baselines).items() if v > 0}
-    if len(files) > 1:
-        merged = {key: value for key, value in merged.items() if value > 0}
-        for f in files:
-            f.unlink()
-        write_baseline_file(merged)
-        for f in files:
-            subprocess.run(["git", "add", "--", str(f)], cwd=get_user_repo_path_from_env(), check=False)
     return merged
 
 
@@ -198,7 +199,7 @@ async def async_load_and_consolidate_baselines() -> dict[str, int]:
 
 def run(*args: str, cwd: Path | None = None) -> str:
     cwd = cwd or get_user_repo_path_from_env()
-    result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False)
+    result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False, env=git_subprocess_env())
     return result.stdout
 
 
@@ -208,7 +209,7 @@ async def async_run(*args: str, cwd: Path | None = None) -> str:
 
 def output_run(*args: str, cwd: Path | None = None) -> str:
     cwd = cwd or get_user_repo_path_from_env()
-    result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False)
+    result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False, env=git_subprocess_env())
     return result.stdout + result.stderr
 
 
@@ -227,7 +228,7 @@ async def async_write_new_baseline(
 ) -> None:
     if not force and new_baseline == old_baseline:
         return
-    await async_write_baseline_file(new_baseline)
+    await asyncio.to_thread(write_baseline_file, new_baseline)
 
 
 def _analyze_trend(

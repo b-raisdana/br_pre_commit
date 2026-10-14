@@ -1,6 +1,6 @@
 # Sync Skill Files
 
-Bidirectional mirror of `SKILL.md` across `.claude/skills`, `.codex/skills`, `.devin/skills`, `.qoder/skills`, `.copilot/skills`, `.kiro/skills`, `.kilo/skills` (and `.github/git-commit/SKILL.md` for the `git-commit` skill only).
+Bidirectional mirror of `SKILL.md` across `.claude/skills`, `.agents/skills`, `.devin/skills`, `.copilot/skills`, `.kiro/skills`, `.kilo/skills` (and `.github/git-commit/SKILL.md` for the `git-commit` skill only).
 
 Wired in `.pre-commit-config.yaml` as `sync-skill-files` and runs when a `SKILL.md` is staged.
 
@@ -14,13 +14,25 @@ Wired in `.pre-commit-config.yaml` as `sync-skill-files` and runs when a `SKILL.
 ## Safety: safe auto-fix vs. manual
 
 - **Safe (auto-fixed, staged, exit 0):** a single canonical staged version propagating to clean/missing mirrors; staged deletions; missing mirrors of an otherwise-identical skill. The developer is not interrupted for these.
-- **Unsafe (exit 1, manual steps):** conflicting staged versions for one skill; a skill both staged-modified and staged-deleted; a mirror with uncommitted/untracked work that a sync would clobber; pre-existing committed divergence. Each is reported with the conflicting paths and a `cp`/`git rm` + re-stage recipe.
+- **Unsafe (exit 1, manual steps):** conflicting staged versions for one skill; a skill both staged-modified and staged-deleted; a mirror with uncommitted/untracked work that a sync would clobber; pre-existing committed divergence. Each is reported with the conflicting paths and a `cp`/`git rm` + re-stage recipe (or run the interactive resolver below).
+
+## Interactive conflict resolution
+
+When the hook blocks on a conflict, fix it interactively from the repository root:
+
+```sh
+python -m src.sync_skills.resolve
+```
+
+It lists every diverging mirror with a short preview, asks which version is canonical (or whether to delete a skill that is both staged-modified and staged-deleted), then applies the choice to all mirrors through the same safe write path as the hook — missing mirrors are created, clean mirrors are updated and staged, and mirrors with uncommitted/untracked edits are never clobbered. Skipping a skill (Enter) leaves it unresolved, is reported, and makes the command exit non-zero. It needs an interactive terminal; without one it prints the manual `cp`/`git rm` recipe instead.
+
+If the shell lacks the `USER_REPO_ROOT` / `BR_PRE_COMMIT_REPO_ROOT` exports that the installed pre-commit hook provides (see `src/install.py`'s generated hook), the command discovers both roots from git, prints them, and asks `Do you confirm? [y/N]:` — the same interactive discovery `src/install.py` uses — before anything is read or written.
 
 ## Exclusions
 
 How the sync hook decides a skill is agent-specific and must not propagate:
 
-**Detection is purely folder-name based.** The hook never reads the contents of `SKILL.md` to make that decision. A skill is excluded from cross-agent sync when its *folder name* matches one of the two rules below. This is checked by `is_excluded()` in `src/sync_skills/core.py:38`, which is consulted at every point where a skill would otherwise be written to or verified across mirrors (`__main__.py:99,113,117`, `sync.py:125,145,231`).
+**Detection is purely folder-name based.** The hook never reads the contents of `SKILL.md` to make that decision. A skill is excluded from cross-agent sync when its *folder name* matches one of the two rules below. This is checked by `is_excluded()` in `src/sync_skills/core.py:40`, which is consulted at every point where a skill would otherwise be written to or verified across mirrors (`__main__.py:103,117,121`, `sync.py:125,145,236`).
 
 Two mechanisms keep agent-specific skills from propagating:
 
@@ -68,7 +80,7 @@ loop picks it up on the next run automatically.
 
 1. Add the agent slug to the `AGENTS` list in `src/sync_skills/core.py`:
    ```python
-   AGENTS = ["claude", "codex", "devin", "qoder", "copilot", "kiro", "kilo", "myagent"]
+   AGENTS = ["claude", "agents", "devin", "copilot", "kiro", "kilo", "myagent"]
    ```
 2. Create the agent's skills directory in the repo:
    ```sh

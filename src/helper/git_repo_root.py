@@ -16,7 +16,7 @@ from pathlib import Path
 GIT_MARKER_NAME = ".git"
 
 
-def find_repo_root(start: Path) -> Path | None:
+def find_git_repo_root(start: Path) -> Path | None:
     """Nearest ancestor of ``start`` (a file or a directory) holding a ``.git`` marker.
 
     ``.git`` is a directory in a regular clone and a file in a worktree or a
@@ -24,11 +24,11 @@ def find_repo_root(start: Path) -> Path | None:
     repository owns ``start``. Results are cached: the same file is dumped on
     every call, and the answer cannot change while the process runs.
     """
-    return _find_repo_root(start.resolve())
+    return _find_git_repo_root(start.resolve())
 
 
 @lru_cache(maxsize=512)
-def _find_repo_root(resolved: Path) -> Path | None:
+def _find_git_repo_root(resolved: Path) -> Path | None:
     directory = resolved if resolved.is_dir() else resolved.parent
     for candidate in (directory, *directory.parents):
         if (candidate / GIT_MARKER_NAME).exists():
@@ -36,7 +36,7 @@ def _find_repo_root(resolved: Path) -> Path | None:
     return None
 
 
-def find_repo_root_or_parent(start: Path) -> Path:
+def find_git_repo_root_or_parent(start: Path) -> Path:
     """Git root owning ``start``, falling back to ``start``'s parent directory.
 
     The fallback keeps dumping working for files that live outside any
@@ -44,4 +44,4 @@ def find_repo_root_or_parent(start: Path) -> Path:
     plays the role of the root, which still keeps the layout independent of the
     process working directory.
     """
-    return find_repo_root(start) or start.resolve().parent
+    return find_git_repo_root(start) or start.resolve().parent

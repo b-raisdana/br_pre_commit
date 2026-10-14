@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import stat
 import subprocess
@@ -13,8 +14,28 @@ from typing import cast
 import yaml
 
 from .helper.paths import get_br_pre_commit_package_prefix, get_pre_commit_config_yaml_path
-from .helper.requirements import unsatisfied_requirements
 from .precommit_wrapper.config import PreCommitConfig, PreCommitHook, PreCommitRepo
+
+# Import names (not distribution names) for the packages in requirements.txt.
+# This set must be kept in sync with requirements.txt.
+REQUIRED_PACKAGES: set[str] = {
+    "yaml",  # pyyaml
+    "pre_commit",  # pre-commit
+    "radon",
+    "ruff",
+    "mypy",
+    "pytest",
+    "pytest_asyncio",  # pytest-asyncio
+}
+
+
+def verify_requirements() -> list[str]:
+    """Return a list of required packages that are not importable in the current environment."""
+    missing: list[str] = []
+    for package in REQUIRED_PACKAGES:
+        if importlib.util.find_spec(package) is None:
+            missing.append(package)
+    return missing
 
 
 def get_active_venv() -> Path | None:
@@ -57,10 +78,10 @@ def get_br_pre_commit_root_from_git() -> Path:
     return br_pre_commit_repo_root
 
 
-def get_git_dir(repo_root: Path) -> Path:
+def get_git_dir(git_repo_root: Path) -> Path:
     result = Path(
         subprocess.check_output(
-            ["git", "-C", str(repo_root), "rev-parse", "--absolute-git-dir"],
+            ["git", "-C", str(git_repo_root), "rev-parse", "--absolute-git-dir"],
             text=True,
         ).strip()
     )
@@ -188,7 +209,7 @@ def _prompt_force_overwrite(hook_path: Path) -> bool:
 
 
 def install(cwd: Path, force: bool, dry_run: bool) -> int:
-    missing = unsatisfied_requirements()
+    missing = verify_requirements()
     if missing:
         print(
             "ERROR: the active environment does not satisfy br_pre_commit's requirements.txt:\n"

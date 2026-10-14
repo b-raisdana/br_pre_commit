@@ -150,14 +150,34 @@ during commits, but you can still invoke it manually):
 configured either way — only its *participation in the commit pipeline* changes.
 
 Per-hook knobs that are not the on/off switch live in `pyproject.toml` under
-`[tool.br_pre_commit.*]`:
+`[tool.br_pre_commit.*]`. The complete list is the set of fields of the
+pydantic-settings classes in `src/precommit_wrapper/config.py`,
+`src/ratchet/config.py`, `src/backup/config.py`, and `src/sync_skills/config.py`
+(each a `FromPyProjectTomlConfig`). Kept keys are matched by their
+`validation_alias` (kebab-case) or, when a field has none, by its field name
+(snake_case):
 
-| Section | Controls |
-| ------- | -------- |
-| `[tool.br_pre_commit.wrapper]` | `protected-branches-regex`, `unknown-hook-policy`, `job-timeout-seconds` |
-| `[tool.br_pre_commit.ratchet]` | `target`, `max-lines`, `line-growth-slack`, `complexity-ranks`, `xenon-max-absolute`, `exclude-dir` |
-| `[tool.br_pre_commit.backup]` | `full_backup_exclude_dir_regex` |
-| `[tool.br_pre_commit.sync_skills]` | `hardcoded-skips` |
+| Section | Key | Controls |
+| ------- | --- | -------- |
+| `[tool.br_pre_commit.wrapper]` | `protected-branches-regex` | Branch names the wrapper refuses to commit on (default `^(main\|develop\|uat)$`) |
+| `[tool.br_pre_commit.wrapper]` | `unknown-hook-policy` | `warn`/`error` for hook IDs the wrapper cannot classify (default `warn`) |
+| `[tool.br_pre_commit.wrapper]` | `job-timeout-seconds` | Per-hook timeout in seconds (default `180`) |
+| `[tool.br_pre_commit.wrapper]` | `pre_commit_stage` | Stage string that counts as the commit pipeline (default `pre-commit`); a hook participates when its `stages` include it |
+| `[tool.br_pre_commit.ratchet]` | `target` | Directory the ratchet scans (default `src`) |
+| `[tool.br_pre_commit.ratchet]` | `max-lines` | LOC cap per file (default `300`) |
+| `[tool.br_pre_commit.ratchet]` | `line-growth-slack` | Max line growth per commit for files already over the cap (default `5`) |
+| `[tool.br_pre_commit.ratchet]` | `complexity-ranks` | radon rank ordering used to interpret `xenon-max-absolute` (default `ABCDEF`) |
+| `[tool.br_pre_commit.ratchet]` | `xenon-max-absolute` | Worst allowed radon complexity rank (default `B`) |
+| `[tool.br_pre_commit.ratchet]` | `exclude-dir` | Regex; paths with a matching part are skipped by the per-file gate (default `archive_not_used_trash`) |
+| `[tool.br_pre_commit.ratchet]` | `exclude_dirs` | Directories excluded from the `radon`/`ruff`/`mypy` runs (default `["archive_not_used_trash"]`) |
+| `[tool.br_pre_commit.ratchet]` | `baseline_glob` | Glob matching trend baseline files (default `baseline*.json`) |
+| `[tool.br_pre_commit.ratchet]` | `mypy_coded_error_re` | Regex capturing the `[code]` of a coded mypy error line |
+| `[tool.br_pre_commit.ratchet]` | `mypy_uncoded_error_re` | Regex matching mypy error lines that carry no code |
+| `[tool.br_pre_commit.backup]` | `full_backup_exclude_dir_regex` | Regex; files with a matching path part are excluded from full backup (default `^(data\|logs\|archive_not_used_trash\|\.[^/]+)$`) |
+| `[tool.br_pre_commit.backup]` | `staged_prefix` | Snapshot subfolder for staged patches (default `staged`) |
+| `[tool.br_pre_commit.backup]` | `unstaged_prefix` | Snapshot subfolder for unstaged patches (default `unstaged`) |
+| `[tool.br_pre_commit.backup]` | `untracked_prefix` | Snapshot subfolder for untracked copies (default `untracked`) |
+| `[tool.br_pre_commit.sync_skills]` | `hardcoded-skips` | Exact skill folder names excluded from cross-agent sync |
 
 See [pyproject.toml](pyproject.toml) for the shared defaults a consuming
 project inherits.

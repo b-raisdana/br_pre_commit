@@ -17,11 +17,9 @@ from .common import (
     _print_trends,
     _tool_of,
     _tool_totals,
-    _write_new_baseline,
     async_collect_analyzer_results,
     async_get_current_counts,
     async_load_and_consolidate_baselines,
-    async_write_new_baseline,
     compute_new_baseline,
     get_current_counts,
     load_and_consolidate_baselines,
@@ -62,7 +60,6 @@ def main() -> int:
         return 1
 
     new_baseline = compute_new_baseline(old_baseline, current_counts)
-    _write_new_baseline(old_baseline, new_baseline)
     _print_trends(regressed, improved, characterization_test_touched)
 
     tool_totals, tool_baseline_totals = _tool_totals(current_counts, new_baseline, _tool_of)
@@ -98,7 +95,6 @@ async def async_main() -> int:
         return 1
 
     new_baseline = compute_new_baseline(old_baseline, current_counts)
-    await async_write_new_baseline(old_baseline, new_baseline)
     _print_trends(regressed, improved, characterization_test_touched)
 
     tool_totals, tool_baseline_totals = _tool_totals(current_counts, new_baseline, _tool_of)

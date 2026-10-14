@@ -18,6 +18,7 @@ Read from `[tool.br_pre_commit.wrapper]` in the **user project's** `pyproject.to
 - `protected-branches-regex` — regex matched against the current branch name (default `^(main|develop|uat)$`).
 - `unknown-hook-policy` — `warn` (default) or `error`: what happens to hook IDs the wrapper cannot classify.
 - `job-timeout-seconds` — per-hook timeout, default `180`.
+- `pre_commit_stage` — stage string that counts as the commit pipeline (default `pre-commit`); `hooks.py` enables a hook when its `stages` contain it (a hook with no `stages` key is also enabled).
 
 ## Hook classification
 

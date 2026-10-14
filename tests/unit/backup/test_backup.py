@@ -12,7 +12,7 @@ def test_backup_many_diffs_starts_all_files_concurrently(tmp_path, monkeypatch):
         all_started = asyncio.Event()
         started = []
 
-        async def fake_backup(snapshot_dir, repo_root, prefix, path):
+        async def fake_backup(snapshot_dir, user_repo_root, prefix, path):
             started.append(path)
             if len(started) == 3:
                 all_started.set()
@@ -63,37 +63,37 @@ def test_write_patch_dots_in_name_preserved(tmp_path):
 
 
 def test_copy_full_file_content_addressed_overwrites_same_version(tmp_path):
-    repo_root = tmp_path / "repo"
-    (repo_root / "src" / "archive_not_used_trash").mkdir(parents=True)
+    user_repo_root = tmp_path / "repo"
+    (user_repo_root / "src" / "archive_not_used_trash").mkdir(parents=True)
     full_backup_dir = tmp_path / "full"
     full_backup_dir.mkdir()
 
-    source = repo_root / "src" / "archive_not_used_trash" / "legacy.py"
+    source = user_repo_root / "src" / "archive_not_used_trash" / "legacy.py"
     source.write_text("v1\n", encoding="utf-8")
 
-    e1 = backup._copy_full_file(full_backup_dir, repo_root, "src/archive_not_used_trash/legacy.py")
-    e2 = backup._copy_full_file(full_backup_dir, repo_root, "src/archive_not_used_trash/legacy.py")
+    e1 = backup._copy_full_file(full_backup_dir, user_repo_root, "src/archive_not_used_trash/legacy.py")
+    e2 = backup._copy_full_file(full_backup_dir, user_repo_root, "src/archive_not_used_trash/legacy.py")
     assert e1 is not None and e2 is not None
     assert e1["stored_path"] == e2["stored_path"]
     assert (full_backup_dir / e1["stored_path"]).read_text() == "v1\n"
 
     source.write_text("v2-changed\n", encoding="utf-8")
-    e3 = backup._copy_full_file(full_backup_dir, repo_root, "src/archive_not_used_trash/legacy.py")
+    e3 = backup._copy_full_file(full_backup_dir, user_repo_root, "src/archive_not_used_trash/legacy.py")
     assert e3 is not None
     assert e3["stored_path"] != e1["stored_path"]
     assert (full_backup_dir / e3["stored_path"]).read_text() == "v2-changed\n"
 
 
 def test_copy_full_file_hash_before_extension(tmp_path):
-    repo_root = tmp_path / "repo"
-    (repo_root / "src" / "archive_not_used_trash").mkdir(parents=True)
+    user_repo_root = tmp_path / "repo"
+    (user_repo_root / "src" / "archive_not_used_trash").mkdir(parents=True)
     full_backup_dir = tmp_path / "full"
     full_backup_dir.mkdir()
 
-    source = repo_root / "src" / "archive_not_used_trash" / "legacy.py"
+    source = user_repo_root / "src" / "archive_not_used_trash" / "legacy.py"
     source.write_text("content\n", encoding="utf-8")
 
-    entry = backup._copy_full_file(full_backup_dir, repo_root, "src/archive_not_used_trash/legacy.py")
+    entry = backup._copy_full_file(full_backup_dir, user_repo_root, "src/archive_not_used_trash/legacy.py")
     assert entry is not None
     stored = full_backup_dir / entry["stored_path"]
     assert stored.exists()
@@ -104,15 +104,15 @@ def test_copy_full_file_hash_before_extension(tmp_path):
 
 
 def test_copy_full_file_extensionless(tmp_path):
-    repo_root = tmp_path / "repo"
-    (repo_root / "src" / "archive_not_used_trash").mkdir(parents=True)
+    user_repo_root = tmp_path / "repo"
+    (user_repo_root / "src" / "archive_not_used_trash").mkdir(parents=True)
     full_backup_dir = tmp_path / "full"
     full_backup_dir.mkdir()
 
-    source = repo_root / "src" / "archive_not_used_trash" / "Makefile"
+    source = user_repo_root / "src" / "archive_not_used_trash" / "Makefile"
     source.write_text("all:\n", encoding="utf-8")
 
-    entry = backup._copy_full_file(full_backup_dir, repo_root, "src/archive_not_used_trash/Makefile")
+    entry = backup._copy_full_file(full_backup_dir, user_repo_root, "src/archive_not_used_trash/Makefile")
     assert entry is not None
     stored = full_backup_dir / entry["stored_path"]
     assert stored.exists()

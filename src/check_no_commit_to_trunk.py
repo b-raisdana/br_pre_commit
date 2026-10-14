@@ -7,9 +7,9 @@ from .precommit_wrapper.__main__ import _branch_protection_result
 
 
 def main() -> int:
-    repo_root = get_user_repo_path_from_env()
+    user_repo_root = get_user_repo_path_from_env()
     branch = subprocess.run(
-        ["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
+        ["git", "-C", str(user_repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
         check=True,
         capture_output=True,
         text=True,

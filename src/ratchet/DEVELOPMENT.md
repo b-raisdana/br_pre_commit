@@ -5,12 +5,10 @@ overview, see [README.md](README.md).
 
 ## Bootstrapping / resetting a baseline key
 
-Delete (or edit) its entry in any `baseline*.json` file and run `python -m src.ratchet`
-once — it remeasures and records the current count as the new trend baseline for that key,
-same as first-time setup. Alternatively, call `common.baseline_current_state()` directly,
-or use the dedicated entry point `python -m src.ratchet.baseline` (shell wrapper:
-`baseline.sh`, PowerShell: `baseline.ps1`). This only affects the trend layer; there's
-nothing to bootstrap for the per-file gate since it is recomputed fresh every run.
+Delete (or edit) its entry in any `baseline*.json` file, then use the dedicated entry point
+`python -m src.ratchet.baseline` (shell wrapper: `baseline.sh`, PowerShell: `baseline.ps1`)
+to record current counts. `python -m src.ratchet` is a read-only check. This only affects
+the trend layer; the per-file gate is recomputed fresh every run.
 
 ## Mutation-safety policy
 
@@ -20,10 +18,10 @@ repo's safeguard is test discipline, not a mutation-testing tool (see the `test-
 skill's characterization-test discipline): pin the function's _current actual_ output with
 a characterization test before changing it.
 
-Whenever a commit lowers the trend baseline for any key, the ratchet checks whether the
-same commit touches a tests/ directory and prints a reminder (not a block) if it doesn't —
-a nudge, not a gate, per the "policy only" decision for this repo. In the current code,
-`common._print_trends` calls `gate.characterization_test_touched` to perform this check.
+When a check finds improved counts, it prints a reminder (not a block) if the same change
+doesn't touch a tests/ directory — a nudge, not a gate, per the "policy only" decision for
+this repo. Applying the improvement to the trend baseline is a separate explicit operation.
+In the current code, `common._print_trends` calls `gate.characterization_test_touched`.
 
 ## Inline implementation notes
 
@@ -75,13 +73,13 @@ current status.
 ```
 __main__.py:main()
   ├── gate._validate_configured_hooks()                    ← warn on unregistered hooks
-  ├── common.load_and_consolidate_baselines()              ← merge baseline*.json (union+min); consolidate if >1
+  ├── common.load_and_consolidate_baselines()              ← read and merge baseline*.json (union+min)
   ├── gate.touched_app_python_files()                      ← git diff --cached --name-status -M
   ├── common._collect_analyzer_results(touched, ...)
   │     ├── gate._head_worktree() if touched               ← throwaway checkout at HEAD
   │     ├── tools._run_current_and_before_analyzers(worktree)
   │     │     ├── tools.ruff_run / mypy_run / xenon_run / loc_line_counts  ("after")
-  │     │     └── same tools.*(..., before_root=worktree)                  ("before")
+   │     │     └── same tools.*(..., before_user_repo_root=worktree)      ("before")
   │     └── gate._remove_worktree(worktree)                  ← cleanup
   ├── common.get_current_counts(...)                         ← group by rule → trend keys
   ├── common._analyze_trend(old_baseline, current_counts)    ← bootstrap/regressed/improved (info only)
@@ -92,7 +90,6 @@ __main__.py:main()
   │           └── gate._loc_regression()                    ← loc: block if over cap+slack; new file cap
   ├── if blocked: common._print_blocked() → DETAIL_PRINTERS → details.print_*_details()
   ├── common.compute_new_baseline(old, current)              ← union + min (never drops vectors)
-  ├── common._write_new_baseline(...)                       ← write baseline_<hash>.json if changed + git add
   └── common._print_trends(regressed, improved, gate.characterization_test_touched)
 ```
 
@@ -104,7 +101,7 @@ of the mypy/ruff/xenon grouping.
 
 #### F1 — silent tool-failure masking (P0)
 
-**Status: Still open.**
+**Status: Partially resolved.**
 
 **Now also applies to the "before" worktree runs:** `gate._head_worktree` silently returns
 `None` on any `git worktree add` failure (`gate.py:55`), which
@@ -180,17 +177,15 @@ document that it is `"ABCDEF"` because radon uses single-letter A–F ranks.
 
 **Status: Still open.**
 
-**Location:** `write_baseline_file` (`common.py:156-164`), called from
-`common._write_new_baseline` (`common.py:219-222`) and `common.load_and_consolidate_baselines`
-(`common.py:185-191`).
+**Location:** `write_baseline_file` (`common.py:156-172`), used by explicit baseline updates.
+The pre-commit check now reads and merges baselines without writing or staging files.
 
 **Weakness:**
 1. `path.write_text()` is not atomic — if the process receives SIGTERM mid-write, the
    baseline file is left truncated/partial, breaking every subsequent commit until manually
    fixed.
-2. `subprocess.run(["git", "add", ...])` stages the file unconditionally whenever
-   `bootstrapped or ratcheted`. If the hook itself fails later (e.g. `main()` raises after
-   the write), the user ends up with a partially staged baseline file in their index.
+2. `subprocess.run(["git", "add", ...])` stages the file unconditionally during an explicit
+   baseline update. A later failure can still leave the baseline staged in the user's index.
 3. If two commits run the ratchet concurrently (e.g. two terminals), both read the same
    baseline, both compute new values, and the last writer wins — potentially losing a
    ratchet the other commit just earned.
@@ -198,9 +193,8 @@ document that it is `"ABCDEF"` because radon uses single-letter A–F ranks.
 **Upgrade:**
 - Write to a temp file in the same directory, then `os.replace()` (atomic on POSIX) onto
   the final path.
-- Stage the baseline file only after the full `main()` logic succeeds and the return value
-  is confirmed as 0 (pass). Better: return the path to stage and let the caller (the hook
-  wrapper) stage it, separating the check from the mutation.
+- Stage the baseline only after an explicit baseline update completes, keeping the check
+  command read-only.
 - For the concurrency case: add a simple advisory lock (e.g. `fasteners.InterProcessLock` or
   a `.lock` file with `fcntl.flock`) around the read-modify-write of the baseline.
 

@@ -27,13 +27,13 @@ def test_ruff_groups_by_rule_code():
 
 
 def test_ruff_groups_by_file_relativizing_absolute_filenames():
-    root = Path("/repo")
+    user_repo_root = Path("/repo")
     violations = [
         {"filename": "/repo/app/a.py", "code": "E501"},
         {"filename": "/repo/app/a.py", "code": "F401"},
         {"filename": "/repo/app/b.py", "code": "E501"},
     ]
-    assert _group_ruff_by_file(violations, root=root) == {"app/a.py": 2, "app/b.py": 1}
+    assert _group_ruff_by_file(violations, user_repo_root=user_repo_root) == {"app/a.py": 2, "app/b.py": 1}
 
 
 def test_mypy_records_group_by_rule_and_by_file_ignore_notes_and_summary():

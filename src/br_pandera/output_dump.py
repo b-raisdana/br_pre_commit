@@ -68,12 +68,12 @@ def namespace_path(source_file: Path) -> str:
     The path is taken relative to the Git root owning ``source_file``, so a
     library installed elsewhere cannot influence the namespace.
     """
-    from ..helper.repo_root import find_repo_root_or_parent
+    from ..helper.git_repo_root import find_git_repo_root_or_parent
 
-    root = find_repo_root_or_parent(source_file)
+    git_repo_root = find_git_repo_root_or_parent(source_file)
     resolved = source_file.resolve()
     try:
-        relative = resolved.relative_to(root)
+        relative = resolved.relative_to(git_repo_root)
     except ValueError:
         relative = Path(resolved.name)
     parts = (*(_safe_name_part(part) for part in relative.parts[:-1]), _safe_name_part(relative.stem))

@@ -10,7 +10,8 @@ replaces folder-scan detection for add/modify, making it symmetric with
 git-based deletion detection. Working-tree-only edits are never clobbered.
 
 Verification pass: folder scan ensures all mirrors byte-identical. Missing
-mirrors auto-created (low risk). Content conflicts block commit with details.
+mirrors auto-created (low risk). Content conflicts block commit with details
+and the interactive resolver command (``python -m src.sync_skills.resolve``).
 
 Cleanup: removes empty skill dirs left by staged SKILL.md deletions.
 
@@ -26,12 +27,13 @@ from pathlib import Path
 
 from ..helper.git import InvalidGitRepositoryError, get_repo
 from .core import (
+    _BR_PRE_COMMIT_REPO_ROOT,
     _GITHUB_PATH,
-    _REPO_ROOT,
     _SKILL_FILENAME,
     AGENTS,
     GIT_COMMIT_SPECIAL,
     HARDCODED_SKIPS,
+    RESOLVE_COMMAND,
     _rel,
     classify_skill_path,
     cleanup_empty_skill_dirs,
@@ -54,7 +56,7 @@ __all__ = [
     "GIT_COMMIT_SPECIAL",
     "HARDCODED_SKIPS",
     "_GITHUB_PATH",
-    "_REPO_ROOT",
+    "_BR_PRE_COMMIT_REPO_ROOT",
     "_SKILL_FILENAME",
     "_rel",
     "apply_modification",
@@ -80,12 +82,14 @@ def _conflict_reason(
     if len(blobs) > 1:
         return (
             f"conflicting staged versions for '{skill}' across {len(blobs)} mirrors; "
-            "pick one canonical version, make the others match, stage, and re-run."
+            f"pick one canonical version, make the others match, stage, and re-run "
+            f'(or run "{RESOLVE_COMMAND}" to fix it interactively).'
         )
     if any(status == "delete" for _, status, _ in changes.get(skill, [])):
         return (
             f"'{skill}' is both staged-modified and staged-deleted; choose add or delete, "
-            "stage that single intent, and re-run."
+            f"stage that single intent, and re-run "
+            f'(or run "{RESOLVE_COMMAND}" to fix it interactively).'
         )
     return f"unresolved staged state for '{skill}'; reconcile and re-run."
 
@@ -102,7 +106,7 @@ def _report_conflicts(
 
 
 def _apply_safe_changes(
-    repo_root: Path,
+    br_pre_commit_repo_root: Path,
     skill_parents: dict[str, Path],
     changes: dict[str, list[tuple[str, str, bytes | None]]],
     problems: list[str],
@@ -112,11 +116,11 @@ def _apply_safe_changes(
     for skill in deletions:
         if skill in conflicts or is_excluded(skill):
             continue
-        remove_skill_from_all_agents(repo_root, skill, skill_parents, problems)
+        remove_skill_from_all_agents(br_pre_commit_repo_root, skill, skill_parents, problems)
     for skill, canonical in modifications.items():
         if skill in conflicts or is_excluded(skill):
             continue
-        apply_modification(repo_root, skill, canonical, skill_parents, problems)
+        apply_modification(br_pre_commit_repo_root, skill, canonical, skill_parents, problems)
 
 
 def _sync_result(problems: list[str]) -> int:
@@ -135,17 +139,17 @@ def _sync_result(problems: list[str]) -> int:
 
 def main() -> int:
     try:
-        repo_root = asyncio.run(get_repo(_REPO_ROOT))
+        br_pre_commit_repo_root = asyncio.run(get_repo(_BR_PRE_COMMIT_REPO_ROOT))
     except InvalidGitRepositoryError:
         print("sync-skill-files: not a git repository", file=sys.stderr)
         return 0
 
-    skill_parents = get_skill_parents(repo_root)
+    skill_parents = get_skill_parents(br_pre_commit_repo_root)
     problems: list[str] = []
-    changes = get_staged_skill_changes(repo_root)
-    _apply_safe_changes(repo_root, skill_parents, changes, problems)
-    verify_sync(repo_root, skill_parents, problems, skip=set(changes))
-    cleanup_empty_skill_dirs(skill_parents, repo_root)
+    changes = get_staged_skill_changes(br_pre_commit_repo_root)
+    _apply_safe_changes(br_pre_commit_repo_root, skill_parents, changes, problems)
+    verify_sync(br_pre_commit_repo_root, skill_parents, problems, skip=set(changes))
+    cleanup_empty_skill_dirs(skill_parents, br_pre_commit_repo_root)
     return _sync_result(problems)
 
 

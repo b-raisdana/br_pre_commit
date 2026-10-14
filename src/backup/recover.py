@@ -10,7 +10,6 @@ check for it.
 
 from __future__ import annotations
 
-import fcntl
 import json
 import logging
 import subprocess
@@ -19,14 +18,21 @@ import time
 from pathlib import Path
 from typing import TextIO
 
+try:
+    import fcntl
+except ImportError:  # Windows
+    fcntl = None  # type: ignore[assignment]
+    import msvcrt
+
 from ..helper.paths import get_full_backup_dir
 from .models import Manifest
 
+logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)
 log = logging.getLogger("recover")
 
 
-def _run_git(repo_root: Path, *args: str) -> str:
-    result = subprocess.run(["git", *args], cwd=repo_root, capture_output=True, text=True, check=False)
+def _run_git(user_repo_root: Path, *args: str) -> str:
+    result = subprocess.run(["git", *args], cwd=user_repo_root, capture_output=True, text=True, check=False)
     if result.returncode:
         raise subprocess.CalledProcessError(
             result.returncode,
@@ -45,16 +51,19 @@ def _load_manifest(snapshot_dir: Path) -> Manifest:
     return Manifest(**data)
 
 
-def _acquire_lock(repo_root: Path, timeout: float = 5.0) -> TextIO:
-    lock_path = repo_root / ".git" / "recover.lock"
+def _acquire_lock(user_repo_root: Path, timeout: float = 5.0) -> TextIO:
+    lock_path = user_repo_root / ".git" / "recover.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     fd = lock_path.open("w")
     deadline = time.time() + timeout
     while True:
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if fcntl is not None:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            else:
+                msvcrt.locking(fd.fileno(), msvcrt.LK_NBLCK, 1)
             return fd
-        except BlockingIOError:
+        except (BlockingIOError, OSError):
             if time.time() >= deadline:
                 raise TimeoutError(
                     f"Could not acquire recover.lock within {timeout:.1f}s — "
@@ -65,7 +74,10 @@ def _acquire_lock(repo_root: Path, timeout: float = 5.0) -> TextIO:
 
 def _release_lock(fd: TextIO) -> None:
     try:
-        fcntl.flock(fd, fcntl.LOCK_UN)
+        if fcntl is not None:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        else:
+            msvcrt.locking(fd.fileno(), msvcrt.LK_UNLCK, 1)
         fd.close()
     except Exception:
         pass
@@ -78,7 +90,7 @@ def _git_error(exc: subprocess.CalledProcessError, category: str, path: str) -> 
 
 
 def _recover_patches(
-    repo_root: Path,
+    user_repo_root: Path,
     snapshot_dir: Path,
     entries: list[dict[str, str]],
     category: str,
@@ -98,10 +110,10 @@ def _recover_patches(
             continue
         try:
             if cached:
-                _run_git(repo_root, "reset", "HEAD", "--", entry["original_path"])
-                _run_git(repo_root, "apply", "--cached", str(src))
+                _run_git(user_repo_root, "reset", "HEAD", "--", entry["original_path"])
+                _run_git(user_repo_root, "apply", "--cached", str(src))
             else:
-                _run_git(repo_root, "apply", str(src))
+                _run_git(user_repo_root, "apply", str(src))
             log.info("Restored %s %s", category, entry["original_path"])
         except subprocess.CalledProcessError as exc:
             msg = _git_error(exc, category, entry["original_path"])
@@ -113,7 +125,7 @@ def _recover_patches(
 
 
 def _recover_untracked(
-    repo_root: Path,
+    user_repo_root: Path,
     snapshot_dir: Path,
     entries: list[dict[str, str]],
     dry_run: bool,
@@ -131,7 +143,7 @@ def _recover_untracked(
             log.info("[dry-run] would restore untracked %s", entry["original_path"])
             continue
         try:
-            dest = repo_root / entry["original_path"]
+            dest = user_repo_root / entry["original_path"]
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(src.read_bytes())
             log.info("Restored untracked %s", entry["original_path"])
@@ -142,7 +154,7 @@ def _recover_untracked(
 
 
 def _recover_full(
-    repo_root: Path,
+    user_repo_root: Path,
     full_backup_dir: Path,
     entries: list[dict[str, str]],
     dry_run: bool,
@@ -161,7 +173,7 @@ def _recover_full(
             log.info("[dry-run] would restore full %s", entry["original_path"])
             continue
         try:
-            dest = repo_root / entry["original_path"]
+            dest = user_repo_root / entry["original_path"]
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(src.read_bytes())
             log.info("Restored full %s", entry["original_path"])
@@ -171,41 +183,41 @@ def _recover_full(
     return failures
 
 
-def _checkout_commit(repo_root: Path, manifest: Manifest, dry_run: bool) -> None:
+def _checkout_commit(user_repo_root: Path, manifest: Manifest, dry_run: bool) -> None:
     if dry_run:
         log.info("[dry-run] would checkout commit %s", manifest.commit_hash)
         return
-    _run_git(repo_root, "checkout", manifest.commit_hash)
+    _run_git(user_repo_root, "checkout", manifest.commit_hash)
     log.info("Checked out commit %s", manifest.commit_hash)
 
 
 def _recover_category(
-    repo_root: Path,
+    user_repo_root: Path,
     snapshot_dir: Path,
     manifest: Manifest,
     category: str,
     dry_run: bool,
 ) -> list[str]:
     if category == "staged":
-        return _recover_patches(repo_root, snapshot_dir, manifest.staged, category, True, dry_run)
+        return _recover_patches(user_repo_root, snapshot_dir, manifest.staged, category, True, dry_run)
     if category == "unstaged":
-        return _recover_patches(repo_root, snapshot_dir, manifest.unstaged, category, False, dry_run)
+        return _recover_patches(user_repo_root, snapshot_dir, manifest.unstaged, category, False, dry_run)
     if category == "untracked":
-        return _recover_untracked(repo_root, snapshot_dir, manifest.untracked, dry_run)
+        return _recover_untracked(user_repo_root, snapshot_dir, manifest.untracked, dry_run)
     if category == "full":
-        return _recover_full(repo_root, get_full_backup_dir(), manifest.full_backups, dry_run)
+        return _recover_full(user_repo_root, get_full_backup_dir(), manifest.full_backups, dry_run)
     return [f"unknown recovery category: {category}"]
 
 
 def recover(
     snapshot_dir: Path,
-    repo_root: Path,
+    user_repo_root: Path,
     to_commit: bool = False,
     only: str | None = None,
     dry_run: bool = False,
 ) -> list[str]:
     manifest = _load_manifest(snapshot_dir)
-    repo_root = repo_root.resolve()
+    user_repo_root = user_repo_root.resolve()
     snapshot_dir = snapshot_dir.resolve()
 
     if dry_run:
@@ -215,14 +227,14 @@ def recover(
     failures = []
     try:
         if not dry_run:
-            lock_fd = _acquire_lock(repo_root)
+            lock_fd = _acquire_lock(user_repo_root)
 
         if to_commit:
-            _checkout_commit(repo_root, manifest, dry_run)
+            _checkout_commit(user_repo_root, manifest, dry_run)
 
         categories = ["staged", "unstaged", "untracked"] if only is None else [only]
         for category in categories:
-            failures.extend(_recover_category(repo_root, snapshot_dir, manifest, category, dry_run))
+            failures.extend(_recover_category(user_repo_root, snapshot_dir, manifest, category, dry_run))
     finally:
         if lock_fd is not None:
             _release_lock(lock_fd)

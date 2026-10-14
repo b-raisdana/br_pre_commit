@@ -9,7 +9,7 @@ from ..helper.config import FromPyProjectTomlConfig
 
 
 class RatchetConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
-    model_config = SettingsConfigDict(populate_by_name=True)
+    model_config = SettingsConfigDict(populate_by_name=True, extra="allow")
 
     target_dir_rel_path: Path = Field(default=Path("src"), validation_alias="target")
     ratchet_data_folder_rel_path: Path = Path("ratchet")

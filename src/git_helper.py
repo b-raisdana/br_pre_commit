@@ -22,17 +22,17 @@ class InvalidGitRepositoryError(Exception):
     """Raised when a path is not inside a git repository."""
 
 
-def _git(repo_root: Path, *args: str) -> str:
-    """Run ``git -C <repo_root> <args>`` and return stripped stdout."""
+def _git(git_repo_root: Path, *args: str) -> str:
+    """Run ``git -C <git_repo_root> <args>`` and return stripped stdout."""
     try:
         result = subprocess.run(
-            ["git", "-C", str(repo_root), *args],
+            ["git", "-C", str(git_repo_root), *args],
             check=True,
             capture_output=True,
             text=True,
         )
     except subprocess.CalledProcessError as exc:
-        raise GitCommandError(f"git -C {repo_root} {' '.join(args)} failed: {exc.stderr.strip()}") from exc
+        raise GitCommandError(f"git -C {git_repo_root} {' '.join(args)} failed: {exc.stderr.strip()}") from exc
     return result.stdout
 
 
@@ -44,7 +44,7 @@ def get_repo(path: Path) -> Path:
     hook relies on).
     """
     try:
-        root = subprocess.run(
+        git_repo_root = subprocess.run(
             ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
             check=True,
             capture_output=True,
@@ -52,10 +52,10 @@ def get_repo(path: Path) -> Path:
         ).stdout.strip()
     except subprocess.CalledProcessError as exc:
         raise InvalidGitRepositoryError(f"{path} is not a git repository: {exc.stderr.strip()}") from exc
-    return Path(root)
+    return Path(git_repo_root)
 
 
-def show_index_blob(repo_root: Path, rel: str) -> bytes | None:
+def show_index_blob(git_repo_root: Path, rel: str) -> bytes | None:
     """Return the staged blob bytes for ``rel`` (``git show :<rel>``), or None.
 
     A missing staged blob (not in the index) is the expected "no such name in
@@ -63,22 +63,22 @@ def show_index_blob(repo_root: Path, rel: str) -> bytes | None:
     """
     try:
         result = subprocess.run(
-            ["git", "-C", str(repo_root), "show", f":{rel}"],
+            ["git", "-C", str(git_repo_root), "show", f":{rel}"],
             check=True,
             capture_output=True,
         )
     except subprocess.CalledProcessError as exc:
         if exc.returncode == 128:
             return None
-        raise GitCommandError(f"git -C {repo_root} show :{rel} failed: {exc.stderr.strip()}") from exc
+        raise GitCommandError(f"git -C {git_repo_root} show :{rel} failed: {exc.stderr.strip()}") from exc
     return result.stdout
 
 
-def stage(repo_root: Path, rel: str) -> None:
+def stage(git_repo_root: Path, rel: str) -> None:
     """Stage ``rel`` (``git add <rel>``)."""
-    _git(repo_root, "add", rel)
+    _git(git_repo_root, "add", rel)
 
 
-def diff_cached_name_status(repo_root: Path) -> str:
+def diff_cached_name_status(git_repo_root: Path) -> str:
     """Return ``git diff --cached --name-status`` output."""
-    return _git(repo_root, "diff", "--cached", "--name-status")
+    return _git(git_repo_root, "diff", "--cached", "--name-status")
