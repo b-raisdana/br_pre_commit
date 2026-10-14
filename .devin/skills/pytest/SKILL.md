@@ -88,8 +88,7 @@ Fixture/data policy by type:
 
 ```python
 @pytest.mark.parametrize("action_delay,expected_open", [(1, 105), (2, 106)])
-def test_worst_long_open_by_action_delay(flat_ohlc, action_delay, expected_open):
-    ...
+def test_worst_long_open_by_action_delay(flat_ohlc, action_delay, expected_open): ...
 ```
 
 Reach for this the moment two test functions differ only in literals.
