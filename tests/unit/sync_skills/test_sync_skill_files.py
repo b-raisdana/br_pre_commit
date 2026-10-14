@@ -225,3 +225,19 @@ def test_cleanup_idempotent_when_no_empty_dirs(tmp_path):
     (parents["kilo"] / "pytest" / "SKILL.md").parent.mkdir(parents=True, exist_ok=True)
     (parents["kilo"] / "pytest" / "SKILL.md").write_bytes(b"v")
     assert m.cleanup_empty_skill_dirs(parents, tmp_path) == []
+
+
+def test_main_targets_the_repository_running_the_hook(monkeypatch, tmp_path):
+    seen = {}
+
+    async def get_repo(path):
+        seen["path"] = path
+        return tmp_path
+
+    monkeypatch.setattr(m, "get_repo", get_repo)
+    monkeypatch.setattr(m, "get_skill_parents", lambda root: {})
+    monkeypatch.setattr(m, "get_staged_skill_changes", lambda root: {})
+    monkeypatch.setattr(m, "verify_sync", lambda *args, **kwargs: None)
+
+    assert m.main() == 0
+    assert seen["path"] == Path.cwd()

@@ -139,7 +139,10 @@ def _sync_result(problems: list[str]) -> int:
 
 def main() -> int:
     try:
-        br_pre_commit_repo_root = asyncio.run(get_repo(_BR_PRE_COMMIT_REPO_ROOT))
+        # Git runs hooks from the worktree root. Resolve that repository instead
+        # of always targeting the br_pre_commit submodule: consuming repositories
+        # run this entry point to synchronize their own staged skill files.
+        br_pre_commit_repo_root = asyncio.run(get_repo(Path.cwd()))
     except InvalidGitRepositoryError:
         print("sync-skill-files: not a git repository", file=sys.stderr)
         return 0
