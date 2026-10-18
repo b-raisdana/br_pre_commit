@@ -9,6 +9,11 @@ from ..helper.config import FromPyProjectTomlConfig
 class SyncSkillsConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
     model_config = SettingsConfigDict(populate_by_name=True, extra="allow")
 
+    agents: list[str] = Field(
+        default=["agents", "claude", "kiro"],
+        validation_alias="agents",
+    )
+    github_git_commit: bool = Field(default=True, validation_alias="github-git-commit")
     hardcoded_skips: list[str] = Field(
         default=["use-aget-skills", "kilo-only-todo-discipline"], validation_alias="hardcoded-skips"
     )

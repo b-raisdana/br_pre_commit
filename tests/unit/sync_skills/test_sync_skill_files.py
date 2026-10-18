@@ -3,10 +3,27 @@ from pathlib import Path
 import pytest
 
 import src.sync_skills.__main__ as m
+import src.sync_skills.core as core
 
 pytestmark = pytest.mark.unit
 
-AGENTS = m.AGENTS
+AGENTS = ["claude", "agents", "devin", "copilot", "kiro", "kilo"]
+
+
+def test_shared_folder_configuration_ignores_removed_platform_paths(monkeypatch):
+    monkeypatch.setattr(core, "AGENTS", ["agents", "claude", "kiro"])
+    assert core.classify_skill_path(".agents/skills/pytest/SKILL.md") == ("pytest", "agents")
+    for agent in ("copilot", "devin", "kilo"):
+        assert core.classify_skill_path(f".{agent}/skills/pytest/SKILL.md") is None
+
+
+def test_disabled_github_mirror_ignores_its_deletion_and_does_not_recreate_it(monkeypatch, tmp_path):
+    monkeypatch.setattr(core.sync_skills_config, "github_git_commit", False)
+    assert core.classify_skill_path(".github/git-commit/SKILL.md") is None
+    parents = {"agents": tmp_path / ".agents/skills"}
+    assert core.mirror_slots(tmp_path, parents, "git-commit") == [
+        ("agents", tmp_path / ".agents/skills/git-commit/SKILL.md")
+    ]
 
 
 def _entry(slot, status, blob=b"v"):
@@ -75,7 +92,7 @@ def test_is_excluded_by_hardcoded_and_prefix():
     assert m.is_excluded("use-aget-skills")
     assert m.is_excluded("kilo-only-todo-discipline")
     assert m.is_excluded("claude-only-review")
-    assert m.is_excluded("agents-only-experimental")
+    assert m.is_excluded(f"{AGENTS[0]}-only-experimental")
 
 
 def test_is_not_excluded_for_shared_skills():

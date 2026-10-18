@@ -1,6 +1,8 @@
 # Sync Skill Files
 
-Bidirectional mirror of `SKILL.md` across `.claude/skills`, `.agents/skills`, `.devin/skills`, `.copilot/skills`, `.kiro/skills`, `.kilo/skills` (and `.github/git-commit/SKILL.md` for the `git-commit` skill only).
+Consumer settings under `[tool.br_pre_commit.sync_skills]` select `agents` (physical folder slugs). Set `agents = ["agents", "claude", "kiro"]` when other platforms discover `.agents/skills` directly. Excluded platform paths are ignored during staged-intent classification, so deleting a redundant mirror cannot request deletion of the shared skill. Set `github-git-commit = false` to disable both classification and creation of the legacy `.github/git-commit/SKILL.md` slot; its default remains true for compatibility. Configure these settings in the consuming repository, not only this submodule.
+
+Bidirectional mirror of `SKILL.md` across configured physical folders; defaults are `.agents/skills`, `.claude/skills` and `.kiro/skills`. The optional `.github/git-commit/SKILL.md` slot applies only to the `git-commit` skill.
 
 Wired in `.pre-commit-config.yaml` as `sync-skill-files` and runs when a `SKILL.md` is staged.
 
@@ -72,41 +74,11 @@ Examples: `kilo-only-todo-discipline`, `claude-only-review`, `codex-only-experim
 
 ## Managing interested agents (add / remove)
 
-The set of agents whose `SKILL.md` files are mirrored lives in the `AGENTS`
-list in `src/sync_skills/core.py`. Add or remove an agent slug there; the sync
-loop picks it up on the next run automatically.
+The consuming repository's `[tool.br_pre_commit.sync_skills]` settings select physical mirror destinations. Defaults live in `src/sync_skills/config.py`; `core.AGENTS` reads the configured list.
 
-### Adding an agent
+To add a destination, add its slug to `agents` and create its `.<agent>/skills/` folder. When staging is authorized, stage the canonical skill version and run `python -m pre_commit run sync-skill-files --all-files`; the hook populates supported slots and stages its changes.
 
-1. Add the agent slug to the `AGENTS` list in `src/sync_skills/core.py`:
-   ```python
-   AGENTS = ["claude", "agents", "devin", "copilot", "kiro", "kilo", "myagent"]
-   ```
-2. Create the agent's skills directory in the repo:
-   ```sh
-   mkdir -p .myagent/skills
-   ```
-3. Stage the directory and run the hook once:
-   ```sh
-   git add .myagent/skills
-   # edit or copy a SKILL.md, then:
-   pre-commit run sync-skill-files --all-files
-   ```
-   The first sync creates the mirror slots for the new agent and propagates every
-   existing shared skill into `.<agent>/skills/<skill>/SKILL.md`.
-
-### Removing an agent
-
-1. Remove the agent slug from the `AGENTS` list in `src/sync_skills/core.py`.
-2. The agent's directory (`.myagent/`) is no longer touched by the sync loop.
-   If you want it gone from the repo, delete the directory and commit the removal:
-   ```sh
-   git rm -r .myagent
-   ```
-   The hook will not complain about a missing mirror for a removed agent.
-
-> **Note:** removing an agent slug from `AGENTS` does **not** delete its skills
-> from the working tree — the sync loop only stops *writing* to that slot.
+To retire a destination, remove its slug from configuration before staging duplicate-file deletions. Removed slots are ignored by both sync propagation and staged-intent classification. Configuration does not delete existing files; preserve unique content before deleting redundant mirrors. Platforms that discover `.agents/skills/` directly share the `agents` slot. Disable `github-git-commit` before deleting the legacy special slot.
 
 ## Dependency
 

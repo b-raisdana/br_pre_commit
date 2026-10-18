@@ -17,15 +17,7 @@ from ..helper.git import (
 )
 from .config import sync_skills_config
 
-AGENTS = [
-    "claude",
-    "agents",  # "codex",
-    "devin",
-    # "qoder",
-    "copilot",
-    "kiro",
-    "kilo",
-]
+AGENTS = sync_skills_config.agents
 
 HARDCODED_SKIPS = set(sync_skills_config.hardcoded_skips)
 
@@ -69,7 +61,7 @@ def classify_skill_path(path_str: str) -> tuple[str, str] | None:
         agent = parts[0].lstrip(".")
         if agent in AGENTS:
             return parts[2], agent
-    if len(parts) == 3 and parts == (".github", GIT_COMMIT_SPECIAL, _SKILL_FILENAME):
+    if sync_skills_config.github_git_commit and parts == (".github", GIT_COMMIT_SPECIAL, _SKILL_FILENAME):
         return GIT_COMMIT_SPECIAL, _GITHUB_PATH
     return None
 
@@ -83,7 +75,7 @@ def mirror_slots(
     slots: list[tuple[str, Path]] = []
     for agent, parent in skill_parents.items():
         slots.append((agent, parent / skill_name / _SKILL_FILENAME))
-    if skill_name == GIT_COMMIT_SPECIAL:
+    if sync_skills_config.github_git_commit and skill_name == GIT_COMMIT_SPECIAL:
         slots.append((_GITHUB_PATH, br_pre_commit_repo_root / _GITHUB_PATH / _SKILL_FILENAME))
     return slots
 
