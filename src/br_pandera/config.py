@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class BrPanderaConfig(BaseSettings):  # type: ignore[explicit-any]
+class BrPanderaConfig(BaseSettings):
     environment: Literal["production", "development"] = "development"
 
     model_config = SettingsConfigDict(

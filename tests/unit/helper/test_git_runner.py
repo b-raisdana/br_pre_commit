@@ -1,3 +1,4 @@
+import re
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -40,6 +41,6 @@ def test_get_repo_sync_translates_invalid_repository_error(tmp_path: Path):
     failure = subprocess.CalledProcessError(128, ["git"], stderr="not a repository")
     with (
         patch("src.helper.git.run_git", side_effect=failure),
-        pytest.raises(InvalidGitRepositoryError, match=f"{tmp_path} is not a git repository"),
+        pytest.raises(InvalidGitRepositoryError, match=re.escape(f"{tmp_path} is not a git repository")),
     ):
         get_repo_sync(tmp_path)
