@@ -1,22 +1,22 @@
 # Sync Skill Files
 
-Consumer settings under `[tool.br_pre_commit.sync_skills]` select `agents` (physical folder slugs). Set `agents = ["agents", "claude", "kiro"]` when other platforms need separate physical mirrors. Excluded platform paths are ignored during staged-intent classification, so deleting a redundant mirror cannot request deletion of the shared skill. Set `github-git-commit = false` to disable both classification and creation of the legacy `.github/git-commit/SKILL.md` slot. This repository configures only `agents` and disables the GitHub slot; configure consumer-specific settings in the consuming repository.
+Consumer settings under `[tool.br_pre_commit.sync_skills]` select `agents` (physical folder slugs). For example, set `agents = ["agents", "claude", "kiro"]` when those separate mirrors are needed. Paths under unconfigured agent folders are ignored by staged-change classification. Set `github-git-commit = false` to disable classification and creation of the legacy `.github/git-commit/SKILL.md` slot. This repository configures only `agents` and disables the GitHub slot; configure consumer-specific settings in the consuming repository.
 
-Bidirectional mirror of `SKILL.md` across configured physical folders. The defaults are `.agents/skills`, `.claude/skills` and `.kiro/skills`. The optional `.github/git-commit/SKILL.md` slot applies only to the `git-commit` skill.
+Bidirectional mirror of `SKILL.md` across configured physical folders. The defaults are `.agents/skills`, `.claude/skills` and `.kiro/skills`. The optional `.github/git-commit/SKILL.md` slot applies only to the `git-commit` skill and is enabled by default; set `github-git-commit = false` to disable it.
 
 Wired in `.pre-commit-config.yaml` as `sync-skill-files` and runs when a `SKILL.md` is staged.
 
 ## How it works
 
-1. **Detect from git (source of truth).** The skills that need attention are read from `git diff --cached --name-status` — additions, modifications, renames and staged deletions. Working-tree-only edits that are not staged are never silently overwritten.
+1. **Detect from git (source of truth).** The skills that need attention are read from `git diff --cached --name-status` — additions, modifications, renames and staged deletions within configured slots. Working-tree-only edits that are not staged are never silently overwritten.
 2. **Sync the staged intent.** The single canonical staged version of a modified/added skill is propagated to every mirror (missing mirrors are created, stale clean mirrors are overwritten and staged). A staged deletion is propagated everywhere as a staged `git rm`.
-3. **Verify by folder scan.** A full scan confirms every shared skill's mirrors are byte-identical. Missing mirrors with identical existing copies are created automatically (low risk). Genuine content conflicts — mirrors that already diverge with no single canonical staged version — are **not** auto-fixed; the hook prints exactly which agents diverge and the manual steps, then blocks the commit.
-4. **Remove empty skill directories.** Git does not track empty directories, so a staged deletion of a `SKILL.md` otherwise leaves an empty `<agent>/skills/<skill-name>/` folder behind. The hook sweeps all agent skill folders (and the `.github/git-commit` slot) and removes any directory that is completely empty. Only truly-empty directories are touched; anything still containing files is left alone. This is best-effort and never blocks the commit.
+3. **Verify by folder scan.** A full scan of configured slots confirms every shared skill's mirrors are byte-identical. Missing mirrors with identical existing copies are created automatically. Divergent mirrors without a single canonical staged version are **not** auto-fixed; the hook reports the paths and manual steps, then blocks the commit.
+4. **Remove empty skill directories.** The hook removes empty directories under configured agent skill folders and the `.github/git-commit` slot. Directories containing files are left alone. This cleanup is best-effort and does not block the commit.
 
 ## Safety: safe auto-fix vs. manual
 
 - **Safe (auto-fixed, staged, exit 0):** a single canonical staged version propagating to clean/missing mirrors; staged deletions; missing mirrors of an otherwise-identical skill. The developer is not interrupted for these.
-- **Unsafe (exit 1, manual steps):** conflicting staged versions for one skill; a skill both staged-modified and staged-deleted; a mirror with uncommitted/untracked work that a sync would clobber; pre-existing committed divergence. Each is reported with the conflicting paths and a `cp`/`git rm` + re-stage recipe (or run the interactive resolver below).
+- **Unsafe (exit 1, manual steps):** conflicting staged versions for one skill; a skill both staged-modified and staged-deleted; a configured mirror with uncommitted/untracked work that a sync would clobber; divergent configured mirrors without a canonical staged version. Each is reported with the conflicting paths and a `cp`/`git rm` + re-stage recipe (or run the interactive resolver below).
 
 ## Interactive conflict resolution
 
@@ -34,7 +34,7 @@ If the shell lacks the `USER_REPO_ROOT` / `BR_PRE_COMMIT_REPO_ROOT` exports that
 
 How the sync hook decides a skill is agent-specific and must not propagate:
 
-**Detection is purely folder-name based.** The hook never reads the contents of `SKILL.md` to make that decision. A skill is excluded from cross-agent sync when its *folder name* matches one of the two rules below. This is checked by `is_excluded()` in `src/sync_skills/core.py:40`, which is consulted at every point where a skill would otherwise be written to or verified across mirrors (`__main__.py:103,117,121`, `sync.py:125,145,236`).
+**Detection is purely folder-name based.** The hook never reads the contents of `SKILL.md` to make that decision. A skill is excluded from propagation and divergence checks when its *folder name* matches one of the two rules below. This is checked by `is_excluded()` in `src/sync_skills/core.py`.
 
 Two mechanisms keep agent-specific skills from propagating:
 
@@ -74,11 +74,11 @@ Examples: `kilo-only-todo-discipline`, `claude-only-review`, `codex-only-experim
 
 ## Managing interested agents (add / remove)
 
-The consuming repository's `[tool.br_pre_commit.sync_skills]` settings select physical mirror destinations. Defaults live in `src/sync_skills/config.py`; `core.AGENTS` reads the configured list.
+The consuming repository's `[tool.br_pre_commit.sync_skills]` settings select physical mirror destinations. In the current implementation, the defaults in `src/sync_skills/config.py` are `agents = ["agents", "claude", "kiro"]` and `github-git-commit = true`. This repository overrides them in `pyproject.toml` with `agents = ["agents"]` and `github-git-commit = false`. `core.AGENTS` reads the configured list.
 
 To add a destination, add its slug to `agents` and create its `.<agent>/skills/` folder. When staging is authorized, stage the canonical skill version and run `python -m pre_commit run sync-skill-files --all-files`; the hook populates supported slots and stages its changes.
 
-To retire a destination, remove its slug from configuration before staging duplicate-file deletions. Removed slots are ignored by both sync propagation and staged-intent classification. Configuration does not delete existing files; preserve unique content before deleting redundant mirrors. Platforms that discover `.agents/skills/` directly share the `agents` slot. Disable `github-git-commit` before deleting the legacy special slot.
+To retire a destination, remove its slug from configuration before staging duplicate-file deletions. Removed slots are ignored by sync propagation, staged-change classification, and mirror verification, but configuration does not delete existing files. Preserve unique content before deleting redundant mirrors. Platforms that discover `.agents/skills/` directly share the `agents` slot. Disable `github-git-commit` before deleting the legacy special slot.
 
 ## Dependency
 
