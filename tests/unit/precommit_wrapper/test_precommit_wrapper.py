@@ -149,7 +149,7 @@ def test_advisory_warnings_parse_ruff_and_radon_results(monkeypatch, tmp_path):
     ]
 
 
-def test_run_hooks_finishes_mutators_before_starting_read_only_jobs(monkeypatch):
+def test_run_hooks_runs_read_only_jobs_concurrently_after_mutators(monkeypatch):
     calls = []
     both_readers_started = asyncio.Event()
     readers = 0

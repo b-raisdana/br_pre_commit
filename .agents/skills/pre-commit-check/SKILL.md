@@ -21,6 +21,8 @@ wsl.exe -d Ubuntu-24.04 -- bash -lc '
 
 Use `pre-commit run --all-files` only when the change is broad, touches shared configuration, or the user asks for a full check.
 
+The wrapper runs file-mutating hooks serially before launching read-only and advisory jobs concurrently. Keep mutators serial: each hook's `pre_commit.staged_files_only` sandbox uses Git checkout and patch restoration against the shared worktree, so overlapping sandboxes can overwrite staged or unstaged changes. See [`src/precommit_wrapper/README.md`](../../../src/precommit_wrapper/README.md#hook-classification) for the full scheduling contract.
+
 ## Performance budgets
 
 - Unit tests (pre-commit): `pytest -m unit` must finish in under 500 ms total. Tests that cannot meet this budget belong in `integration/`.

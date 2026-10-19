@@ -6,7 +6,7 @@ Concurrent `pre-commit` runner installed as the target project's Git hook. Entry
 
 | Module | Responsibility |
 | ------ | -------------- |
-| `__main__.py` | Subprocess execution, mutating-serial then read-only-concurrent scheduling, advisory lint jobs, backup trigger, process-group termination |
+| `__main__.py` | Subprocess execution, serial file-mutator then concurrent read-only/advisory scheduling, backup trigger, process-group termination |
 | `report.py` | Environment precondition check, branch protection, per-run report, JSON summary line, `main()` |
 | `config.py` | Settings from `pyproject.toml` and the hook-ID classification sets |
 | `hooks.py` | Which hook IDs the YAML enables (`stages` switch) |
@@ -24,10 +24,10 @@ Read from `[tool.br_pre_commit.wrapper]` in the **user project's** `pyproject.to
 
 Each enabled ID falls in exactly one set:
 
-- **Mutating** (`get_mutating_hooks()`) — run serially, in YAML order, before anything else, because they rewrite files (`trailing-whitespace`, `end-of-file-fixer`, `mixed-line-ending`, `ruff`, `ruff-format`, `sync-skill-files`, `incremental-ratchet`).
-- **Read-only** (`_READ_ONLY_HOOKS`) — all launched concurrently.
+- **Mutating** (`get_mutating_hooks()`) — run serially, in YAML order, before read-only work, because their `staged_files_only` contexts change the shared worktree and rewrite files (`trailing-whitespace`, `end-of-file-fixer`, `mixed-line-ending`, `ruff`, `ruff-format`, `sync-skill-files`, `incremental-ratchet`).
+- **Read-only** (`_READ_ONLY_HOOKS`) — all launched concurrently together with advisory lint jobs, after file mutators finish.
 
-IDs in neither set are "unregistered": under `policy="error"` `classify_hooks()` raises `unregistered pre-commit hook(s): <ids>`; under `policy="warn"` they run serially and the wrapper prints `warning: unregistered hooks run serially: <ids>`. The root `README.md` § "Recognized hook IDs" lists the full sets, and `.pre-commit-config.yaml` is the authoritative reference config.
+IDs in neither set are "unregistered": under `policy="error"` `classify_hooks()` raises `unregistered pre-commit hook(s): <ids>`; under `policy="warn"` they are treated as mutating and run serially, and the wrapper prints `warning: unregistered hooks run serially: <ids>`. The root `README.md` § "Recognized hook IDs" lists the full sets, and `.pre-commit-config.yaml` is the authoritative reference config.
 
 ## Execution model
 

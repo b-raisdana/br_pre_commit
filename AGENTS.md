@@ -51,6 +51,8 @@ Use the narrowest relevant test first, then the unit gate for Python changes. Ru
 
 The repository hook is installed with `bash install.sh "$PWD"`; it invokes the configured pre-commit pipeline. Its protected-branch guard rejects direct commits on `main`, `develop`, and `uat`, so do not interpret that guard as a code check failure.
 
+The wrapper runs file-mutating hooks serially before launching read-only and advisory jobs concurrently. Do not parallelize mutating hooks: each pre-commit `staged_files_only` sandbox uses Git checkout and patch restoration against the shared worktree, so overlapping sandboxes can overwrite staged or unstaged changes. See `src/precommit_wrapper/README.md` for the scheduling details.
+
 ## Change discipline
 
 - Preserve behavior unless the request explicitly authorizes a behavior change. Trace callers and tests before changing shared helpers or public configuration.

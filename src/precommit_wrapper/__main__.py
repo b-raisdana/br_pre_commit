@@ -218,6 +218,10 @@ async def _run_hooks(staged: list[str]) -> list[JobResult]:
         if (f.startswith("src/") and f.endswith(".py") and (get_user_repo_path_from_env() / f).exists())
     ]
     jobs.extend(_advisory_jobs(py_files, terminal_lock, timeout))
+    # Mutating hooks must not overlap: pre-commit's staged_files_only context
+    # uses checkout and patch restoration against the shared worktree. Run the
+    # read-only and advisory jobs together to avoid adding further scheduling
+    # delays after the mutators complete.
     results.extend(await asyncio.gather(*jobs))
     return results
 
