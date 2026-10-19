@@ -1,6 +1,6 @@
 # Sync Skill Files
 
-Consumer settings under `[tool.br_pre_commit.sync_skills]` select `agents` (physical folder slugs). This repository uses `.agents/skills` as the canonical skill directory and configures only `agents`; platforms that discover the Agent Skills directory directly share these files without duplicate copies. The legacy `.github/git-commit/SKILL.md` slot is disabled here with `github-git-commit = false`. Other consumers can configure additional physical mirrors if their platforms require them. Configure these settings in the consuming repository, not only this submodule.
+Consumer settings under `[tool.br_pre_commit.sync_skills]` select `agents` (physical folder slugs). Set `agents = ["agents", "claude", "kiro"]` when other platforms need separate physical mirrors. Excluded platform paths are ignored during staged-intent classification, so deleting a redundant mirror cannot request deletion of the shared skill. Set `github-git-commit = false` to disable both classification and creation of the legacy `.github/git-commit/SKILL.md` slot. This repository configures only `agents` and disables the GitHub slot; configure consumer-specific settings in the consuming repository.
 
 Bidirectional mirror of `SKILL.md` across configured physical folders. The defaults are `.agents/skills`, `.claude/skills` and `.kiro/skills`. The optional `.github/git-commit/SKILL.md` slot applies only to the `git-commit` skill.
 
@@ -78,7 +78,7 @@ The consuming repository's `[tool.br_pre_commit.sync_skills]` settings select ph
 
 To add a destination, add its slug to `agents` and create its `.<agent>/skills/` folder. When staging is authorized, stage the canonical skill version and run `python -m pre_commit run sync-skill-files --all-files`; the hook populates supported slots and stages its changes.
 
-To retire a destination, remove its slug from configuration before deleting duplicate files. Removed slots are ignored by sync propagation and staged-intent classification. Configuration does not delete existing files; preserve unique content before deleting redundant mirrors. Platforms that discover `.agents/skills/` directly share the `agents` slot. Disable `github-git-commit` before deleting the legacy special slot.
+To retire a destination, remove its slug from configuration before staging duplicate-file deletions. Removed slots are ignored by both sync propagation and staged-intent classification. Configuration does not delete existing files; preserve unique content before deleting redundant mirrors. Platforms that discover `.agents/skills/` directly share the `agents` slot. Disable `github-git-commit` before deleting the legacy special slot.
 
 ## Dependency
 
