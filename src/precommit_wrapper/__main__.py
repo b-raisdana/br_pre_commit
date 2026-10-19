@@ -16,6 +16,7 @@ import subprocess
 import sys
 from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from ..helper.paths import get_br_pre_commit_package_prefix_from_env, get_user_repo_path_from_env
 from .config import (
@@ -77,7 +78,8 @@ async def _run_job(
     loop = asyncio.get_running_loop()
     started = loop.time()
     async with terminal_lock:
-        sys.stdout.write(f"[{job_id}] started\n")
+        ts = datetime.now().strftime("%m-%dT%H-%M-%S")
+        sys.stdout.write(f"[{ts}:{job_id}] started\n")
         sys.stdout.flush()
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -91,7 +93,8 @@ async def _run_job(
     except OSError as exc:
         message = f"could not start: {exc}\n"
         async with terminal_lock:
-            sys.stdout.write(f"[{job_id}:stderr] {message}")
+            ts = datetime.now().strftime("%m-%dT%H-%M-%S")
+            sys.stdout.write(f"[{ts}:{job_id}:stderr] {message}")
             sys.stdout.flush()
         return JobResult(job_id, tuple(command), 127, loop.time() - started, "", message)
     stdout_parts: list[str] = []
@@ -103,7 +106,8 @@ async def _run_job(
             parts.append(text)
             if stream_output:
                 async with terminal_lock:
-                    sys.stdout.write(f"[{job_id}:{stream_name}] {text}")
+                    ts = datetime.now().strftime("%m-%dT%H-%M-%S")
+                    sys.stdout.write(f"[{ts}:{job_id}:{stream_name}] {text}")
                     if not text.endswith("\n"):
                         sys.stdout.write("\n")
                     sys.stdout.flush()
@@ -126,7 +130,8 @@ async def _run_job(
         raise
     duration = loop.time() - started
     async with terminal_lock:
-        sys.stdout.write(f"[{job_id}] finished ({return_code}) in {duration:.2f}s\n")
+        ts = datetime.now().strftime("%m-%dT%H-%M-%S")
+        sys.stdout.write(f"[{ts}:{job_id}] finished ({return_code}) in {duration:.2f}s\n")
         sys.stdout.flush()
     return JobResult(job_id, tuple(command), return_code, duration, "".join(stdout_parts), "".join(stderr_parts))
 

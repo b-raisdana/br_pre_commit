@@ -15,128 +15,35 @@ from typing import cast
 
 from ..helper.git import git_cmd
 from ..helper.paths import get_backup_manifest_dir, get_full_backup_dir, get_log_dir
-from .common import (
-    content_hash,
-    flatten_path,
-    is_excluded,
-)
+from .common import flatten_path, is_excluded
 from .config import backup_config
+from .helpers import (
+    _attempt_timestamp,
+    _copy_full_file,
+    _snapshot_size,
+    _write_attempt_manifest,
+    _write_manifest,
+    _write_patch,
+)
 from .models import Manifest
 
-logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+
+class _BackupFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        ts = datetime.now().strftime("%m-%dT%H-%M-%S")
+        msg = record.getMessage()
+        return f"[{ts}:backup] {msg}"
+
+
+logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger("backup")
-
-
-def _attempt_timestamp() -> str:
-    """Human-readable timestamp of the backup attempt, with milliseconds."""
-    return datetime.now().strftime("%Y-%m-%dT%H-%M-%S.%f")[:-3]
-
-
-def _entry_fullpath(entry: dict[str, str], base_dir: Path) -> str:
-    stored = entry.get("stored_path")
-    if not stored or stored == "None":
-        return ""
-    return str(base_dir / stored)
-
-
-def _write_attempt_manifest(
-    manifest_dir: Path,
-    attempt_ts: str,
-    snapshot_dir: Path,
-    full_backup_dir: Path,
-    manifest: Manifest,
-) -> Path:
-    """Write a JSON manifest listing every backup file's full path for this attempt.
-
-    The file is named after the human-readable timestamp (with milliseconds) of
-    the attempt so it is unique and sortable.
-    """
-    files: list[str] = []
-    for entries in (manifest.staged, manifest.unstaged, manifest.untracked):
-        for entry in entries:
-            full = _entry_fullpath(entry, snapshot_dir)
-            if full:
-                files.append(full)
-    for entry in manifest.full_backups:
-        full = _entry_fullpath(entry, full_backup_dir)
-        if full:
-            files.append(full)
-
-    payload = {
-        "attempt_timestamp": attempt_ts,
-        "branch": manifest.branch,
-        "commit_hash": manifest.commit_hash,
-        "snapshot_dir": manifest.snapshot_dir,
-        "files": files,
-    }
-    manifest_path = manifest_dir / f"{attempt_ts}.json"
-    manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    return manifest_path
-
-
-def _write_manifest(path: Path, manifest: Manifest) -> None:
-    path.write_text(json.dumps(asdict(manifest), indent=2) + "\n", encoding="utf-8")
-
-
-def _write_patch(snapshot_dir: Path, prefix: str, path: str, patch: bytes) -> dict[str, str]:
-    entry = {"original_path": path}
-    try:
-        content = patch + b"\n"
-        source_path = Path(path)
-        ext = source_path.suffix.lstrip(".") or "bin"
-        stored_path = Path(prefix) / source_path.with_name(f"{source_path.stem}.{ext}.{content_hash(content)}.patch")
-        destination = snapshot_dir / stored_path
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(content)
-        entry.update(type="patch", stored_path=stored_path.as_posix())
-    except Exception as exc:
-        log.exception("Failed to backup %s %s: %s", prefix, path, exc)
-        entry.update(type="failed", error=str(exc))
-    return entry
-
-
-def _is_text_file(path: Path) -> bool:
-    """Check if a file is a text file (UTF-8 decodable)."""
-    try:
-        path.read_text(encoding="utf-8")
-        return True
-    except UnicodeDecodeError:
-        return False
-    except Exception:
-        return False
-
-
-def _copy_full_file(
-    full_backup_dir: Path, user_repo_root: Path, path: str, *, text_only: bool = False
-) -> dict[str, str] | None:
-    source = user_repo_root / path
-    if not source.is_file():
-        return None
-    if text_only and not _is_text_file(source):
-        return None
-    try:
-        content = source.read_bytes()
-    except Exception as exc:
-        log.exception("Failed to read %s for full backup: %s", path, exc)
-        return {"original_path": path, "type": "failed", "error": str(exc)}
-    try:
-        path_obj = Path(path)
-        stem = path_obj.stem
-        ext = path_obj.suffix.lstrip(".") or "bin"
-        hash_suffix = content_hash(content)
-        stored_name = f"{stem}.{hash_suffix}.{ext}"
-        stored_path = path_obj.with_name(stored_name)
-        destination = full_backup_dir / stored_path
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(content)
-        return {"original_path": path, "type": "full", "stored_path": stored_path.as_posix()}
-    except Exception as exc:
-        log.exception("Failed to backup full file %s: %s", path, exc)
-        return {"original_path": path, "type": "failed", "error": str(exc)}
-
-
-def _snapshot_size(snapshot_dir: Path) -> int:
-    return sum(path.stat().st_size for path in snapshot_dir.rglob("*") if path.is_file())
+for h in log.handlers:
+    h.setFormatter(_BackupFormatter())
+if not log.handlers:
+    h = logging.StreamHandler()
+    h.setFormatter(_BackupFormatter())
+    log.addHandler(h)
+log.propagate = False
 
 
 async def _backup_diff(snapshot_dir: Path, user_repo_root: Path, prefix: str, path: str) -> dict[str, str]:
@@ -255,6 +162,7 @@ async def _build_full_backups(
 
 async def take_snapshot_async(user_repo_root: Path) -> Manifest:
     log.debug("Taking snapshot %s...", user_repo_root)
+    attempt_ts = _attempt_timestamp()
     branch, commit_hash, staged_paths, unstaged_paths, untracked_paths = await _gather_git_info(user_repo_root)
     snapshot_dir = get_snapshot_dir(branch, commit_hash, user_repo_root)
 
@@ -265,19 +173,18 @@ async def take_snapshot_async(user_repo_root: Path) -> Manifest:
     untracked_keep, untracked_full = _split_by_exclude(untracked_paths, exclude_regex)
 
     full_backup_dir = get_full_backup_dir()
-    full_backups = await _build_full_backups(
-        full_backup_dir, user_repo_root, exclude_regex, staged_full, unstaged_full, untracked_full
-    )
-
-    staged, unstaged, untracked = await asyncio.gather(
-        _backup_many_diffs(snapshot_dir, user_repo_root, backup_config.staged_prefix, staged_keep),
-        _backup_many_diffs(snapshot_dir, user_repo_root, backup_config.unstaged_prefix, unstaged_keep),
-        _backup_untracked(snapshot_dir, user_repo_root, untracked_keep),
+    full_backups, (staged, unstaged, untracked) = await asyncio.gather(
+        _build_full_backups(full_backup_dir, user_repo_root, exclude_regex, staged_full, unstaged_full, untracked_full),
+        asyncio.gather(
+            _backup_many_diffs(snapshot_dir, user_repo_root, backup_config.staged_prefix, staged_keep),
+            _backup_many_diffs(snapshot_dir, user_repo_root, backup_config.unstaged_prefix, unstaged_keep),
+            _backup_untracked(snapshot_dir, user_repo_root, untracked_keep),
+        ),
     )
     manifest = Manifest(
         branch=branch,
         commit_hash=commit_hash,
-        timestamp=datetime.now().strftime("%Y%m%dT%H%M%S"),
+        timestamp=attempt_ts.replace("-", "").replace(":", ""),
         snapshot_dir=snapshot_dir.relative_to(user_repo_root).as_posix(),
         staged=staged,
         unstaged=unstaged,
@@ -290,7 +197,6 @@ async def take_snapshot_async(user_repo_root: Path) -> Manifest:
         log.exception("Failed to write manifest: %s", exc)
         raise
 
-    attempt_ts = _attempt_timestamp()
     manifest.attempt_timestamp = attempt_ts
     try:
         await asyncio.to_thread(

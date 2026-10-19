@@ -83,6 +83,9 @@ exclude-dir = "archive_not_used_trash"
 full_backup_exclude_dir_regex = '^(data|logs|archive_not_used_trash|\.[^/]+)$'
 
 [tool.br_pre_commit.sync_skills]
+# .agents/skills is the single source for platforms that support Agent Skills.
+agents = ["agents"]
+github-git-commit = false
 # Hardcoded skill folder names that are excluded from cross-agent sync.
 # These are exact folder name matches (not prefixes).
 # The {agent}-only- prefix pattern is handled separately and is not configured here.

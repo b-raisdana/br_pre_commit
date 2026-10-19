@@ -5,6 +5,8 @@ description: Use after finishing any code modification in this repo, before the 
 
 # Pre-Commit Check
 
+Follow the shared repository guide in [`AGENTS.md`](../../../AGENTS.md) for project navigation and scope.
+
 ## End-of-Edit Gate
 
 After modifying code, run the repo's pre-commit gate before final handoff unless the user explicitly asks not to run checks. Prefer checking only changed files first because it matches what a real commit will run and avoids unrelated legacy failures:

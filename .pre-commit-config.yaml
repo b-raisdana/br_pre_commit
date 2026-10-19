@@ -78,7 +78,7 @@ repos:
     language: system
     entry: python -m src.sync_skills
     pass_filenames: false
-    files: ^(\.claude/skills/[^/]+/SKILL\.md|\.agents/skills/[^/]+/SKILL\.md|\.devin/skills/[^/]+/SKILL\.md|\.copilot/skills/[^/]+/SKILL\.md|\.kiro/skills/[^/]+/SKILL\.md|\.kilo/skills/[^/]+/SKILL\.md|\.github/git-commit/SKILL\.md)$
+    files: ^\.agents/skills/[^/]+/SKILL\.md$
     stages:
     - pre-commit
   - id: incremental-ratchet
