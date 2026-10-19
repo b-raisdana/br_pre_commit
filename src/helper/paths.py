@@ -1,5 +1,4 @@
 import os
-import subprocess
 from functools import lru_cache
 from pathlib import Path
 
@@ -112,11 +111,7 @@ def get_ratchet_baseline_dir() -> Path:
 def get_user_repo_root_from_git(repo_path: str | None = None) -> Path:
     if repo_path:
         return Path(repo_path).resolve()
-    result = Path(
-        subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"],
-            text=True,
-            env=git_subprocess_env(),
-        ).strip()
-    )
-    return result
+    from .git import run_git
+
+    result = run_git("rev-parse", "--show-toplevel", git_repo_root=Path.cwd())
+    return Path(result.stdout.strip())

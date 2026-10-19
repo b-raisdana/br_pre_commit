@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import subprocess
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast, overload
 
 from .paths import get_user_repo_path_from_env, git_subprocess_env
 
@@ -26,51 +26,106 @@ class InvalidGitRepositoryError(Exception):
     """Raised when a path is not inside a git repository."""
 
 
+@overload
+def run_git(
+    *args: str,
+    git_repo_root: Path | None = None,
+    text: Literal[True] = True,
+    scrub_environment: bool = True,
+    inherit_index: bool = True,
+) -> subprocess.CompletedProcess[str]: ...
+
+
+@overload
+def run_git(
+    *args: str,
+    git_repo_root: Path | None = None,
+    text: Literal[False],
+    scrub_environment: bool = True,
+    inherit_index: bool = True,
+) -> subprocess.CompletedProcess[bytes]: ...
+
+
+def run_git(
+    *args: str,
+    git_repo_root: Path | None = None,
+    text: bool = True,
+    scrub_environment: bool = True,
+    inherit_index: bool = True,
+) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
+    """Run Git with explicit repository, output, and hook-environment policies."""
+    if git_repo_root is None:
+        git_repo_root = get_user_repo_path_from_env()
+    command = ["git", "-C", str(git_repo_root), *args]
+    env = git_subprocess_env(inherit_index=inherit_index) if scrub_environment else None
+    if text:
+        return subprocess.run(command, check=True, capture_output=True, text=True, env=env)
+    return subprocess.run(command, check=True, capture_output=True, text=False, env=env)
+
+
+def git_cmd_sync(git_repo_root: Path, *args: str) -> str:
+    """Run a synchronous Git command without altering the caller's environment."""
+    result = run_git(*args, git_repo_root=git_repo_root, scrub_environment=False)
+    return result.stdout
+
+
+def get_repo_sync(path: Path) -> Path:
+    """Return the repository root for ``path`` or raise the shared repository error."""
+    try:
+        output = git_cmd_sync(path, "rev-parse", "--show-toplevel")
+    except subprocess.CalledProcessError as exc:
+        raise InvalidGitRepositoryError(f"{path} is not a git repository: {exc.stderr.strip()}") from exc
+    return Path(output.strip())
+
+
+def show_index_blob_sync(git_repo_root: Path, rel: str) -> bytes | None:
+    """Return staged blob bytes without changing the caller's Git environment."""
+    try:
+        result = run_git("show", f":{rel}", git_repo_root=git_repo_root, text=False, scrub_environment=False)
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode == 128:
+            return None
+        detail = exc.stderr.decode(errors="replace") if isinstance(exc.stderr, bytes) else exc.stderr
+        raise GitCommandError(f"git -C {git_repo_root} show :{rel} failed: {detail.strip()}") from exc
+    return result.stdout
+
+
+def stage_sync(git_repo_root: Path, rel: str) -> None:
+    """Stage ``rel`` through the synchronous compatibility API."""
+    git_cmd_sync(git_repo_root, "add", rel)
+
+
+def diff_cached_name_status_sync(git_repo_root: Path) -> str:
+    """Return staged name-status output through the synchronous compatibility API."""
+    return git_cmd_sync(git_repo_root, "diff", "--cached", "--name-status")
+
+
 async def git_cmd(
     *args: str,
     git_repo_root: Path | None = None,
     return_bytes: bool = False,
 ) -> str | bytes:
     """Run ``git -C <git_repo_root> <args>`` and return stdout."""
-    if git_repo_root is None:
-        git_repo_root = get_user_repo_path_from_env()
-
+    result: subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]
     try:
-        result = await asyncio.to_thread(
-            subprocess.run,
-            ["git", "-C", str(git_repo_root), *args],
-            check=True,
-            capture_output=True,
-            text=(not return_bytes),
-            env=git_subprocess_env(),
-        )
+        if return_bytes:
+            result = await asyncio.to_thread(lambda: run_git(*args, git_repo_root=git_repo_root, text=False))
+        else:
+            result = await asyncio.to_thread(lambda: run_git(*args, git_repo_root=git_repo_root, text=True))
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr.decode(errors="replace") if return_bytes else exc.stderr
-        raise GitCommandError(f"git -C {git_repo_root} {' '.join(args)} failed: {stderr.strip()}") from exc
+        repo = git_repo_root or get_user_repo_path_from_env()
+        raise GitCommandError(f"git -C {repo} {' '.join(args)} failed: {stderr.strip()}") from exc
 
-    return result.stdout  # type: ignore[no-any-return]
+    return result.stdout
 
 
 async def get_repo(git_repo_root: Path | None = None) -> Path:
     """Return the git repository root for ``path``."""
     if git_repo_root is None:
         git_repo_root = get_user_repo_path_from_env()
-
     try:
-        result = await asyncio.to_thread(
-            subprocess.run,
-            [
-                "git",
-                "-C",
-                str(git_repo_root),
-                "rev-parse",
-                "--show-toplevel",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            env=git_subprocess_env(),
-        )
+        result = await asyncio.to_thread(lambda: run_git("rev-parse", "--show-toplevel", git_repo_root=git_repo_root))
     except subprocess.CalledProcessError as exc:
         raise InvalidGitRepositoryError(f"{git_repo_root} is not a git repository: {exc.stderr.strip()}") from exc
 
@@ -82,22 +137,15 @@ async def show_index_blob(
     git_repo_root: Path | None = None,
 ) -> bytes | None:
     """Return the staged blob bytes for ``rel``, or ``None`` if absent."""
-    if git_repo_root is None:
-        git_repo_root = get_user_repo_path_from_env()
-
     try:
-        result = await asyncio.to_thread(
-            subprocess.run,
-            ["git", "-C", str(git_repo_root), "show", f":{rel}"],
-            check=True,
-            capture_output=True,
-            env=git_subprocess_env(),
-        )
+        result = await asyncio.to_thread(lambda: run_git("show", f":{rel}", git_repo_root=git_repo_root, text=False))
     except subprocess.CalledProcessError as exc:
         if exc.returncode == 128:
             return None
 
-        raise GitCommandError(f"git -C {git_repo_root} show :{rel} failed: {exc.stderr.strip()}") from exc
+        repo = git_repo_root or get_user_repo_path_from_env()
+        stderr = exc.stderr.decode(errors="replace") if isinstance(exc.stderr, bytes) else exc.stderr
+        raise GitCommandError(f"git -C {repo} show :{rel} failed: {stderr.strip()}") from exc
 
     return result.stdout
 

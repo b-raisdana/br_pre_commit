@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import TextIO
+from typing import TextIO, cast
 
 try:
     import fcntl
@@ -24,6 +24,7 @@ except ImportError:  # Windows
     fcntl = None  # type: ignore[assignment]
     import msvcrt
 
+from ..helper.git import run_git
 from ..helper.paths import get_full_backup_dir
 from .models import Manifest
 
@@ -32,15 +33,8 @@ log = logging.getLogger("recover")
 
 
 def _run_git(user_repo_root: Path, *args: str) -> str:
-    result = subprocess.run(["git", *args], cwd=user_repo_root, capture_output=True, text=True, check=False)
-    if result.returncode:
-        raise subprocess.CalledProcessError(
-            result.returncode,
-            ["git", *args],
-            output=result.stdout,
-            stderr=result.stderr,
-        )
-    return result.stdout.strip()
+    result = run_git(*args, git_repo_root=user_repo_root, scrub_environment=False)
+    return cast(str, result.stdout).strip()
 
 
 def _load_manifest(snapshot_dir: Path) -> Manifest:
@@ -124,33 +118,45 @@ def _recover_patches(
     return failures
 
 
+def _recover_files(
+    user_repo_root: Path,
+    source_dir: Path,
+    entries: list[dict[str, str]],
+    category: str,
+    dry_run: bool,
+    *,
+    required_type: str | None = None,
+) -> list[str]:
+    failures: list[str] = []
+    for entry in entries:
+        stored_path = entry.get("stored_path", "")
+        if not stored_path or stored_path == "None" or (required_type and entry.get("type") != required_type):
+            continue
+        src = source_dir / stored_path
+        if not src.exists():
+            failures.append(f"{category} {entry['original_path']}: missing {src}")
+            continue
+        if dry_run:
+            log.info("[dry-run] would restore %s %s", category, entry["original_path"])
+            continue
+        try:
+            dest = user_repo_root / entry["original_path"]
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(src.read_bytes())
+            log.info("Restored %s %s", category, entry["original_path"])
+        except Exception as exc:
+            failures.append(f"{category} {entry['original_path']}: {exc}")
+            log.error("Failed to restore %s %s: %s", category, entry["original_path"], exc)
+    return failures
+
+
 def _recover_untracked(
     user_repo_root: Path,
     snapshot_dir: Path,
     entries: list[dict[str, str]],
     dry_run: bool,
 ) -> list[str]:
-    failures: list[str] = []
-    for entry in entries:
-        stored_path = entry.get("stored_path", "")
-        if not stored_path or stored_path == "None":
-            continue
-        src = snapshot_dir / stored_path
-        if not src.exists():
-            failures.append(f"untracked {entry['original_path']}: missing {src}")
-            continue
-        if dry_run:
-            log.info("[dry-run] would restore untracked %s", entry["original_path"])
-            continue
-        try:
-            dest = user_repo_root / entry["original_path"]
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(src.read_bytes())
-            log.info("Restored untracked %s", entry["original_path"])
-        except Exception as exc:
-            failures.append(f"untracked {entry['original_path']}: {exc}")
-            log.error("Failed to restore untracked %s: %s", entry["original_path"], exc)
-    return failures
+    return _recover_files(user_repo_root, snapshot_dir, entries, "untracked", dry_run)
 
 
 def _recover_full(
@@ -160,27 +166,7 @@ def _recover_full(
     dry_run: bool,
 ) -> list[str]:
     """Restore excluded-path files from the persistent content-addressed full-backup store."""
-    failures: list[str] = []
-    for entry in entries:
-        stored_path = entry.get("stored_path", "")
-        if not stored_path or entry.get("type") != "full":
-            continue
-        src = full_backup_dir / stored_path
-        if not src.exists():
-            failures.append(f"full {entry['original_path']}: missing {src}")
-            continue
-        if dry_run:
-            log.info("[dry-run] would restore full %s", entry["original_path"])
-            continue
-        try:
-            dest = user_repo_root / entry["original_path"]
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(src.read_bytes())
-            log.info("Restored full %s", entry["original_path"])
-        except Exception as exc:
-            failures.append(f"full {entry['original_path']}: {exc}")
-            log.error("Failed to restore full %s: %s", entry["original_path"], exc)
-    return failures
+    return _recover_files(user_repo_root, full_backup_dir, entries, "full", dry_run, required_type="full")
 
 
 def _checkout_commit(user_repo_root: Path, manifest: Manifest, dry_run: bool) -> None:

@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import logging
 import re
-import zlib
 from pathlib import Path
+from typing import cast
+
+from ..helper.content_hash import crc32_hex
 
 log = logging.getLogger("backup")
 
@@ -21,7 +23,7 @@ def flatten_path(path: str) -> str:
 
 def content_hash(content: bytes) -> str:
     """Return a short, non-cryptographic content identifier."""
-    return f"{zlib.crc32(content) & 0xFFFFFFFF:08x}"[-7:]
+    return cast(str, crc32_hex(content))[-7:]
 
 
 def is_excluded(path: str, exclude_dir: str) -> bool:

@@ -6,13 +6,13 @@ import argparse
 import importlib.util
 import os
 import stat
-import subprocess
 import sys
 from pathlib import Path
 from typing import cast
 
 import yaml
 
+from .helper.git import run_git
 from .helper.paths import get_br_pre_commit_package_prefix, get_pre_commit_config_yaml_path
 from .precommit_wrapper.config import PreCommitConfig, PreCommitHook, PreCommitRepo
 
@@ -54,10 +54,7 @@ def get_active_venv() -> Path | None:
 
 def get_user_repo_root_from_git(cwd: Path) -> Path:
     user_repo_root = Path(
-        subprocess.check_output(
-            ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
-            text=True,
-        ).strip()
+        run_git("rev-parse", "--show-toplevel", git_repo_root=cwd, scrub_environment=False).stdout.strip()
     ).resolve()
     print(f"\nRoot path of user repository: {user_repo_root}")
     if input("Do you confirm? [y/N]: ").strip().lower() not in ("y", "yes"):
@@ -67,10 +64,12 @@ def get_user_repo_root_from_git(cwd: Path) -> Path:
 
 def get_br_pre_commit_root_from_git() -> Path:
     br_pre_commit_repo_root = Path(
-        subprocess.check_output(
-            ["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "--show-toplevel"],
-            text=True,
-        ).strip()
+        run_git(
+            "rev-parse",
+            "--show-toplevel",
+            git_repo_root=Path(__file__).resolve().parent,
+            scrub_environment=False,
+        ).stdout.strip()
     )
     print(f"\nRoot path of br_pre_commit repository: {br_pre_commit_repo_root}")
     if input("Do you confirm? [y/N]: ").strip().lower() not in ("y", "yes"):
@@ -80,10 +79,7 @@ def get_br_pre_commit_root_from_git() -> Path:
 
 def get_git_dir(git_repo_root: Path) -> Path:
     result = Path(
-        subprocess.check_output(
-            ["git", "-C", str(git_repo_root), "rev-parse", "--absolute-git-dir"],
-            text=True,
-        ).strip()
+        run_git("rev-parse", "--absolute-git-dir", git_repo_root=git_repo_root, scrub_environment=False).stdout.strip()
     )
     return result
 
@@ -143,7 +139,7 @@ def _get_or_create_local_repo(config: PreCommitConfig) -> PreCommitRepo:
 
     for repo in repos:
         if isinstance(repo, dict) and repo.get("repo") == "local":
-            return cast(PreCommitRepo, repo)
+            return repo
 
     local_repo: PreCommitRepo = {"repo": "local", "hooks": []}
     repos.append(local_repo)

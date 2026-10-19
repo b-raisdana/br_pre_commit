@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import cast
@@ -17,6 +18,8 @@ from typing import cast
 from ..helper.paths import get_pyproject_toml_path, get_user_repo_path_from_env
 from .common import RuffViolation, XenonData, count_lines, output_run, path_matches_with_regex, run
 from .config import ratchet_config
+
+type AnalyzerOutput = list[RuffViolation] | list[tuple[str, str]] | XenonData | dict[str, int]
 
 
 def _parse_ruff_json(stdout: str) -> list[RuffViolation]:
@@ -144,13 +147,28 @@ def loc_excess_total(line_counts: dict[str, int], max_lines: int = 300) -> int:
     return sum(max(0, n - max_lines) for n in line_counts.values())
 
 
+def _run_analyzers(
+    jobs: dict[str, Callable[[], AnalyzerOutput]],
+    *,
+    workers: int,
+    thread_name_prefix: str,
+) -> dict[str, AnalyzerOutput]:
+    """Start analyzer jobs together and return their results under stable names."""
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix=thread_name_prefix) as executor:
+        futures = {name: executor.submit(job) for name, job in jobs.items()}
+        return {name: future.result() for name, future in futures.items()}
+
+
 def run_current_analyzers() -> tuple[list[RuffViolation], list[tuple[str, str]], XenonData, dict[str, int]]:
-    with ThreadPoolExecutor(max_workers=4, thread_name_prefix="ratchet") as executor:
-        ruff_future = executor.submit(ruff_run)
-        mypy_future = executor.submit(mypy_run)
-        xenon_future = executor.submit(xenon_run)
-        loc_future = executor.submit(loc_line_counts)
-        return ruff_future.result(), mypy_future.result(), xenon_future.result(), loc_future.result()
+    results = _run_analyzers(
+        {"ruff": ruff_run, "mypy": mypy_run, "xenon": xenon_run, "loc": loc_line_counts},
+        workers=4,
+        thread_name_prefix="ratchet",
+    )
+    return cast(
+        tuple[list[RuffViolation], list[tuple[str, str]], XenonData, dict[str, int]],
+        (results["ruff"], results["mypy"], results["xenon"], results["loc"]),
+    )
 
 
 def _run_current_and_before_analyzers(
@@ -162,22 +180,37 @@ def _run_current_and_before_analyzers(
     dict[str, int],
     dict[str, dict[str, int]],
 ]:
-    with ThreadPoolExecutor(max_workers=7, thread_name_prefix="ratchet-all") as executor:
-        current_ruff = executor.submit(ruff_run)
-        current_mypy = executor.submit(mypy_run)
-        current_xenon = executor.submit(xenon_run)
-        current_loc = executor.submit(loc_line_counts)
-        before_ruff = executor.submit(ruff_run, before_user_repo_root)
-        before_mypy = executor.submit(mypy_run, before_user_repo_root)
-        before_xenon = executor.submit(xenon_run, before_user_repo_root)
-
-        ruff_violations = current_ruff.result()
-        mypy_records = current_mypy.result()
-        xenon_data = current_xenon.result()
-        loc_counts = current_loc.result()
-        before_by_file = {
-            "mypy": _group_mypy_by_file(before_mypy.result()),
-            "ruff": _group_ruff_by_file(before_ruff.result(), user_repo_root=before_user_repo_root),
-            "xenon": _group_xenon_by_file(before_xenon.result()),
-        }
-    return ruff_violations, mypy_records, xenon_data, loc_counts, before_by_file
+    results = _run_analyzers(
+        {
+            "ruff": ruff_run,
+            "mypy": mypy_run,
+            "xenon": xenon_run,
+            "loc": loc_line_counts,
+            "before_ruff": lambda: ruff_run(before_user_repo_root),
+            "before_mypy": lambda: mypy_run(before_user_repo_root),
+            "before_xenon": lambda: xenon_run(before_user_repo_root),
+        },
+        workers=7,
+        thread_name_prefix="ratchet-all",
+    )
+    ruff_violations = results["ruff"]
+    mypy_records = results["mypy"]
+    xenon_data = results["xenon"]
+    loc_counts = results["loc"]
+    before_by_file = {
+        "mypy": _group_mypy_by_file(cast(list[tuple[str, str]], results["before_mypy"])),
+        "ruff": _group_ruff_by_file(
+            cast(list[RuffViolation], results["before_ruff"]), user_repo_root=before_user_repo_root
+        ),
+        "xenon": _group_xenon_by_file(cast(XenonData, results["before_xenon"])),
+    }
+    return cast(
+        tuple[
+            list[RuffViolation],
+            list[tuple[str, str]],
+            XenonData,
+            dict[str, int],
+            dict[str, dict[str, int]],
+        ],
+        (ruff_violations, mypy_records, xenon_data, loc_counts, before_by_file),
+    )

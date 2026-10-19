@@ -26,17 +26,18 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from ..helper.paths import get_user_repo_root_from_git, git_subprocess_env
+from ..helper.git import run_git
+from ..helper.paths import get_user_repo_root_from_git
 
 
 def _discover_br_pre_commit_repo_root() -> Path:
     """Toplevel of the git repository this module's checkout lives in."""
     return Path(
-        subprocess.check_output(
-            ["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "--show-toplevel"],
-            text=True,
-            env=git_subprocess_env(),
-        ).strip()
+        run_git(
+            "rev-parse",
+            "--show-toplevel",
+            git_repo_root=Path(__file__).resolve().parent,
+        ).stdout.strip()
     )
 
 

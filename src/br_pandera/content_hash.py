@@ -15,7 +15,9 @@ security boundary, and CRC-32 is the fastest checksum in the standard library
 from __future__ import annotations
 
 import re
-import zlib
+from typing import cast
+
+from ..helper.content_hash import crc32_hex
 
 HASH_LENGTH = 7
 CONTENT_HASH_PATTERN = re.compile(rf"[0-9a-f]{{{HASH_LENGTH}}}")
@@ -23,7 +25,7 @@ CONTENT_HASH_PATTERN = re.compile(rf"[0-9a-f]{{{HASH_LENGTH}}}")
 
 def content_hash(payload: bytes) -> str:
     """Return exactly :data:`HASH_LENGTH` lowercase hex characters for ``payload``."""
-    return f"{zlib.crc32(payload):08x}"[:HASH_LENGTH]
+    return cast(str, crc32_hex(payload))[:HASH_LENGTH]
 
 
 def is_content_hash(text: str) -> bool:
