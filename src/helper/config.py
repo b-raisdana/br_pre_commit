@@ -4,9 +4,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Self
 
-from pydantic import ConfigDict, ValidationError
+from pydantic import Field, ValidationError
 from pydantic.fields import FieldInfo
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .paths import get_pyproject_toml_path
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class FromPyProjectTomlConfig(BaseSettings):  # type: ignore[explicit-any]
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    model_config = SettingsConfigDict(extra="allow", populate_by_name=True)
 
     @classmethod
     @lru_cache
@@ -28,28 +28,44 @@ class FromPyProjectTomlConfig(BaseSettings):  # type: ignore[explicit-any]
             logger.warning("Config section '%s' is not a dict, using defaults", section)
             raw_section = {}
 
-        model_fields = set(cls.model_fields.keys())
-        alias_keys = set()
+        field_keys: dict[str, set[str]] = {}
         for _field_name, field_info in cls.model_fields.items():
+            keys = {_field_name}
             if isinstance(field_info, FieldInfo):
                 validation_alias = field_info.validation_alias
                 if isinstance(validation_alias, str):
-                    alias_keys.add(validation_alias)
+                    keys.add(validation_alias)
                 elif isinstance(validation_alias, (list, tuple)):
-                    alias_keys.update(str(a) for a in validation_alias)
+                    keys.update(str(a) for a in validation_alias)
+            field_keys[_field_name] = keys
 
-        known_keys = model_fields | alias_keys
+        known_keys = set().union(*field_keys.values()) if field_keys else set()
         raw_keys = set(raw_section.keys())
         extra_keys = raw_keys - known_keys
-        missing_keys = model_fields - raw_keys
+        missing_keys = {name for name, keys in field_keys.items() if not keys & raw_keys}
 
         if extra_keys:
             logger.warning("Config section '%s': extra keys will be ignored: %s", section, sorted(extra_keys))
         if missing_keys:
-            logger.info("Config section '%s': missing keys will use defaults: %s", section, sorted(missing_keys))
+            logger.warning(
+                "Config section '%s': missing keys use defaults: %s; override them in %s [tool.br_pre_commit.%s]",
+                section,
+                sorted(missing_keys),
+                pyproject_toml_path,
+                section,
+            )
 
         try:
             return cls.model_validate(raw_section)
         except ValidationError as exc:
             logger.error("Config section '%s' validation failed, using defaults: %s", section, exc)
             return cls()
+
+
+class LogConfig(FromPyProjectTomlConfig):
+    model_config = SettingsConfigDict(populate_by_name=True, extra="allow")
+
+    log_dir_rel_path: Path = Field(default=Path("logs/pre-commit"), validation_alias="log-dir")
+
+
+log_config = LogConfig.from_pyproject_toml("log")

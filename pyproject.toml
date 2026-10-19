@@ -53,6 +53,9 @@ exclude = "(^|/)(archive_not_used_trash|logs/pre-commit/backup-patches)/"
 [tool.br_pre_commit]
 ratchet-hook-id = "incremental-ratchet"
 
+[tool.br_pre_commit.log]
+log-dir = "logs/pre-commit"
+
 [tool.br_pre_commit.ratchet-hook]
 name = "incremental ratchet"
 language = "system"

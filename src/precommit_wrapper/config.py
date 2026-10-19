@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +11,9 @@ from pydantic import Field, field_validator
 from pydantic_settings import SettingsConfigDict
 
 from ..helper.config import FromPyProjectTomlConfig
+from ..helper.paths import get_pre_commit_config_yaml_path
+
+logger = logging.getLogger(__name__)
 
 
 class WrapperConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
@@ -39,7 +43,7 @@ class WrapperConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
 _wrapper_config: WrapperConfig | None = None
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> object:  # ignore: no-object-annotations
     global _wrapper_config
     if name == "wrapper_config":
         if _wrapper_config is None:
@@ -48,7 +52,7 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-def __dir__():
+def __dir__() -> list[str]:
     return [
         "WrapperConfig",
         "PreCommitHook",
@@ -77,11 +81,46 @@ class PreCommitConfig(TypedDict, total=False):
 
 
 def get_pre_commit_config_from_yaml(config_path: Path | None = None) -> PreCommitConfig:
+    config_path = config_path or get_pre_commit_config_yaml_path()
+    config = cast(PreCommitConfig, yaml.safe_load(config_path.read_text(encoding="utf-8")) or {})
+    _warn_yaml_defaults(config, config_path)
+    return config
+
+
+def _warn_yaml_defaults(config: PreCommitConfig, config_path: Path) -> None:
+    """Warn when wrapper-managed settings are absent from the pre-commit YAML."""
     from ..config import br_pre_commit_config
 
-    config_path = config_path or br_pre_commit_config.pre_commit_config_yaml_file_name
-    config = cast(PreCommitConfig, yaml.safe_load(config_path.read_text(encoding="utf-8")) or {})
-    return config
+    repos = config.get("repos", [])
+    hook_ids = _configured_hook_ids(repos)
+    if br_pre_commit_config.ratchet_hook_id not in hook_ids:
+        logger.warning(
+            "Config file '%s': hook '%s' is missing; installer adds this default hook. "
+            "Add it under a local repo's hooks to configure it.",
+            config_path,
+            br_pre_commit_config.ratchet_hook_id,
+        )
+    for repo in repos:
+        _warn_missing_hook_stages(repo, config_path)
+
+
+def _configured_hook_ids(repos: list[PreCommitRepo]) -> set[str | None]:
+    hook_ids: set[str | None] = set()
+    for repo in repos:
+        for hook in repo.get("hooks", []):
+            hook_ids.add(hook.get("id"))
+    return hook_ids
+
+
+def _warn_missing_hook_stages(repo: PreCommitRepo, config_path: Path) -> None:
+    for hook in repo.get("hooks", []):
+        if "stages" not in hook:
+            logger.warning(
+                "Config file '%s': hook '%s' omits 'stages' and uses pre-commit's default stages; "
+                "set stages: [pre-commit] or another stage on the hook to override it.",
+                config_path,
+                hook.get("id", "<unknown>"),
+            )
 
 
 @dataclass(frozen=True)

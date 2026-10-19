@@ -64,7 +64,9 @@ def get_br_pre_commit_package_prefix_from_env() -> str:
 
 @lru_cache
 def get_log_dir() -> Path:
-    return get_user_repo_path_from_env() / "logs" / "pre-commit"
+    from .config import log_config
+
+    return get_user_repo_path_from_env() / log_config.log_dir_rel_path
 
 
 @lru_cache
