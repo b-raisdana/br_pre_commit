@@ -8,13 +8,15 @@ import os
 import stat
 import sys
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import yaml
 
 from .helper.git import run_git
 from .helper.paths import get_br_pre_commit_package_prefix, get_pre_commit_config_yaml_path
-from .precommit_wrapper.config import PreCommitConfig, PreCommitHook, PreCommitRepo
+
+if TYPE_CHECKING:
+    from .precommit_wrapper.config import PreCommitConfig, PreCommitHook, PreCommitRepo
 
 # Import names (not distribution names) for the packages in requirements.txt.
 # This set must be kept in sync with requirements.txt.
@@ -164,6 +166,10 @@ def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) ->
 
     Returns a list of human-readable messages describing what was added.
     """
+    # Import after install() has detected both repositories and populated the
+    # environment; config module initialization reads USER_REPO_ROOT.
+    from .precommit_wrapper.config import PreCommitConfig
+
     config_path = get_pre_commit_config_yaml_path()
     messages: list[str] = []
 

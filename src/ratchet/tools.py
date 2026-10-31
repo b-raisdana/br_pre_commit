@@ -8,6 +8,7 @@ This module is stateless — it only runs tools and returns structured data.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections import Counter
 from collections.abc import Callable
@@ -20,6 +21,8 @@ from .common import RuffViolation, XenonData, count_lines, output_run, path_matc
 from .config import ratchet_config
 
 type AnalyzerOutput = list[RuffViolation] | list[tuple[str, str]] | XenonData | dict[str, int]
+
+log = logging.getLogger(__name__)
 
 
 def _parse_ruff_json(stdout: str) -> list[RuffViolation]:
@@ -83,9 +86,22 @@ def _group_mypy_by_file(records: list[tuple[str, str]]) -> dict[str, int]:
 
 def _parse_xenon_json(stdout: str) -> XenonData:
     try:
-        return cast(XenonData, json.loads(stdout or "{}"))
+        data = json.loads(stdout or "{}")
     except json.JSONDecodeError:
         return {}
+
+    if not isinstance(data, dict):
+        return {}
+
+    parsed: XenonData = {}
+    for filename, blocks in data.items():
+        if isinstance(blocks, list):
+            parsed[filename] = [block for block in blocks if isinstance(block, dict)]
+        elif isinstance(blocks, dict) and isinstance(blocks.get("error"), str):
+            log.warning("Radon could not analyze %s: %s", filename, blocks["error"])
+        else:
+            log.warning("Ignoring unexpected Radon result for %s: %r", filename, blocks)
+    return parsed
 
 
 def xenon_run(user_repo_root: Path | None = None) -> XenonData:

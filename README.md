@@ -7,6 +7,7 @@ Shared pre-commit infrastructure for python repositories. It owns the concurrent
 - [br\_pre\_commit](#br_pre_commit)
   - [Table of Contents](#table-of-contents)
   - [Quick start](#quick-start)
+  - [Use br_pre_commit in its own repository](#use-br_pre_commit-in-its-own-repository)
   - [Recognized hook IDs](#recognized-hook-ids)
     - [Enabling / disabling each control](#enabling--disabling-each-control)
   - [Backup exclusion regex](#backup-exclusion-regex)
@@ -57,13 +58,13 @@ A checklist to get a new project running with `br_pre_commit`:
 3. **Install the hook** from `your_project`:
 
    ```sh
-   bash ./br_pre_commit/install/install.sh "$PWD"
+   bash ./br_pre_commit/install.sh "$PWD"
    ```
 
    or
 
    ```pwsh
-   ./br_pre_commit/install/install.ps1 "$PWD"
+   .\br_pre_commit\install.ps1
    ```
 
    This writes `git hook run pre-commit` that records the absolute paths of both your project and the `br_pre_commit` tool. Run it directly to verify:
@@ -105,7 +106,46 @@ After any successful or even a failing commit to any branch including 'main' (wh
 6. **Bootstrap ratchet baselines** (first successful commit):
    The incremental ratchet creates `baseline_*.json` in `.br-pre-commit/ratchet/` automatically on the first passing commit.
 
-See [Integrate into a new project](#integrate-into-a-new-project) below for full details, and [Troubleshooting](#troubleshooting) if anything fails.
+See [src/INSTALL.md](src/INSTALL.md) for installation details and [Troubleshooting](#troubleshooting) if anything fails.
+
+## Use br_pre_commit in its own repository
+
+`br_pre_commit` can run its own checks. In a fresh clone, create and activate a
+Python 3.12+ virtual environment from the repository root, then install the
+runtime and hook dependencies:
+
+```sh
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+./install.sh "$PWD"
+```
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+.\install.ps1
+```
+
+The installer asks you to confirm both repository roots. For self-hosting,
+confirm the same `br_pre_commit` root for both. It writes the hook into this
+repository's Git metadata and adds `incremental-ratchet` to the local hook
+configuration if needed; the checked-in `.pre-commit-config.yaml` supplies the
+other checks. It does not install a hook in a parent repository that contains
+this checkout as a submodule.
+
+Verify on a feature branch, since the default branch guard blocks `main`,
+`develop`, and `uat`:
+
+```sh
+git switch -c feature/br-pre-commit-self-host
+git hook run pre-commit
+```
+
+When this repository is a submodule, the self-hosted hook belongs to the
+submodule's Git metadata. The parent project keeps its own hook and should be
+installed separately from the parent root.
 
 ## Recognized hook IDs
 
@@ -407,15 +447,7 @@ python -m src.backup.recover \
 
 ## Development
 
-```sh
-bash install/install.sh "$PWD"
-./pre-commit
-python -m pytest -q
-python -m py_compile src/*.py src/ratchet/*.py
-```
-
-This repository uses the same shared wrapper it provides to projects using it as a submodule.
-Its checked-in `.pre-commit-config.yaml` keeps `./pre-commit` usable in a fresh
-clone after running the installer. Because this checkout normally remains on
-`main`, its own hook is expected to stop at the shared branch guard until work
-moves to a feature branch.
+For a fresh clone, follow [Use br_pre_commit in its own repository](#use-br_pre_commit-in-its-own-repository).
+That setup uses the shared wrapper against this repository's own
+`.pre-commit-config.yaml`; run it on a feature branch because the branch guard
+blocks `main`, `develop`, and `uat`.
