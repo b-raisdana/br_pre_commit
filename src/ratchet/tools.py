@@ -71,8 +71,8 @@ def mypy_run(user_repo_root: Path | None = None) -> list[tuple[str, str]]:
         "mypy",
         "--config-file",
         str(get_pyproject_toml_path()),  # str(user_repo_root / "pyproject.toml"),
-        ".",
-        cwd=user_repo_root / ratchet_config.target_dir_rel_path,
+        str(ratchet_config.target_dir_rel_path),
+        cwd=user_repo_root,
     )
     return _parse_mypy_records(output)
 
