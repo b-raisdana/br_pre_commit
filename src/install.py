@@ -14,6 +14,7 @@ import yaml
 
 from .helper.git import run_git
 from .helper.paths import get_br_pre_commit_package_prefix, get_pre_commit_config_yaml_path
+from .helper.project_config import merge_project_pyproject_config
 
 if TYPE_CHECKING:
     from .precommit_wrapper.config import PreCommitConfig, PreCommitHook, PreCommitRepo
@@ -243,6 +244,8 @@ def install(cwd: Path, force: bool, dry_run: bool) -> int:
     print(f"Installed {hook_path}")
 
     for msg in merge_project_config(user_repo_root, br_pre_commit_repo_root):
+        print(msg)
+    for msg in merge_project_pyproject_config(user_repo_root):
         print(msg)
     return 0
 

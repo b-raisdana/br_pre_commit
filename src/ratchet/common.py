@@ -18,6 +18,14 @@ from typing import TypedDict, cast
 
 from ..helper.paths import get_user_repo_path_from_env, git_subprocess_env
 from .config import RatchetConfig, ratchet_config
+from .process import async_output_run, async_run, output_run, run
+
+__all__ = [
+    "async_output_run",
+    "async_run",
+    "output_run",
+    "run",
+]
 
 
 class RuffViolation(TypedDict):
@@ -195,26 +203,6 @@ def load_and_consolidate_baselines() -> dict[str, int]:
 
 async def async_load_and_consolidate_baselines() -> dict[str, int]:
     return await asyncio.to_thread(load_and_consolidate_baselines)
-
-
-def run(*args: str, cwd: Path | None = None) -> str:
-    cwd = cwd or get_user_repo_path_from_env()
-    result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False, env=git_subprocess_env())
-    return result.stdout
-
-
-async def async_run(*args: str, cwd: Path | None = None) -> str:
-    return await asyncio.to_thread(run, *args, cwd=cwd)
-
-
-def output_run(*args: str, cwd: Path | None = None) -> str:
-    cwd = cwd or get_user_repo_path_from_env()
-    result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False, env=git_subprocess_env())
-    return result.stdout + result.stderr
-
-
-async def async_output_run(*args: str, cwd: Path | None = None) -> str:
-    return await asyncio.to_thread(output_run, *args, cwd=cwd)
 
 
 def write_new_baseline(old_baseline: dict[str, int], new_baseline: dict[str, int]) -> None:

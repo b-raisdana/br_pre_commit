@@ -34,7 +34,7 @@ def print_mypy_details(paths: list[Path]) -> None:
         return
     config_path = get_pyproject_toml_path()  # str(get_user_repo_path_from_env() / "pyproject.toml")
     cwd = get_user_repo_path_from_env() / ratchet_config.target_dir_rel_path
-    output = _common.run("mypy", "--config-file", config_path, *app_paths, cwd=cwd)
+    output = _common.run("mypy", "--config-file", str(config_path), *app_paths, cwd=cwd)
     print(output.rstrip() or "    mypy reported no errors on these files")
 
 

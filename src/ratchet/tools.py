@@ -17,8 +17,9 @@ from pathlib import Path
 from typing import cast
 
 from ..helper.paths import get_pyproject_toml_path, get_user_repo_path_from_env
-from .common import RuffViolation, XenonData, count_lines, output_run, path_matches_with_regex, run
+from .common import RuffViolation, XenonData, count_lines, path_matches_with_regex
 from .config import ratchet_config
+from .process import output_run, run
 
 type AnalyzerOutput = list[RuffViolation] | list[tuple[str, str]] | XenonData | dict[str, int]
 

@@ -14,8 +14,9 @@ from pathlib import Path
 from typing import cast
 
 from ..helper.paths import get_pre_commit_config_yaml_path, get_user_repo_path_from_env, git_subprocess_env
-from .common import TouchedFile, path_matches_with_regex, run
+from .common import TouchedFile, path_matches_with_regex
 from .config import ratchet_config
+from .process import run
 
 
 def touched_app_python_files() -> list[TouchedFile]:
@@ -51,6 +52,8 @@ def _head_worktree() -> Path | None:
         cwd=get_user_repo_path_from_env(),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
         env=git_subprocess_env(inherit_index=False),
     )
@@ -63,6 +66,8 @@ def _remove_worktree(worktree: Path) -> None:
         cwd=get_user_repo_path_from_env(),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
         env=git_subprocess_env(inherit_index=False),
     )
@@ -124,11 +129,13 @@ def _head_line_count(relpath: str) -> int | None:
         ["git", "show", f"HEAD:{relpath}"],
         cwd=get_user_repo_path_from_env(),
         capture_output=True,
-        text=True,
+        text=False,
         check=False,
         env=git_subprocess_env(),
     )
     if result.returncode != 0:
+        return None
+    if not isinstance(result.stdout, bytes):
         return None
     return len(result.stdout.splitlines())
 

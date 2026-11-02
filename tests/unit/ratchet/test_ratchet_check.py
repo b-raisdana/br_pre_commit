@@ -225,3 +225,33 @@ def test_renamed_file_looks_up_before_state_under_the_old_path(monkeypatch):
     blocked = evaluate_file_gate(touched, after, before)
 
     assert blocked == []
+
+
+def test_head_line_count_counts_raw_git_bytes_without_decoding(monkeypatch, tmp_path):
+    import subprocess
+
+    import src.ratchet.gate as gate_module
+
+    monkeypatch.setattr(gate_module, "get_user_repo_path_from_env", lambda: tmp_path)
+    monkeypatch.setattr(
+        gate_module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, b"first\n\x81\nlast", b""),
+    )
+
+    assert gate_module._head_line_count("src/example.py") == 3
+
+
+def test_head_line_count_returns_none_when_git_has_no_text_output(monkeypatch, tmp_path):
+    import subprocess
+
+    import src.ratchet.gate as gate_module
+
+    monkeypatch.setattr(gate_module, "get_user_repo_path_from_env", lambda: tmp_path)
+    monkeypatch.setattr(
+        gate_module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, None, b""),
+    )
+
+    assert gate_module._head_line_count("src/example.py") is None
