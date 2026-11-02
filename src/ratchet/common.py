@@ -62,12 +62,12 @@ class TouchedFile:
 
 
 def path_matches_with_regex(path: Path, regex: str) -> bool:
-    """Return True when ``path`` lives under the configured exclude directory."""
+    """Return True when ``path`` contains a directory matching the configured regex."""
     import re
 
     return bool(
         re.search(
-            rf"(?:^|[/\\]){re.escape(regex)}(?:[/\\]|$)",
+            rf"(?:^|[/\\])(?:{regex})(?:[/\\]|$)",
             str(path),
         )
     )
