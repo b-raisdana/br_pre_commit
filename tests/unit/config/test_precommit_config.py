@@ -23,7 +23,7 @@ def test_repository_config_has_one_master_switch_for_every_recognized_hook():
     config_data = yaml.safe_load((br_pre_commit_repo_root / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
     hooks_in_config = [hook for repo in config_data["repos"] for hook in repo["hooks"]]
     hook_ids = [hook["id"] for hook in hooks_in_config]
-    recognized = config.get_mutating_hooks() | config._READ_ONLY_HOOKS
+    recognized = config.get_mutating_hooks() | config.wrapper_config.read_only_hooks
 
     assert len(hook_ids) == len(set(hook_ids))
     assert set(hook_ids) == recognized
@@ -65,6 +65,70 @@ def test_hook_master_switch_can_disable_and_enable_hook(tmp_path):
 def test_unknown_hook_error_policy_fails():
     with pytest.raises(ValueError, match="unregistered pre-commit hook"):
         config.classify_hooks(["pytest-fast", "new-hook"], policy="error")
+
+
+def test_read_only_hooks_loaded_from_project_toml(tmp_path, monkeypatch):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[tool.br_pre_commit.wrapper]\nread-only-hooks = ["custom-check", "ruff-format"]\n'
+        'mutating-hooks = ["ruff-format"]\n',
+        encoding="utf-8",
+    )
+    settings = config.WrapperConfig.from_pyproject_toml("wrapper", pyproject)
+    monkeypatch.setattr(config, "wrapper_config", settings)
+
+    specs, unknown = config.classify_hooks(["custom-check", "ruff-format"], policy="error")
+
+    assert unknown == []
+    assert specs == [config.HookSpec("custom-check", False), config.HookSpec("ruff-format", True)]
+    with pytest.raises(ValueError, match="unregistered pre-commit hook.*check-yaml"):
+        config.classify_hooks(["check-yaml"], policy="error")
+
+
+@pytest.mark.parametrize("contents", ["", "[tool.br_pre_commit.wrapper]\nread-only-hooks = []\n"])
+def test_missing_or_empty_read_only_hooks_keeps_unknown_hooks_serial(tmp_path, monkeypatch, contents):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(contents, encoding="utf-8")
+    settings = config.WrapperConfig.from_pyproject_toml("wrapper", pyproject)
+    monkeypatch.setattr(config, "wrapper_config", settings)
+
+    specs, unknown = config.classify_hooks(["check-yaml"], policy="warn")
+
+    assert settings.read_only_hooks == frozenset()
+    assert unknown == ["check-yaml"]
+    assert specs == [config.HookSpec("check-yaml", True)]
+
+
+def test_mutating_hooks_loaded_from_project_toml(tmp_path, monkeypatch):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[tool.br_pre_commit.wrapper]\nmutating-hooks = ["custom-fixer", "renamed-ratchet"]\n', encoding="utf-8"
+    )
+    settings = config.WrapperConfig.from_pyproject_toml("wrapper", pyproject)
+    monkeypatch.setattr(config, "wrapper_config", settings)
+
+    specs, unknown = config.classify_hooks(["custom-fixer", "renamed-ratchet"], policy="error")
+
+    assert unknown == []
+    assert config.get_mutating_hooks() == frozenset({"custom-fixer", "renamed-ratchet"})
+    assert specs == [config.HookSpec("custom-fixer", True), config.HookSpec("renamed-ratchet", True)]
+    with pytest.raises(ValueError, match="unregistered pre-commit hook.*ruff-format"):
+        config.classify_hooks(["ruff-format"], policy="error")
+
+
+@pytest.mark.parametrize("contents", ["", "[tool.br_pre_commit.wrapper]\nmutating-hooks = []\n"])
+def test_missing_or_empty_mutating_hooks_uses_unknown_policy(tmp_path, monkeypatch, contents):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(contents, encoding="utf-8")
+    settings = config.WrapperConfig.from_pyproject_toml("wrapper", pyproject)
+    monkeypatch.setattr(config, "wrapper_config", settings)
+
+    assert config.get_mutating_hooks() == frozenset()
+    specs, unknown = config.classify_hooks(["ruff-format"], policy="warn")
+    assert unknown == ["ruff-format"]
+    assert specs == [config.HookSpec("ruff-format", True)]
+    with pytest.raises(ValueError, match="unregistered pre-commit hook.*ruff-format"):
+        config.classify_hooks(["ruff-format"], policy="error")
 
 
 def test_unknown_hook_warn_policy_reports_and_serializes():

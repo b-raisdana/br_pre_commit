@@ -64,6 +64,29 @@ pass-filenames = false
 files = "^src/.*\\.py$"
 
 [tool.br_pre_commit.wrapper]
+mutating-hooks = [
+    "trailing-whitespace",
+    "end-of-file-fixer",
+    "mixed-line-ending",
+    "ruff",
+    "ruff-format",
+    "sync-skill-files",
+    "incremental-ratchet",
+]
+read-only-hooks = [
+    "check-yaml",
+    "check-toml",
+    "check-added-large-files",
+    "check-merge-conflict",
+    "check-case-conflict",
+    "debug-statements",
+    "pytest-fast",
+    "pytest-integration-collect",
+    "integration-tests",
+    "check-pandera-decorator",
+    "no-commit-to-trunk",
+    "no-object-annotations",
+]
 unknown-hook-policy = "error"
 job-timeout-seconds = 900
 protected-branches-regex = "^(main|develop|uat)$"

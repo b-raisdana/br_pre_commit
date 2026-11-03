@@ -149,8 +149,22 @@ installed separately from the parent root.
 
 ## Recognized hook IDs
 
-**Every hook ID in your `.pre-commit-config.yaml` must be one of the IDs below.**
-The wrapper classifies each ID against two fixed sets in `src/precommit_wrapper/config.py`. An ID not in either set is "unregistered" and aborts the commit.
+The wrapper reads `mutating-hooks` and `read-only-hooks` from your project's
+`pyproject.toml`. Configure hook classification there without editing Python:
+
+```toml
+[tool.br_pre_commit.wrapper]
+mutating-hooks = ["trailing-whitespace", "ruff", "ruff-format", "incremental-ratchet"]
+read-only-hooks = ["check-yaml", "pytest-fast", "custom-check"]
+```
+
+These lists replace the classification; retain every ID the wrapper should
+recognize. Mutating hooks run serially before read-only hooks, in YAML order.
+An ID in both lists runs serially. Only list hooks that do not change files under
+`read-only-hooks`. If `ratchet-hook-id` changes, update `mutating-hooks` to match.
+Both lists default to `[]`; the installer adds empty lists when absent.
+Unregistered hooks run serially with a warning under `unknown-hook-policy = "warn"`
+or abort under `"error"`.
 
 The checked-in `.pre-commit-config.yaml` is the master functionality list. Every hook below has an explicit native pre-commit switch: set `stages: [pre-commit]` to enable it for commits or `stages: [manual]` to disable it while retaining its complete configuration. The wrapper, including its early protected-branch check, follows these switches. A manually disabled hook can still be run explicitly with `pre-commit run <hook-id> --hook-stage manual`.
 
@@ -313,6 +327,8 @@ together without scanning the whole `logs/pre-commit/` tree.
 | `check-merge-conflict`       | Read-only | Detects unresolved conflict markers          |
 | `check-case-conflict`        | Read-only | Detects case-insensitive filename clashes    |
 | `debug-statements`           | Read-only | Blocks `breakpoint()` / `pdb`                |
+| `central-service-php-lint`   | Read-only | Checks Central Service PHP syntax             |
+| `central-service-composer-validate` | Read-only | Validates Central Service Composer metadata |
 | `pytest-fast`                | Read-only | Runs unit tests with `pytest`                |
 | `pytest-integration-collect` | Read-only | Collects integration tests                   |
 | `integration-tests`          | Read-only | Runs integration tests                       |

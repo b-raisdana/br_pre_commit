@@ -21,6 +21,8 @@ class WrapperConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
 
     protected_branches_regex: str = Field(default="^(main|develop|uat)$", validation_alias="protected-branches-regex")
     unknown_hook_policy: Literal["warn", "error"] = Field(default="warn", validation_alias="unknown-hook-policy")
+    read_only_hooks: frozenset[str] = Field(default_factory=frozenset, validation_alias="read-only-hooks")
+    mutating_hooks: frozenset[str] = Field(default_factory=frozenset, validation_alias="mutating-hooks")
     job_timeout_seconds: int = Field(default=3 * 60, validation_alias="job-timeout-seconds")
 
     @field_validator("protected_branches_regex", mode="before")
@@ -129,41 +131,11 @@ class HookSpec:
     mutates_files: bool
 
 
-# Recognized hook IDs the wrapper can classify; see README.md § "Hook
-# classification" for the full list and .pre-commit-config.yaml as the
-# authoritative reference config.
 def get_mutating_hooks() -> frozenset[str]:
-    from ..config import br_pre_commit_config
+    """Return the project's configured serial hook IDs."""
+    from .config import wrapper_config
 
-    return frozenset(
-        {
-            "trailing-whitespace",
-            "end-of-file-fixer",
-            "mixed-line-ending",
-            "ruff",
-            "ruff-format",
-            "sync-skill-files",
-            br_pre_commit_config.ratchet_hook_id,
-        }
-    )
-
-
-_READ_ONLY_HOOKS = frozenset(
-    {
-        "check-yaml",
-        "check-toml",
-        "check-added-large-files",
-        "check-merge-conflict",
-        "check-case-conflict",
-        "debug-statements",
-        "pytest-fast",
-        "pytest-integration-collect",
-        "integration-tests",
-        "check-pandera-decorator",
-        "no-commit-to-trunk",
-        "no-object-annotations",
-    }
-)
+    return wrapper_config.mutating_hooks
 
 
 def classify_hooks(hook_ids: list[str], *, policy: str) -> tuple[list[HookSpec], list[str]]:
@@ -172,12 +144,15 @@ def classify_hooks(hook_ids: list[str], *, policy: str) -> tuple[list[HookSpec],
     Unregistered IDs raise ``ValueError`` under ``policy="error"`` and run serially
     under ``"warn"``. See README.md § "Hook classification".
     """
+    from .config import wrapper_config
+
+    mutating_hooks = get_mutating_hooks()
     specs: list[HookSpec] = []
     unknown: list[str] = []
     for hook_id in hook_ids:
-        if hook_id in get_mutating_hooks():
+        if hook_id in mutating_hooks:
             specs.append(HookSpec(hook_id, mutates_files=True))
-        elif hook_id in _READ_ONLY_HOOKS:
+        elif hook_id in wrapper_config.read_only_hooks:
             specs.append(HookSpec(hook_id, mutates_files=False))
         else:
             unknown.append(hook_id)

@@ -8,7 +8,7 @@ Concurrent `pre-commit` runner installed as the target project's Git hook. Entry
 | ------ | -------------- |
 | `__main__.py` | Subprocess execution, serial file-mutator then concurrent read-only/advisory scheduling, backup trigger, process-group termination |
 | `report.py` | Environment precondition check, branch protection, per-run report, JSON summary line, `main()` |
-| `config.py` | Settings from `pyproject.toml` and the hook-ID classification sets |
+| `config.py` | Settings from `pyproject.toml` and hook-ID classification |
 | `hooks.py` | Which hook IDs the YAML enables (`stages` switch) |
 
 ## Settings
@@ -17,15 +17,17 @@ Read from `[tool.br_pre_commit.wrapper]` in the **user project's** `pyproject.to
 
 - `protected-branches-regex` — regex matched against the current branch name (default `^(main|develop|uat)$`).
 - `unknown-hook-policy` — `warn` (default) or `error`: what happens to hook IDs the wrapper cannot classify.
+- `read-only-hooks` — hook IDs allowed to run concurrently; defaults to `[]`. Add project-specific checks here, not in Python. This classifies hooks; YAML still controls which hooks are enabled.
+- `mutating-hooks` — hook IDs run serially before read-only work; defaults to `[]`. Takes precedence over `read-only-hooks` for overlapping IDs. If `ratchet-hook-id` changes, update this list to match.
 - `job-timeout-seconds` — per-hook timeout, default `180`.
 - `pre_commit_stage` — stage string that counts as the commit pipeline (default `pre-commit`); `hooks.py` enables a hook when its `stages` contain it (a hook with no `stages` key is also enabled).
 
 ## Hook classification
 
-Each enabled ID falls in exactly one set:
+Each enabled ID is classified using the user project's `pyproject.toml`:
 
-- **Mutating** (`get_mutating_hooks()`) — run serially, in YAML order, before read-only work, because their `staged_files_only` contexts change the shared worktree and rewrite files (`trailing-whitespace`, `end-of-file-fixer`, `mixed-line-ending`, `ruff`, `ruff-format`, `sync-skill-files`, `incremental-ratchet`).
-- **Read-only** (`_READ_ONLY_HOOKS`) — all launched concurrently together with advisory lint jobs, after file mutators finish.
+- **Mutating** (`mutating-hooks`, exposed by `get_mutating_hooks()`) — run serially, in YAML order, before read-only work, because their `staged_files_only` contexts change the shared worktree and rewrite files. The checked-in configuration includes `trailing-whitespace`, `end-of-file-fixer`, `mixed-line-ending`, `ruff`, `ruff-format`, `sync-skill-files`, and `incremental-ratchet`.
+- **Read-only** (`read-only-hooks`) — all launched concurrently together with advisory lint jobs, after file mutators finish. IDs also in `mutating-hooks` remain serial.
 
 IDs in neither set are "unregistered": under `policy="error"` `classify_hooks()` raises `unregistered pre-commit hook(s): <ids>`; under `policy="warn"` they are treated as mutating and run serially, and the wrapper prints `warning: unregistered hooks run serially: <ids>`. The root `README.md` § "Recognized hook IDs" lists the full sets, and `.pre-commit-config.yaml` is the authoritative reference config.
 
@@ -62,7 +64,3 @@ On any blocking failure the wrapper then runs `python -m br_pre_commit.src.backu
 ## Import boundary (deliberate circular import)
 
 `__main__.py` and `report.py` depend on each other by design: `__main__.py` imports `report.main` at the bottom of the module, and `report.py` imports `JobResult`, `_run_hooks`, `_run_job`, `_run_backup`, and `log` **inside function bodies**, with `JobResult` additionally imported under `TYPE_CHECKING` for annotations. Any module-level import in `report.py` would be a circular-import failure at runtime. New cross-module symbols must follow the same rule.
-
-## Known duplication
-
-`hooks.py` still carries its own `HookSpec`, `_READ_ONLY_HOOKS`, and `classify_hooks` that duplicate `config.py`. Only `enabled_pre_commit_hook_ids()` and `pre_commit_hook_is_enabled()` from `hooks.py` are used (`__main__.py`, `report.py`, `../ratchet/gate.py`); the duplicated trio is dead and can be deleted without touching callers.

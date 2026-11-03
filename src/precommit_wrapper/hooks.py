@@ -1,7 +1,4 @@
-from dataclasses import dataclass
 from pathlib import Path
-
-from .config import get_mutating_hooks
 
 
 def enabled_pre_commit_hook_ids(config_path: Path | None = None) -> list[str]:
@@ -27,49 +24,3 @@ def enabled_pre_commit_hook_ids(config_path: Path | None = None) -> list[str]:
 def pre_commit_hook_is_enabled(hook_id: str, config_path: Path | None = None) -> bool:
     """Return whether a hook's master switch enables it for normal commits."""
     return hook_id in enabled_pre_commit_hook_ids(config_path)
-
-
-@dataclass(frozen=True)
-class HookSpec:
-    hook_id: str
-    mutates_files: bool
-
-
-_READ_ONLY_HOOKS = frozenset(
-    {
-        "check-yaml",
-        "check-toml",
-        "check-added-large-files",
-        "check-merge-conflict",
-        "check-case-conflict",
-        "debug-statements",
-        "pytest-fast",
-        "pytest-integration-collect",
-        "integration-tests",
-        "check-pandera-decorator",
-        "no-commit-to-trunk",
-        "no-object-annotations",
-    }
-)
-
-
-def classify_hooks(hook_ids: list[str], *, policy: str) -> tuple[list[HookSpec], list[str]]:
-    """Classify hook IDs into mutating (serial) and read-only (concurrent) specs.
-
-    Dead duplicate of ``config.classify_hooks``; see README.md § "Known duplication".
-    """
-
-    specs: list[HookSpec] = []
-    unknown: list[str] = []
-    for hook_id in hook_ids:
-        if hook_id in get_mutating_hooks():
-            specs.append(HookSpec(hook_id, mutates_files=True))
-        elif hook_id in _READ_ONLY_HOOKS:
-            specs.append(HookSpec(hook_id, mutates_files=False))
-        else:
-            unknown.append(hook_id)
-            if policy == "warn":
-                specs.append(HookSpec(hook_id, mutates_files=True))
-    if unknown and policy == "error":
-        raise ValueError(f"unregistered pre-commit hook(s): {', '.join(unknown)}")
-    return specs, unknown

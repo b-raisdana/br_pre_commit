@@ -13,6 +13,8 @@ type ProjectConfigValue = str | int | list[str]
 
 PROJECT_CONFIG_DEFAULTS: dict[str, dict[str, ProjectConfigValue]] = {
     "wrapper": {
+        "read-only-hooks": [],
+        "mutating-hooks": [],
         "unknown-hook-policy": "warn",
         "job-timeout-seconds": 180,
         "protected-branches-regex": "^(main|develop|uat)$",
