@@ -52,7 +52,7 @@ repos:
   - id: pytest-fast
     name: pytest unit gate
     language: system
-    entry: python -m pytest -q -m unit
+    entry: python -m pytest -q --import-mode=importlib -m unit tests
     pass_filenames: false
     files: ^(src/.*\.py|tests/.*\.py|pyproject\.toml)$
     stages:

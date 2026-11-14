@@ -32,11 +32,16 @@ Set-Location C:\path\to\your_project
 & "C:\path\to\br_pre_commit\install.ps1"
 ```
 
-The installer requires the packages in `../requirements.txt`, asks you
-to confirm the target and tool repository roots, writes the hook under the
-target's Git metadata, and merges `incremental-ratchet` into the target's
-`.pre-commit-config.yaml` if it is missing. If a hook already exists, it asks
-before replacing it; `--force` skips that prompt.
+The installer requires the packages in `../requirements.txt`, asks you to
+confirm the target and tool repository roots, and writes the hook under the
+target's Git metadata. It merges the shared hook definitions from the tool's
+`.pre-commit-config.yaml` and their classifications from `pyproject.toml` into
+the target. Existing project entries and settings are preserved; missing hook
+fields and shared classification IDs are added. Internal Python entry points
+are rewritten for the consumer package path. If the Git hook already exists,
+the installer asks before replacing it; `--force` skips that prompt. The
+`pytest-fast` hook is installed when the target has Python tests under
+`tests/`; integration hooks are selected by their file filters.
 
 ## Self-hosting
 

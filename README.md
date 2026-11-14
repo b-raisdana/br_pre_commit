@@ -1,6 +1,6 @@
 # br_pre_commit
 
-Shared pre-commit infrastructure for python repositories. It owns the concurrent wrapper, incremental ratchet, failure backup/recovery, hook installer, and their tests. Projects keep only their own hook selection, optional overrides, and project-specific ratchet baselines.
+Shared pre-commit infrastructure for Python repositories. It owns the concurrent wrapper, shared hook defaults, incremental ratchet, failure backup/recovery, installer, and their tests. Projects retain their hook settings and project-specific ratchet baselines.
 
 ## Table of Contents
 
@@ -130,10 +130,14 @@ python -m pip install -r requirements.txt
 
 The installer asks you to confirm both repository roots. For self-hosting,
 confirm the same `br_pre_commit` root for both. It writes the hook into this
-repository's Git metadata and adds `incremental-ratchet` to the local hook
-configuration if needed; the checked-in `.pre-commit-config.yaml` supplies the
-other checks. It does not install a hook in a parent repository that contains
-this checkout as a submodule.
+repository's Git metadata and merges the shared hook definitions and their
+wrapper classifications into `.pre-commit-config.yaml` and `pyproject.toml`.
+It preserves project-specific entries and settings, completes missing fields
+on existing shared hooks, and rewrites internal Python entry points for the
+consumer package path. It adds `pytest-fast` when the target contains Python
+tests under `tests/`; integration hooks use their configured file filters. It
+does not install a hook in a parent repository that contains this checkout as
+a submodule.
 
 Verify on a feature branch, since the default branch guard blocks `main`,
 `develop`, and `uat`:
@@ -162,7 +166,8 @@ These lists replace the classification; retain every ID the wrapper should
 recognize. Mutating hooks run serially before read-only hooks, in YAML order.
 An ID in both lists runs serially. Only list hooks that do not change files under
 `read-only-hooks`. If `ratchet-hook-id` changes, update `mutating-hooks` to match.
-Both lists default to `[]`; the installer adds empty lists when absent.
+Both lists default to `[]`; the installer adds the shared hook classifications
+while preserving project-specific entries.
 Unregistered hooks run serially with a warning under `unknown-hook-policy = "warn"`
 or abort under `"error"`.
 
@@ -329,7 +334,7 @@ together without scanning the whole `logs/pre-commit/` tree.
 | `debug-statements`           | Read-only | Blocks `breakpoint()` / `pdb`                |
 | `central-service-php-lint`   | Read-only | Checks Central Service PHP syntax             |
 | `central-service-composer-validate` | Read-only | Validates Central Service Composer metadata |
-| `pytest-fast`                | Read-only | Runs unit tests with `pytest`                |
+| `pytest-fast`                | Read-only | Runs unit tests from `tests/` with importlib mode |
 | `pytest-integration-collect` | Read-only | Collects integration tests                   |
 | `integration-tests`          | Read-only | Runs integration tests                       |
 
@@ -408,7 +413,7 @@ After the quick start, verify these features are configured for your project:
 - [ ] **Ruff lint + format**: `ruff` (with `--fix`), `ruff-format`
 - [ ] **Type checking**: `mypy` (strict mode) — add to `.pre-commit-config.yaml` as a local hook
 - [ ] **Complexity**: `incremental-ratchet` (replaces `xenon`/`radon`; uses ruff `C901`)
-- [ ] **Unit tests**: `pytest-fast` (runs `pytest -q -m unit`)
+- [ ] **Unit tests**: `pytest-fast` (runs `pytest -q --import-mode=importlib -m unit tests`)
 - [ ] **Integration tests**: `pytest-integration-collect` + `integration-tests` (if applicable)
 - [ ] **Pandera validation**: `check-pandera-decorator` (if using pandera)
 - [ ] **Branch protection**: `no-commit-to-trunk` (built into wrapper via `protected-branches-regex`)
