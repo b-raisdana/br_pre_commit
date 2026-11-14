@@ -16,7 +16,7 @@ from ..helper.paths import get_pre_commit_config_yaml_path
 logger = logging.getLogger(__name__)
 
 
-class WrapperConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
+class WrapperConfig(FromPyProjectTomlConfig):  # type: ignore[explicit-any]
     model_config = SettingsConfigDict(populate_by_name=True, extra="allow")
 
     protected_branches_regex: str = Field(default="^(main|develop|uat)$", validation_alias="protected-branches-regex")
@@ -45,7 +45,7 @@ class WrapperConfig(FromPyProjectTomlConfig):  # type: ignore[misc]
 _wrapper_config: WrapperConfig | None = None
 
 
-def __getattr__(name: str) -> object:  # ignore: no-object-annotations
+def __getattr__(name: str) -> WrapperConfig:
     global _wrapper_config
     if name == "wrapper_config":
         if _wrapper_config is None:
@@ -75,11 +75,16 @@ class PreCommitHook(TypedDict, total=False):
     entry: str
     pass_filenames: bool
     files: str
+    exclude: str
+    args: list[str]
+    types: list[str]
+    always_run: bool
     stages: list[str]
 
 
 class PreCommitRepo(TypedDict, total=False):
     repo: str
+    rev: str
     hooks: list[PreCommitHook]
 
 
