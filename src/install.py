@@ -243,9 +243,12 @@ def install(cwd: Path, force: bool, dry_run: bool) -> int:
     hook_path.chmod(hook_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     print(f"Installed {hook_path}")
 
-    for msg in merge_project_config(user_repo_root, br_pre_commit_repo_root):
-        print(msg)
+    # Config modules read the consuming project's pyproject.toml during import.
+    # Create it and merge defaults before importing those modules; projects that
+    # do not use Python may not have a pyproject.toml yet.
     for msg in merge_project_pyproject_config(user_repo_root):
+        print(msg)
+    for msg in merge_project_config(user_repo_root, br_pre_commit_repo_root):
         print(msg)
     return 0
 
