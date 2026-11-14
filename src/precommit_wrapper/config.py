@@ -70,6 +70,11 @@ def __dir__() -> list[str]:
 
 class PreCommitHook(TypedDict, total=False):
     id: str
+    name: str
+    language: str
+    entry: str
+    pass_filenames: bool
+    files: str
     stages: list[str]
 
 

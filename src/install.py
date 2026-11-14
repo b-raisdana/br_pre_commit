@@ -7,6 +7,7 @@ import importlib.util
 import os
 import stat
 import sys
+import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -157,6 +158,30 @@ def _get_or_create_hooks(local_repo: PreCommitRepo) -> list[PreCommitHook]:
     return hooks
 
 
+def _ratchet_hook_definition(user_repo_root: Path, br_pre_commit_repo_root: Path) -> PreCommitHook:
+    """Build a complete consumer hook from this br_pre_commit checkout's defaults."""
+    pyproject_path = br_pre_commit_repo_root / "pyproject.toml"
+    pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    tool_config = pyproject.get("tool", {}).get("br_pre_commit", {})
+    hook_config = tool_config.get("ratchet-hook", {})
+    wrapper_config = tool_config.get("wrapper", {})
+    package_prefix = get_br_pre_commit_package_prefix(user_repo_root, br_pre_commit_repo_root)
+
+    entry = hook_config.get("entry", "python -m src.ratchet")
+    if entry == "python -m src.ratchet":
+        entry = f"python -m {package_prefix}.ratchet"
+
+    return {
+        "id": tool_config.get("ratchet-hook-id", "incremental-ratchet"),
+        "name": hook_config.get("name", "incremental ratchet"),
+        "language": hook_config.get("language", "system"),
+        "entry": entry,
+        "pass_filenames": hook_config.get("pass-filenames", False),
+        "files": hook_config.get("files", r"^src/.*\.py$"),
+        "stages": [wrapper_config.get("pre_commit_stage", "pre-commit")],
+    }
+
+
 def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) -> list[str]:
     """Merge recognized br_pre_commit hooks into the project's .pre-commit-config.yaml.
 
@@ -184,12 +209,20 @@ def merge_project_config(user_repo_root: Path, br_pre_commit_repo_root: Path) ->
     local_repo = _get_or_create_local_repo(config)
     hooks = _get_or_create_hooks(local_repo)
 
-    existing_ids = {h.get("id") for h in hooks if isinstance(h, dict)}
-    if "incremental-ratchet" not in existing_ids:
-        from .config import br_pre_commit_config
-
-        hooks.append({"id": br_pre_commit_config.ratchet_hook_id})
+    hook_definition = _ratchet_hook_definition(user_repo_root, br_pre_commit_repo_root)
+    hook_id = hook_definition["id"]
+    existing_hook = next(
+        (hook for hook in hooks if isinstance(hook, dict) and hook.get("id") == hook_id),
+        None,
+    )
+    if existing_hook is None:
+        hooks.append(hook_definition)
         messages.append(f"Added 'incremental-ratchet' hook to {config_path.name}")
+    else:
+        missing_fields = {key: value for key, value in hook_definition.items() if key not in existing_hook}
+        if missing_fields:
+            existing_hook.update(missing_fields)
+            messages.append(f"Completed 'incremental-ratchet' hook in {config_path.name}")
 
     config_path.write_text(
         yaml.dump(config, default_flow_style=False, sort_keys=False),
